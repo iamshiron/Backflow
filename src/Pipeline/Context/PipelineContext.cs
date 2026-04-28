@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
+
 namespace Shiron.Lib.Pipeline.Context;
 
 public class PipelineContext : IPipelineContext {
-    private readonly Dictionary<Guid, object> _memory = [];
+    private readonly ConcurrentDictionary<Guid, object> _memory = [];
 
     public void Write(PipelineBuilder.NodeInstance instance, Port port, object value) {
         var connectionId = instance.Mappings[port];

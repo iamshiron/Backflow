@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 
 var registry = new NodeRegistry();
@@ -37,5 +39,16 @@ Console.WriteLine($"Port 1: {context.Read(addInstance, addNode.Number1)}");
 Console.WriteLine($"Port 2: {context.Read(addInstance, addNode.Number2)}");
 Console.WriteLine($"Port 3: {context.Read(subtractInstance, subtractNode.Number1)}");
 
-var executor = new PipelineExecutor(builder.Build());
+var pipeline = builder.Build();
+var executor = new PipelineExecutor(pipeline);
 executor.Execute(context);
+
+var json = pipeline.Serialize(new JsonSerializerOptions());
+var pipeline2 = PipelineSerialization.DeserializePipeline(json, registry, new JsonSerializerOptions());
+var executor2 = new PipelineExecutor(pipeline2);
+
+IPipelineContext context2 = new PipelineContext();
+context2.Write(addInstance, addNode.Number1, 19);
+context2.Write(addInstance, addNode.Number2, 95);
+context2.Write(subtractInstance, subtractNode.Number1, 100);
+executor2.Execute(context2);

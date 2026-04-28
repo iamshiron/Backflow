@@ -18,4 +18,11 @@ public class NodeRegistry {
     public AbstractNode? Get<T>() where T : AbstractNode {
         return Get(typeof(T));
     }
+    public AbstractNode? GetByFullName(string fullName) {
+        foreach (var kvp in _nodes) {
+            if (kvp.Key.FullName == fullName)
+                return kvp.Value;
+        }
+        return null;
+    }
 }

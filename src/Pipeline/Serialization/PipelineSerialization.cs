@@ -1,0 +1,76 @@
+using System.Text.Json;
+using Shiron.Lib.Collections;
+
+namespace Shiron.Lib.Pipeline.Serialization;
+
+public static class PipelineSerialization {
+    public static PipelineDto ToDto(this Pipeline pipeline) {
+        var nodes = pipeline.Topology.Nodes.Select(n => new NodeInstanceDto(
+            n.ID,
+            n.Node.GetType().FullName!,
+            n.Mappings.ToDictionary(kvp => kvp.Key.Name, kvp => kvp.Value)
+        )).ToArray();
+
+        var edges = pipeline.Edges.Select(e => new EdgeDto(
+            e.SourceNode.ID,
+            e.SourcePort.Name,
+            e.DestinationNode.ID,
+            e.DestinationPort.Name
+        )).ToArray();
+
+        return new PipelineDto(nodes, edges);
+    }
+
+    public static Pipeline FromDto(this PipelineDto dto, NodeRegistry registry) {
+        var nodeInstances = new Dictionary<Guid, PipelineBuilder.NodeInstance>();
+
+        foreach (var nodeDto in dto.Nodes) {
+            var node = registry.GetByFullName(nodeDto.NodeTypeName)
+                ?? throw new InvalidOperationException($"Node type not registered in registry: {nodeDto.NodeTypeName}");
+
+            var mappings = new Dictionary<Port, Guid>();
+            foreach (var (portName, mappingId) in nodeDto.PortMappings) {
+                var port = node.Ports.FirstOrDefault(p => p.Name == portName)
+                    ?? throw new InvalidOperationException($"Port '{portName}' not found on node type {nodeDto.NodeTypeName}");
+
+                mappings[port] = mappingId;
+            }
+
+            nodeInstances[nodeDto.Id] = new PipelineBuilder.NodeInstance(nodeDto.Id, node, mappings);
+        }
+
+        var graph = new DirectedAcyclicGraph<PipelineBuilder.NodeInstance>();
+        foreach (var instance in nodeInstances.Values)
+            graph.AddNode(instance);
+
+        var edges = new PipelineBuilder.EdgeInstance[dto.Edges.Length];
+        for (var i = 0; i < dto.Edges.Length; i++) {
+            var edgeDto = dto.Edges[i];
+
+            var source = nodeInstances[edgeDto.SourceNodeId];
+            var dest = nodeInstances[edgeDto.DestinationNodeId];
+
+            var sourcePort = source.Node.Ports.FirstOrDefault(p => p.Name == edgeDto.SourcePortName)
+                ?? throw new InvalidOperationException($"Source port '{edgeDto.SourcePortName}' not found on node {edgeDto.SourceNodeId}");
+
+            var destPort = dest.Node.Ports.FirstOrDefault(p => p.Name == edgeDto.DestinationPortName)
+                ?? throw new InvalidOperationException($"Destination port '{edgeDto.DestinationPortName}' not found on node {edgeDto.DestinationNodeId}");
+
+            graph.AddEdge(source, dest);
+            edges[i] = new PipelineBuilder.EdgeInstance(source, sourcePort, dest, destPort);
+        }
+
+        return new Pipeline(graph, edges);
+    }
+
+    public static string Serialize(this Pipeline pipeline, JsonSerializerOptions? options = null) {
+        return JsonSerializer.Serialize(pipeline.ToDto(), options);
+    }
+
+    public static Pipeline DeserializePipeline(string json, NodeRegistry registry, JsonSerializerOptions? options = null) {
+        var dto = JsonSerializer.Deserialize<PipelineDto>(json, options)
+            ?? throw new InvalidOperationException("Failed to deserialize pipeline JSON.");
+
+        return dto.FromDto(registry);
+    }
+}

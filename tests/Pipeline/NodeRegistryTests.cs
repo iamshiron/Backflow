@@ -77,4 +77,39 @@ public class NodeRegistryTests {
         Assert.Same(subNode, registry.Get<SubtractNode>());
         Assert.Same(mulNode, registry.Get<MultiplyNode>());
     }
+
+    [Fact]
+    public void GetByFullName_ReturnsCorrectNode() {
+        var registry = new NodeRegistry();
+        var addNode = registry.Register<AddNode>();
+
+        var result = registry.GetByFullName(typeof(AddNode).FullName!);
+
+        Assert.Same(addNode, result);
+    }
+
+    [Fact]
+    public void GetByFullName_UnregisteredType_ReturnsNull() {
+        var registry = new NodeRegistry();
+
+        Assert.Null(registry.GetByFullName(typeof(AddNode).FullName!));
+    }
+
+    [Fact]
+    public void GetByFullName_MultipleTypes_ReturnsCorrectNode() {
+        var registry = new NodeRegistry();
+        var addNode = registry.Register<AddNode>();
+        var subNode = registry.Register<SubtractNode>();
+
+        Assert.Same(addNode, registry.GetByFullName(typeof(AddNode).FullName!));
+        Assert.Same(subNode, registry.GetByFullName(typeof(SubtractNode).FullName!));
+    }
+
+    [Fact]
+    public void GetByFullName_UsesFullNameNotName() {
+        var registry = new NodeRegistry();
+        registry.Register<AddNode>();
+
+        Assert.Null(registry.GetByFullName(nameof(AddNode)));
+    }
 }

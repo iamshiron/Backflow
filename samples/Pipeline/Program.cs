@@ -42,13 +42,3 @@ Console.WriteLine($"Port 3: {context.Read(subtractInstance, subtractNode.Number1
 var pipeline = builder.Build();
 var executor = new PipelineExecutor(pipeline);
 executor.Execute(context);
-
-var json = pipeline.Serialize(new JsonSerializerOptions());
-var pipeline2 = PipelineSerialization.DeserializePipeline(json, registry, new JsonSerializerOptions());
-var executor2 = new PipelineExecutor(pipeline2);
-
-IPipelineContext context2 = new PipelineContext();
-context2.Write(addInstance, addNode.Number1, 19);
-context2.Write(addInstance, addNode.Number2, 95);
-context2.Write(subtractInstance, subtractNode.Number1, 100);
-executor2.Execute(context2);

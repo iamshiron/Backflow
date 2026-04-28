@@ -15,8 +15,8 @@ public class NodeRegistry {
     public AbstractNode? Get(Type type) {
         return _nodes.GetValueOrDefault(type);
     }
-    public AbstractNode? Get<T>() where T : AbstractNode {
-        return Get(typeof(T));
+    public T? Get<T>() where T : AbstractNode {
+        return (T?) Get(typeof(T));
     }
     public AbstractNode? GetByFullName(string fullName) {
         foreach (var kvp in _nodes) {

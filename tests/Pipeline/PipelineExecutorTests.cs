@@ -1,5 +1,6 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Exceptions;
 using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline;
@@ -276,5 +277,44 @@ public class PipelineExecutorTests {
 
         Assert.Equal(19 + 95, context.Read(addInst, addNode.Sum));
         Assert.Equal(100 - (19 + 95), context.Read(subtractInst, subtractNode.Diff));
+    }
+
+    [Fact]
+    public void Execute_NodeReturnsFalse_ThrowsNodeExecutionException() {
+        var builder = new PipelineBuilder(new NodeRegistry());
+        var node = new FailingNode();
+        var inst = builder.AddNode(node);
+
+        var executor = new PipelineExecutor(builder.Build());
+
+        var ex = Assert.Throws<NodeExecutionException>(() => executor.Execute(new PipelineContext()));
+        Assert.Equal(inst, ex.NodeInstance);
+        Assert.Null(ex.InnerException);
+    }
+
+    [Fact]
+    public void Execute_NodeThrows_ThrowsNodeExecutionExceptionWithInner() {
+        var builder = new PipelineBuilder(new NodeRegistry());
+        var node = new FailingNode { ShouldThrow = true };
+        var inst = builder.AddNode(node);
+
+        var executor = new PipelineExecutor(builder.Build());
+
+        var ex = Assert.Throws<NodeExecutionException>(() => executor.Execute(new PipelineContext()));
+        Assert.Equal(inst, ex.NodeInstance);
+        Assert.NotNull(ex.InnerException);
+        Assert.IsType<InvalidOperationException>(ex.InnerException);
+    }
+
+    [Fact]
+    public void Execute_NodeExecutionException_ContainsNodeInfo() {
+        var builder = new PipelineBuilder(new NodeRegistry());
+        var node = new FailingNode();
+        builder.AddNode(node);
+
+        var executor = new PipelineExecutor(builder.Build());
+
+        var ex = Assert.Throws<NodeExecutionException>(() => executor.Execute(new PipelineContext()));
+        Assert.Contains(nameof(FailingNode), ex.Message);
     }
 }

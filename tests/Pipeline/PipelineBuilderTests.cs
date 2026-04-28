@@ -1,11 +1,14 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Exceptions;
 using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline;
 
 public class PipelineBuilderTests {
-    private PipelineBuilder CreateBuilder() => new(new NodeRegistry());
+    private PipelineBuilder CreateBuilder() {
+        return new PipelineBuilder(new NodeRegistry());
+    }
 
     [Fact]
     public void AddNode_ReturnsUniqueInstances() {
@@ -123,7 +126,7 @@ public class PipelineBuilderTests {
 
         builder.AddConnection(addInst, addNode.Sum, subInst, subNode.Number2);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<PipelineCycleException>(() =>
             builder.AddConnection(subInst, subNode.Diff, addInst, addNode.Number1)
         );
     }
@@ -142,7 +145,7 @@ public class PipelineBuilderTests {
         builder.AddConnection(inst1, node1.Out, inst2, node2.In);
         builder.AddConnection(inst2, node2.Out, inst3, node3.In);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<PipelineCycleException>(() =>
             builder.AddConnection(inst3, node3.Out, inst1, node1.In)
         );
     }
@@ -153,7 +156,7 @@ public class PipelineBuilderTests {
         var node = new PassThroughNode();
         var inst = builder.AddNode(node);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<PipelineCycleException>(() =>
             builder.AddConnection(inst, node.Out, inst, node.In)
         );
     }
@@ -235,5 +238,87 @@ public class PipelineBuilderTests {
 
         Assert.Equal(addInst.Mappings[addNode.Sum], subInst.Mappings[subNode.Number1]);
         Assert.Equal(subInst.Mappings[subNode.Diff], mulInst.Mappings[mulNode.Number1]);
+    }
+
+    [Fact]
+    public void AddConnection_SourcePortFromWrongNode_ThrowsInvalidPortException() {
+        var builder = CreateBuilder();
+        var addNode = new AddNode();
+        var subNode = new SubtractNode();
+
+        var addInst = builder.AddNode(addNode);
+        var subInst = builder.AddNode(subNode);
+
+        var ex = Assert.Throws<InvalidPortException>(() =>
+            builder.AddConnection(addInst, subNode.Number1, subInst, subNode.Number2)
+        );
+        Assert.Equal(subNode.Number1, ex.Port);
+        Assert.Equal(addNode.GetType(), ex.ExpectedNodeType);
+    }
+
+    [Fact]
+    public void AddConnection_DestinationPortFromWrongNode_ThrowsInvalidPortException() {
+        var builder = CreateBuilder();
+        var addNode = new AddNode();
+        var subNode = new SubtractNode();
+
+        var addInst = builder.AddNode(addNode);
+        var subInst = builder.AddNode(subNode);
+
+        var ex = Assert.Throws<InvalidPortException>(() =>
+            builder.AddConnection(addInst, addNode.Sum, subInst, addNode.Number1)
+        );
+        Assert.Equal(addNode.Number1, ex.Port);
+        Assert.Equal(subNode.GetType(), ex.ExpectedNodeType);
+    }
+
+    [Fact]
+    public void AddConnection_PortFromUnrelatedNode_ThrowsInvalidPortException() {
+        var builder = CreateBuilder();
+        var addNode = new AddNode();
+        var subNode = new SubtractNode();
+        var mulNode = new MultiplyNode();
+
+        var addInst = builder.AddNode(addNode);
+        var subInst = builder.AddNode(subNode);
+
+        var ex = Assert.Throws<InvalidPortException>(() =>
+            builder.AddConnection(addInst, mulNode.Product, subInst, subNode.Number2)
+        );
+        Assert.Equal(mulNode.Product, ex.Port);
+        Assert.Equal(addNode.GetType(), ex.ExpectedNodeType);
+    }
+
+    [Fact]
+    public void AddConnection_CycleException_ContainsSourceAndDestination() {
+        var builder = CreateBuilder();
+        var addNode = new AddNode();
+        var subNode = new SubtractNode();
+
+        var addInst = builder.AddNode(addNode);
+        var subInst = builder.AddNode(subNode);
+
+        builder.AddConnection(addInst, addNode.Sum, subInst, subNode.Number2);
+
+        var ex = Assert.Throws<PipelineCycleException>(() =>
+            builder.AddConnection(subInst, subNode.Diff, addInst, addNode.Number1)
+        );
+        Assert.Equal(subInst, ex.SourceNode);
+        Assert.Equal(addInst, ex.DestinationNode);
+    }
+
+    [Fact]
+    public void AddConnection_InvalidPort_DoesNotAddEdge() {
+        var builder = CreateBuilder();
+        var addNode = new AddNode();
+        var subNode = new SubtractNode();
+
+        var addInst = builder.AddNode(addNode);
+        var subInst = builder.AddNode(subNode);
+
+        try { builder.AddConnection(addInst, subNode.Number1, subInst, subNode.Number2); } catch { }
+
+        var pipeline = builder.Build();
+        Assert.Empty(pipeline.Edges);
     }
 }

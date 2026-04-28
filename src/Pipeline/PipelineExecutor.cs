@@ -1,4 +1,5 @@
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Exceptions;
 
 namespace Shiron.Lib.Pipeline;
 
@@ -10,8 +11,14 @@ public class PipelineExecutor(Pipeline pipeline) {
             foreach (var node in layer) {
                 var context = new NodeContext(global, node.Mappings);
 
-                Console.WriteLine($"Executing node {node.Node.GetType().Name} ({node.ID})...");
-                node.Node.Execute(context);
+                bool success;
+                try {
+                    success = node.Node.Execute(context).GetAwaiter().GetResult();
+                } catch (Exception ex) {
+                    throw new NodeExecutionException(node, ex);
+                }
+
+                if (!success) throw new NodeExecutionException(node);
             }
         }
     }

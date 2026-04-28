@@ -1,4 +1,5 @@
 using Shiron.Lib.Collections;
+using Shiron.Lib.Pipeline.Exceptions;
 
 namespace Shiron.Lib.Pipeline;
 
@@ -20,10 +21,19 @@ public class PipelineBuilder(NodeRegistry registry) {
     }
 
     public void AddConnection(NodeInstance source, Port sourcePort, NodeInstance destination, Port destinationPort) {
-        _graph.AddEdge(source, destination);
-        _edges.Add(new EdgeInstance(source, sourcePort, destination, destinationPort));
+        if (!source.Node.Ports.Contains(sourcePort))
+            throw new InvalidPortException(sourcePort, source.Node.GetType());
 
-        Console.WriteLine($"Mapping {destination.Node.GetType().Name}({destinationPort}) = {source.Node.GetType().Name}({sourcePort})...");
+        if (!destination.Node.Ports.Contains(destinationPort))
+            throw new InvalidPortException(destinationPort, destination.Node.GetType());
+
+        try {
+            _graph.AddEdge(source, destination);
+        } catch (InvalidOperationException) {
+            throw new PipelineCycleException(source, destination);
+        }
+
+        _edges.Add(new EdgeInstance(source, sourcePort, destination, destinationPort));
         destination.Mappings[destinationPort] = source.Mappings[sourcePort];
     }
 

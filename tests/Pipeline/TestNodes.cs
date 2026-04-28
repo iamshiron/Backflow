@@ -117,3 +117,17 @@ public class PrintNode : AbstractNode {
         return ValueTask.FromResult(true);
     }
 }
+
+public class FailingNode : AbstractNode {
+    public new Port Input { get; }
+    public bool ShouldThrow { get; set; }
+
+    public FailingNode() {
+        Input = Input(nameof(Input));
+    }
+
+    public override ValueTask<bool> Execute(INodeContext context) {
+        if (ShouldThrow) throw new InvalidOperationException("Node intentionally failed.");
+        return ValueTask.FromResult(false);
+    }
+}

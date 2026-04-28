@@ -22,4 +22,25 @@ public class PipelineExecutor(Pipeline pipeline) {
             }
         }
     }
+
+    public async Task ExecuteAsync(IPipelineContext global) {
+        foreach (var layer in Layers) {
+            List<Task> tasks = [];
+            foreach (var node in layer) {
+                tasks.Add(Task.Run(async () => {
+                    var context = new NodeContext(global, node.Mappings);
+
+                    bool success;
+                    try {
+                        success = await node.Node.Execute(context);
+                    } catch (Exception ex) {
+                        throw new NodeExecutionException(node, ex);
+                    }
+
+                    if (!success) throw new NodeExecutionException(node);
+                }));
+            }
+            await Task.WhenAll(tasks);
+        }
+    }
 }

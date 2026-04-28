@@ -41,4 +41,10 @@ Console.WriteLine($"Port 3: {context.Read(subtractInstance, subtractNode.Number1
 
 var pipeline = builder.Build();
 var executor = new PipelineExecutor(pipeline);
-executor.Execute(context);
+
+Console.WriteLine($"Executing {executor.Layers.Length} layers");
+for (var i = 0; i < executor.Layers.Length; ++i) {
+    Console.WriteLine($"Layer {i}: {executor.Layers[i].Length} - {string.Join(", ", executor.Layers[i].Select(n => n.Node.GetType().FullName))}");
+}
+
+await executor.ExecuteAsync(context);

@@ -7,7 +7,7 @@ public class PrintNode : AbstractNode {
     public Port Message { get; }
 
     public PrintNode() {
-        Message = Input();
+        Message = Input(nameof(Message));
     }
 
     public override ValueTask<bool> Execute(INodeContext context) {

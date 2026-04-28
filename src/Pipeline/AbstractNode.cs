@@ -9,13 +9,13 @@ public abstract class AbstractNode {
 
     public abstract ValueTask<bool> Execute(INodeContext context);
 
-    protected Port Input() {
-        var port = new Port();
+    protected Port Input(string name) {
+        var port = new Port(name);
         Inputs.Add(port);
         return port;
     }
-    protected Port Output() {
-        var port = new Port();
+    protected Port Output(string name) {
+        var port = new Port(name);
         Outputs.Add(port);
         return port;
     }

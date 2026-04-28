@@ -24,7 +24,7 @@ public class PipelineBuilder(NodeRegistry registry) {
         _edges.Add(new EdgeInstance(source, sourcePort, destination, destinationPort));
 
         Console.WriteLine($"Mapping {destination.Node.GetType().Name}({destinationPort}) = {source.Node.GetType().Name}({sourcePort})...");
-        source.Mappings[sourcePort] = destination.Mappings[destinationPort];
+        destination.Mappings[destinationPort] = source.Mappings[sourcePort];
     }
 
     public Pipeline Build() {

@@ -3,7 +3,10 @@ using Shiron.Lib.Collections;
 
 namespace Shiron.Lib.Pipeline.Serialization;
 
+/// <summary>JSON serialization/deserialization extensions for <see cref="Pipeline"/>.</summary>
 public static class PipelineSerialization {
+    /// <summary>Convert a <see cref="Pipeline"/> to its DTO representation.</summary>
+    /// <param name="pipeline">Pipeline to convert.</param>
     public static PipelineDto ToDto(this Pipeline pipeline) {
         var nodes = pipeline.Topology.Nodes.Select(n => new NodeInstanceDto(
             n.ID,
@@ -21,6 +24,9 @@ public static class PipelineSerialization {
         return new PipelineDto(nodes, edges);
     }
 
+    /// <summary>Reconstruct a <see cref="Pipeline"/> from its DTO. Requires a populated <paramref name="registry"/>.</summary>
+    /// <param name="dto">DTO to reconstruct from.</param>
+    /// <param name="registry">Registry containing all node types referenced in the DTO.</param>
     public static Pipeline FromDto(this PipelineDto dto, NodeRegistry registry) {
         var nodeInstances = new Dictionary<Guid, PipelineBuilder.NodeInstance>();
 
@@ -63,10 +69,17 @@ public static class PipelineSerialization {
         return new Pipeline(graph, edges);
     }
 
+    /// <summary>Serialize a <see cref="Pipeline"/> to JSON.</summary>
+    /// <param name="pipeline">Pipeline to serialize.</param>
+    /// <param name="options">Optional JSON serializer options.</param>
     public static string Serialize(this Pipeline pipeline, JsonSerializerOptions? options = null) {
         return JsonSerializer.Serialize(pipeline.ToDto(), options);
     }
 
+    /// <summary>Deserialize a <see cref="Pipeline"/> from JSON. Requires a populated <paramref name="registry"/>.</summary>
+    /// <param name="json">JSON string produced by <see cref="Serialize"/>.</param>
+    /// <param name="registry">Registry containing all node types referenced in the JSON.</param>
+    /// <param name="options">Optional JSON serializer options.</param>
     public static Pipeline DeserializePipeline(string json, NodeRegistry registry, JsonSerializerOptions? options = null) {
         var dto = JsonSerializer.Deserialize<PipelineDto>(json, options)
             ?? throw new InvalidOperationException("Failed to deserialize pipeline JSON.");

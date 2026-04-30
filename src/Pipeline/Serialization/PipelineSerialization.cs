@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Shiron.Lib.Collections;
+using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Serialization;
 
@@ -34,7 +35,7 @@ public static class PipelineSerialization {
             var node = registry.GetByFullName(nodeDto.NodeTypeName)
                 ?? throw new InvalidOperationException($"Node type not registered in registry: {nodeDto.NodeTypeName}");
 
-            var mappings = new Dictionary<Port.Port, Guid>();
+            var mappings = new Dictionary<IPort, Guid>();
             foreach (var (portName, mappingId) in nodeDto.PortMappings) {
                 var port = node.Ports.FirstOrDefault(p => p.Name == portName)
                     ?? throw new InvalidOperationException($"Port '{portName}' not found on node type {nodeDto.NodeTypeName}");

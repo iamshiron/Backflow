@@ -1,22 +1,32 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Port;
+using Shiron.Lib.Pipeline.Port.Numeric;
 
 namespace Shiron.Lib.Samples.Pipeline.Nodes;
 
 public class AddNode : AbstractNode {
-    public Port Number1 { get; }
-    public Port Number2 { get; }
-    public Port Sum { get; }
+    public IInputPort<int> Number1 { get; }
+    public IInputPort<int> Number2 { get; }
+    public IOutputPort<int> Sum { get; }
 
     public AddNode() {
-        Number1 = Input(nameof(Number1));
-        Number2 = Input(nameof(Number2));
-        Sum = Output(nameof(Sum));
+        Number1 = Input(
+            new NumericPortBuilder<int>(nameof(Number1))
+                .Input()
+        );
+        Number2 = Input(
+            new NumericPortBuilder<int>(nameof(Number2))
+                .Input()
+        );
+        Sum = Output(
+            new NumericPortBuilder<int>(nameof(Sum))
+                .Output()
+        );
     }
 
     public override ValueTask<bool> Execute(INodeContext context) {
-        Sum.Write(context, Number1.Read<int>(context) + Number2.Read<int>(context));
+        Sum.Write(context, Number1.Read(context) + Number2.Read(context));
         return ValueTask.FromResult(true);
     }
 }

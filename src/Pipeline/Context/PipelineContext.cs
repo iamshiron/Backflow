@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Context;
 
@@ -10,12 +11,12 @@ public class PipelineContext : IPipelineContext {
     private readonly ConcurrentDictionary<Guid, object> _memory = [];
 
     /// <inheritdoc/>
-    public void Write(PipelineBuilder.NodeInstance instance, Port.Port port, object value) {
+    public void Write<T>(PipelineBuilder.NodeInstance instance, IPort port, object value) {
         var connectionId = instance.Mappings[port];
         _memory[connectionId] = value;
     }
     /// <inheritdoc/>
-    public object Read(PipelineBuilder.NodeInstance node, Port.Port port) {
+    public object Read<T>(PipelineBuilder.NodeInstance node, IPort port) {
         var connectionId = node.Mappings[port];
         return _memory[connectionId];
     }

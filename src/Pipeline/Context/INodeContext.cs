@@ -1,3 +1,5 @@
+using Shiron.Lib.Pipeline.Port;
+
 namespace Shiron.Lib.Pipeline.Context;
 
 /// <summary>
@@ -8,9 +10,9 @@ public interface INodeContext {
     /// <summary>Write a value to the channel backing <paramref name="port"/>.</summary>
     /// <param name="port">Target port.</param>
     /// <param name="value">Value to write.</param>
-    void Write(Port.Port port, object value);
+    void Write(IPort port, object? value);
 
     /// <summary>Read the current value from the channel backing <paramref name="port"/>.</summary>
     /// <param name="port">Source port.</param>
-    object? Read(Port.Port port);
+    object? Read(IPort port);
 }

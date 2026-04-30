@@ -10,4 +10,8 @@
         <ProjectReference Include="..\Collections\Shiron.Lib.Collections.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <Folder Include="Port\Builder\"/>
+    </ItemGroup>
+
 </Project>

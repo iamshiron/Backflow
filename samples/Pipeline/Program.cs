@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 
@@ -31,13 +32,13 @@ builder.AddConnection(
 );
 
 IPipelineContext context = new PipelineContext();
-context.Write(addInstance, addNode.Number1, 19);
-context.Write(addInstance, addNode.Number2, 95);
-context.Write(subtractInstance, subtractNode.Number1, 100);
+context.Write<int>(addInstance, addNode.Number1, 19);
+context.Write<int>(addInstance, addNode.Number2, 95);
+context.Write<int>(subtractInstance, subtractNode.Number1, 100);
 
-Console.WriteLine($"Port 1: {context.Read(addInstance, addNode.Number1)}");
-Console.WriteLine($"Port 2: {context.Read(addInstance, addNode.Number2)}");
-Console.WriteLine($"Port 3: {context.Read(subtractInstance, subtractNode.Number1)}");
+Console.WriteLine($"Port 1: {context.Read<int>(addInstance, addNode.Number1)}");
+Console.WriteLine($"Port 2: {context.Read<int>(addInstance, addNode.Number2)}");
+Console.WriteLine($"Port 3: {context.Read<int>(subtractInstance, subtractNode.Number1)}");
 
 var pipeline = builder.Build();
 var executor = new PipelineExecutor(pipeline);

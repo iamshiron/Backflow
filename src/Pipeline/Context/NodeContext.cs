@@ -1,3 +1,5 @@
+using Shiron.Lib.Pipeline.Port;
+
 namespace Shiron.Lib.Pipeline.Context;
 
 /// <summary>
@@ -6,13 +8,13 @@ namespace Shiron.Lib.Pipeline.Context;
 /// </summary>
 /// <param name="context">Global pipeline context to delegate reads/writes to.</param>
 /// <param name="mappings">Port-to-channel-GUID mapping for this node.</param>
-public class NodeContext(IPipelineContext context, IReadOnlyDictionary<Port.Port, Guid> mappings) : INodeContext {
+public class NodeContext(IPipelineContext context, IReadOnlyDictionary<IPort, Guid> mappings) : INodeContext {
     /// <inheritdoc/>
-    public void Write(Port.Port port, object value) {
+    public void Write(IPort port, object value) {
         context.Write(mappings[port], value);
     }
     /// <inheritdoc/>
-    public object? Read(Port.Port port) {
+    public object? Read(IPort port) {
         return context.Read(mappings[port]);
     }
 }

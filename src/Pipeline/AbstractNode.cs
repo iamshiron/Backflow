@@ -1,4 +1,5 @@
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline;
 
@@ -6,35 +7,22 @@ namespace Shiron.Lib.Pipeline;
 /// Base class for pipeline nodes. Declare ports in the constructor via <see cref="Input"/> and <see cref="Output"/>.
 /// </summary>
 public abstract class AbstractNode {
-    /// <summary>Input ports declared by this node.</summary>
-    public readonly List<Port.Port> Inputs = [];
-
-    /// <summary>Output ports declared by this node.</summary>
-    public readonly List<Port.Port> Outputs = [];
-
-    /// <summary>All ports (inputs + outputs).</summary>
-    public IEnumerable<Port.Port> Ports => Inputs.Concat(Outputs);
-
     /// <summary>
     /// Execute the node's logic. Read from input ports, write to output ports via <paramref name="context"/>.
     /// </summary>
     /// <param name="context">Per-node context for reading/writing port data.</param>
     /// <returns><c>true</c> on success, <c>false</c> to signal failure.</returns>
     public abstract ValueTask<bool> Execute(INodeContext context);
+    public List<Port.Port> Ports => Inputs.Concat(Outputs).ToList();
+    public List<Port.Port> Inputs { get; } = [];
+    public List<Port.Port> Outputs { get; } = [];
 
-    /// <summary>Declare an input port. Call in the constructor.</summary>
-    /// <param name="name">Unique name for this port within the node.</param>
-    protected Port.Port Input(string name) {
-        var port = new Port.Port(name);
-        Inputs.Add(port);
+    protected IInputPort<T> Input<T>(IInputPort<T> port) {
+        Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
-
-    /// <summary>Declare an output port. Call in the constructor.</summary>
-    /// <param name="name">Unique name for this port within the node.</param>
-    protected Port.Port Output(string name) {
-        var port = new Port.Port(name);
-        Outputs.Add(port);
+    protected IOutputPort<T> Output<T>(IOutputPort<T> port) {
+        Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
 }

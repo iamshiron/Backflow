@@ -1,6 +1,7 @@
 using BenchmarkDotNet.Attributes;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Benchmarks.Pipeline;
 

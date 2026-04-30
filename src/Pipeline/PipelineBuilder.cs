@@ -10,10 +10,10 @@ namespace Shiron.Lib.Pipeline;
 /// <param name="registry">Node registry used for type lookups during deserialization.</param>
 public class PipelineBuilder(NodeRegistry registry) {
     /// <summary>A node instance within the pipeline, holding port-to-channel mappings.</summary>
-    public readonly record struct NodeInstance(Guid ID, AbstractNode Node, Dictionary<Port, Guid> Mappings);
+    public readonly record struct NodeInstance(Guid ID, AbstractNode Node, Dictionary<Port.Port, Guid> Mappings);
 
     /// <summary>A directed edge between two node ports.</summary>
-    public readonly record struct EdgeInstance(NodeInstance SourceNode, Port SourcePort, NodeInstance DestinationNode, Port DestinationPort);
+    public readonly record struct EdgeInstance(NodeInstance SourceNode, Port.Port SourcePort, NodeInstance DestinationNode, Port.Port DestinationPort);
 
     private readonly DirectedAcyclicGraph<NodeInstance> _graph = new();
     private readonly List<EdgeInstance> _edges = [];
@@ -40,7 +40,7 @@ public class PipelineBuilder(NodeRegistry registry) {
     /// <param name="destinationPort">Input port on the destination node.</param>
     /// <exception cref="InvalidPortException">Port does not belong to the specified node.</exception>
     /// <exception cref="PipelineCycleException">Connection would introduce a cycle.</exception>
-    public void AddConnection(NodeInstance source, Port sourcePort, NodeInstance destination, Port destinationPort) {
+    public void AddConnection(NodeInstance source, Port.Port sourcePort, NodeInstance destination, Port.Port destinationPort) {
         if (!source.Node.Ports.Contains(sourcePort))
             throw new InvalidPortException(sourcePort, source.Node.GetType());
 

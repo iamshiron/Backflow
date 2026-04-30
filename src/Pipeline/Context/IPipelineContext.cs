@@ -9,12 +9,12 @@ public interface IPipelineContext {
     /// <param name="node">Node instance that owns the port.</param>
     /// <param name="port">Target port on the node.</param>
     /// <param name="value">Value to write.</param>
-    void Write(PipelineBuilder.NodeInstance node, Port port, object value);
+    void Write(PipelineBuilder.NodeInstance node, Port.Port port, object value);
 
     /// <summary>Read via node + port (resolves to the shared channel GUID).</summary>
     /// <param name="node">Node instance that owns the port.</param>
     /// <param name="port">Source port on the node.</param>
-    object Read(PipelineBuilder.NodeInstance node, Port port);
+    object Read(PipelineBuilder.NodeInstance node, Port.Port port);
 
     /// <summary>Write directly by channel GUID.</summary>
     /// <param name="id">Channel GUID.</param>

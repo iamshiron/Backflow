@@ -7,13 +7,13 @@ namespace Shiron.Lib.Pipeline;
 /// </summary>
 public abstract class AbstractNode {
     /// <summary>Input ports declared by this node.</summary>
-    public readonly List<Port> Inputs = [];
+    public readonly List<Port.Port> Inputs = [];
 
     /// <summary>Output ports declared by this node.</summary>
-    public readonly List<Port> Outputs = [];
+    public readonly List<Port.Port> Outputs = [];
 
     /// <summary>All ports (inputs + outputs).</summary>
-    public IEnumerable<Port> Ports => Inputs.Concat(Outputs);
+    public IEnumerable<Port.Port> Ports => Inputs.Concat(Outputs);
 
     /// <summary>
     /// Execute the node's logic. Read from input ports, write to output ports via <paramref name="context"/>.
@@ -24,16 +24,16 @@ public abstract class AbstractNode {
 
     /// <summary>Declare an input port. Call in the constructor.</summary>
     /// <param name="name">Unique name for this port within the node.</param>
-    protected Port Input(string name) {
-        var port = new Port(name);
+    protected Port.Port Input(string name) {
+        var port = new Port.Port(name);
         Inputs.Add(port);
         return port;
     }
 
     /// <summary>Declare an output port. Call in the constructor.</summary>
     /// <param name="name">Unique name for this port within the node.</param>
-    protected Port Output(string name) {
-        var port = new Port(name);
+    protected Port.Port Output(string name) {
+        var port = new Port.Port(name);
         Outputs.Add(port);
         return port;
     }

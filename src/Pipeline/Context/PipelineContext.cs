@@ -10,12 +10,12 @@ public class PipelineContext : IPipelineContext {
     private readonly ConcurrentDictionary<Guid, object> _memory = [];
 
     /// <inheritdoc/>
-    public void Write(PipelineBuilder.NodeInstance instance, Port port, object value) {
+    public void Write(PipelineBuilder.NodeInstance instance, Port.Port port, object value) {
         var connectionId = instance.Mappings[port];
         _memory[connectionId] = value;
     }
     /// <inheritdoc/>
-    public object Read(PipelineBuilder.NodeInstance node, Port port) {
+    public object Read(PipelineBuilder.NodeInstance node, Port.Port port) {
         var connectionId = node.Mappings[port];
         return _memory[connectionId];
     }

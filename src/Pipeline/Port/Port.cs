@@ -1,6 +1,6 @@
 using Shiron.Lib.Pipeline.Context;
 
-namespace Shiron.Lib.Pipeline;
+namespace Shiron.Lib.Pipeline.Port;
 
 /// <summary>
 /// A named data endpoint on a node. Connected ports share a GUID-mapped slot in the pipeline context.

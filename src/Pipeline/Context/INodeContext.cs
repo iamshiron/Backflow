@@ -8,9 +8,9 @@ public interface INodeContext {
     /// <summary>Write a value to the channel backing <paramref name="port"/>.</summary>
     /// <param name="port">Target port.</param>
     /// <param name="value">Value to write.</param>
-    void Write(Port port, object value);
+    void Write(Port.Port port, object value);
 
     /// <summary>Read the current value from the channel backing <paramref name="port"/>.</summary>
     /// <param name="port">Source port.</param>
-    object? Read(Port port);
+    object? Read(Port.Port port);
 }

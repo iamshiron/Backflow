@@ -38,7 +38,7 @@ public static class PipelineSerialization {
     /// <summary>Reconstruct a <see cref="Pipeline"/> from its DTO. Requires a populated <paramref name="registry"/>.</summary>
     /// <param name="dto">DTO to reconstruct from.</param>
     /// <param name="registry">Registry containing all node types referenced in the DTO.</param>
-    public static Pipeline FromDto(this PipelineDto dto, NodeRegistry registry) {
+    public static Pipeline FromPipelineDto(this PipelineDto dto, NodeRegistry registry) {
         var nodeInstances = new Dictionary<Guid, PipelineBuilder.NodeInstance>();
 
         foreach (var nodeDto in dto.Nodes) {
@@ -80,6 +80,21 @@ public static class PipelineSerialization {
         return new Pipeline(graph, edges);
     }
 
+    public static PipelineContext FromInputs(this PipelineDto dto) {
+        var context = new PipelineContext();
+        foreach (var (key, inputDto) in dto.Inputs) {
+            var type = Type.GetType(inputDto.Type)
+                ?? throw new InvalidOperationException($"Cannot resolve type: {inputDto.Type}");
+
+            var value = inputDto.Value is JsonElement je
+                ? je.Deserialize(type)
+                : inputDto.Value;
+
+            context.Store.Set(key, value, type);
+        }
+        return context;
+    }
+
     /// <summary>Serialize a <see cref="Pipeline"/> to JSON.</summary>
     /// <param name="pipeline">Pipeline to serialize.</param>
     /// <param name="options">Optional JSON serializer options.</param>
@@ -91,10 +106,10 @@ public static class PipelineSerialization {
     /// <param name="json">JSON string produced by <see cref="Serialize"/>.</param>
     /// <param name="registry">Registry containing all node types referenced in the JSON.</param>
     /// <param name="options">Optional JSON serializer options.</param>
-    public static Pipeline DeserializePipeline(string json, NodeRegistry registry, JsonSerializerOptions? options = null) {
+    public static (Pipeline pipeline, PipelineContext context) DeserializePipeline(string json, NodeRegistry registry, JsonSerializerOptions? options = null) {
         var dto = JsonSerializer.Deserialize<PipelineDto>(json, options)
             ?? throw new InvalidOperationException("Failed to deserialize pipeline JSON.");
 
-        return dto.FromDto(registry);
+        return (dto.FromPipelineDto(registry), dto.FromInputs());
     }
 }

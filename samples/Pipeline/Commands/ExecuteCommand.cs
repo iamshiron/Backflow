@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Shiron.Lib.Pipeline;
+using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Serialization;
 using Spectre.Console;
@@ -21,6 +22,7 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
     protected async override Task<int> ExecuteAsync(CommandContext cmdContext, Settings settings, CancellationToken cancellationToken) {
         try {
             var registry = new GlobalNodeRegistry();
+            var cache = new JsonFileNodeCache("./.output/cache.json");
 
             var pipeline =
                 PipelineSerialization.DeserializeDefinition(await File.ReadAllTextAsync(settings.File, cancellationToken), registry.Registry);
@@ -30,7 +32,8 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
                 : new PipelineContext();
 
             var executor = new PipelineExecutor(pipeline);
-            await executor.ExecuteAsync(context);
+            await executor.ExecuteAsync(context, cache);
+            await cache.FlushAsync(cancellationToken);
         } catch (Exception e) {
             AnsiConsole.WriteException(e);
         }

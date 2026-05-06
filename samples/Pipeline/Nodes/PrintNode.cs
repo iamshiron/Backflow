@@ -20,6 +20,8 @@ public class PrintNode : AbstractNode {
             new AnyPortBuilder(nameof(Message))
                 .Input()
         );
+
+        UseCache = false;
     }
 
     public override ValueTask<bool> Execute(INodeContext context) {

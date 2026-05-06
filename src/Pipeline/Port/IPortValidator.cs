@@ -1,5 +1,5 @@
 namespace Shiron.Lib.Pipeline.Port;
 
-public interface IPortValidator<T> {
+public interface IPortValidator<in T> {
     bool Validate(T? value);
 }

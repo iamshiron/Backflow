@@ -1,43 +1,29 @@
 using System.Numerics;
+using Shiron.Lib.Pipeline.Port.Base;
 using Shiron.Lib.Pipeline.Port.Validator;
 
 namespace Shiron.Lib.Pipeline.Port.Builder;
 
-public class NumericPortBuilder<T>(string name) : IPortBuilder<T> where T : INumber<T> {
-    public bool IsRequired { get; private set; } = true;
-    public bool NotNullable { get; private set; } = true;
-    public T? DefaultValue { get; private set; }
-    public T? MaxValue { get; private set; }
-    public T? MinValue { get; private set; }
+public class NumericPortBuilder<T>(string name) : BasePortBuilder<NumericPortBuilder<T>, T> where T : INumber<T> {
+    public T? MinValue { get; protected set; }
+    public T? MaxValue { get; protected set; }
 
-    public NumericPortBuilder<T> Optional(bool optional = true) {
-        IsRequired = !optional;
+    public NumericPortBuilder<T> Min(T? minValue) {
+        MinValue = minValue;
         return this;
     }
-    public NumericPortBuilder<T> Nullable(bool nullable = true) {
-        NotNullable = !nullable;
+    public NumericPortBuilder<T> Max(T? maxValue) {
+        MaxValue = maxValue;
         return this;
     }
-    public NumericPortBuilder<T> Default(T? value) {
-        DefaultValue = value;
-        return this;
-    }
-    public NumericPortBuilder<T> Max(T? value) {
-        MaxValue = value;
-        return this;
-    }
-    public NumericPortBuilder<T> Min(T? value) {
-        MinValue = value;
-        return this;
-    }
-    public NumericPortBuilder<T> Range(T? min, T? max) {
-        return Min(min).Max(max);
+    public NumericPortBuilder<T> Range(T? minValue, T? maxValue) {
+        return Min(minValue).Max(maxValue);
     }
 
-    public IInputPort<T> Input() {
+    protected override IInputPort<T> CreateInput() {
         return new InputPort<T>(name, new NumericPortValidator<T>(this));
     }
-    public IOutputPort<T> Output() {
+    protected override IOutputPort<T> CreateOutput() {
         return new OutputPort<T>(name);
     }
 }

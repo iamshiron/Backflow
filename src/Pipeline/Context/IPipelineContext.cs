@@ -11,19 +11,44 @@ public interface IPipelineContext {
     /// <param name="node">Node instance that owns the port.</param>
     /// <param name="port">Target port on the node.</param>
     /// <param name="value">Value to write.</param>
-    void Write<T>(PipelineBuilder.NodeInstance node, IPort port, object value);
+    void Write<T>(PipelineBuilder.NodeInstance node, IPort port, T? value);
 
-    /// <summary>Read via node + port (resolves to the shared channel GUID).</summary>
-    /// <param name="node">Node instance that owns the port.</param>
-    /// <param name="port">Source port on the node.</param>
-    object Read<T>(PipelineBuilder.NodeInstance node, IPort port);
+    /// <summary>
+    /// Write directly by channel GUID.
+    /// </summary>
+    void Write<T>(Guid id, T? value);
 
     /// <summary>Write directly by channel GUID.</summary>
     /// <param name="id">Channel GUID.</param>
     /// <param name="value">Value to write.</param>
-    void Write(Guid id, object value);
+    void Write(Guid id, object? value);
+
+    /// <summary>Read via node + port (resolves to the shared channel GUID).</summary>
+    /// <param name="node">Node instance that owns the port.</param>
+    /// <param name="port">Source port on the node.</param>
+    T? Read<T>(PipelineBuilder.NodeInstance node, IPort port);
+
+    /// <summary>
+    /// Read directly by channel GUID.
+    /// </summary>
+    T? Read<T>(Guid id);
 
     /// <summary>Read directly by channel GUID.</summary>
     /// <param name="id">Channel GUID.</param>
-    object Read(Guid id);
+    object? ReadAny(Guid id);
+
+    /// <summary>
+    /// Returns <c>true</c> if the port is bound to a value.
+    /// </summary>
+    bool Has<T>(PipelineBuilder.NodeInstance node, IPort port);
+
+    /// <summary>
+    /// Returns <c>true</c> if the port is bound to a value.
+    /// </summary>
+    bool Has<T>(Guid id);
+
+    /// <summary>
+    /// Returns <c>true</c> if the port is stored in any bucket.
+    /// </summary>
+    bool HasAny(Guid id);
 }

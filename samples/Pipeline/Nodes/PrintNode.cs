@@ -1,6 +1,7 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Port;
+using Shiron.Lib.Pipeline.Port.Any;
 using Shiron.Lib.Pipeline.Port.Numeric;
 
 namespace Shiron.Lib.Samples.Pipeline.Nodes;
@@ -16,7 +17,7 @@ public class PrintNode : AbstractNode {
     }
 
     public override ValueTask<bool> Execute(INodeContext context) {
-        Console.WriteLine($"Message: {Message.Read(context)}");
+        Console.WriteLine($"Message: {Message.ReadAny(context)}");
         return ValueTask.FromResult(true);
     }
 }

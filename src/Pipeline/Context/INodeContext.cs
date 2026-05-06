@@ -10,9 +10,28 @@ public interface INodeContext {
     /// <summary>Write a value to the channel backing <paramref name="port"/>.</summary>
     /// <param name="port">Target port.</param>
     /// <param name="value">Value to write.</param>
-    void Write(IPort port, object? value);
+    void Write<T>(IPort port, T? value);
 
     /// <summary>Read the current value from the channel backing <paramref name="port"/>.</summary>
     /// <param name="port">Source port.</param>
-    object? Read(IPort port);
+    T? Read<T>(IPort port);
+
+    /// <summary>
+    /// Write a value to the channel backing <paramref name="port"/>.
+    /// </summary>
+    void Write(IPort port, object? value);
+    /// <summary>
+    /// Read the current value from the channel backing <paramref name="port"/>.
+    /// </summary>
+    object? ReadAny(IPort port);
+
+    /// <summary>
+    /// Returns <c>true</c> if the port is bound to a value.
+    /// </summary>
+    bool Has<T>(IPort port);
+
+    /// <summary>
+    /// Returns <c>true</c> if the port is stored in any bucket.
+    /// </summary>
+    bool HasAny(IPort port);
 }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Shiron.Lib.Collections.Bucket;
 using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Context;
@@ -8,24 +9,33 @@ namespace Shiron.Lib.Pipeline.Context;
 /// Suitable for parallel node execution.
 /// </summary>
 public class PipelineContext : IPipelineContext {
-    private readonly ConcurrentDictionary<Guid, object> _memory = [];
+    private readonly ConcurrentBucketStore<Guid> _store = new();
 
-    /// <inheritdoc/>
-    public void Write<T>(PipelineBuilder.NodeInstance instance, IPort port, object value) {
-        var connectionId = instance.Mappings[port];
-        _memory[connectionId] = value;
+    public void Write<T>(PipelineBuilder.NodeInstance node, IPort port, T? value) {
+        _store.Set(node.Mappings[port], value);
     }
-    /// <inheritdoc/>
-    public object Read<T>(PipelineBuilder.NodeInstance node, IPort port) {
-        var connectionId = node.Mappings[port];
-        return _memory[connectionId];
+    public void Write<T>(Guid id, T? value) {
+        _store.Set(id, value);
     }
-    /// <inheritdoc/>
-    public void Write(Guid id, object value) {
-        _memory[id] = value;
+    public void Write(Guid id, object? value) {
+        _store.Set(id, value);
     }
-    /// <inheritdoc/>
-    public object Read(Guid id) {
-        return _memory[id];
+    public T? Read<T>(PipelineBuilder.NodeInstance node, IPort port) {
+        return _store.Get<T>(node.Mappings[port]);
+    }
+    public T? Read<T>(Guid id) {
+        return _store.Get<T>(id);
+    }
+    public object? ReadAny(Guid id) {
+        return _store.GetAny(id);
+    }
+    public bool Has<T>(PipelineBuilder.NodeInstance node, IPort port) {
+        return _store.Has<T>(node.Mappings[port]);
+    }
+    public bool Has<T>(Guid id) {
+        return _store.Has<T>(id);
+    }
+    public bool HasAny(Guid id) {
+        return _store.HasAny(id);
     }
 }

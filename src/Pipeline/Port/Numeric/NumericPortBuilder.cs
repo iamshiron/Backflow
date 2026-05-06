@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Shiron.Lib.Pipeline.Port.Numeric;
 
-public class NumericPortBuilder<T>(string name) where T : INumber<T> {
+public class NumericPortBuilder<T>(string name) : IPortBuilder<T> where T : INumber<T> {
     public bool IsRequired { get; private set; } = true;
     public bool NotNullable { get; private set; } = true;
     public T? DefaultValue { get; private set; }
@@ -33,10 +33,10 @@ public class NumericPortBuilder<T>(string name) where T : INumber<T> {
         return Min(min).Max(max);
     }
 
-    public InputPort<T> Input() {
+    public IInputPort<T> Input() {
         return new InputPort<T>(name, new NumericPortValidator<T>(this));
     }
-    public OutputPort<T> Output() {
+    public IOutputPort<T> Output() {
         return new OutputPort<T>(name);
     }
 }

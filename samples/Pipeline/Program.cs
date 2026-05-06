@@ -35,6 +35,8 @@ IPipelineContext context = new PipelineContext();
 context.Write<int>(addInstance, addNode.Number1, 19);
 context.Write<int>(addInstance, addNode.Number2, 95);
 context.Write<int>(subtractInstance, subtractNode.Number1, 100);
+context.Write<string>(printInstance, printNode.Prefix, "Result 1: ");
+context.Write<string>(printInstance2, printNode.Prefix, "Result 2: ");
 
 Console.WriteLine($"Port 1: {context.Read<int>(addInstance, addNode.Number1)}");
 Console.WriteLine($"Port 2: {context.Read<int>(addInstance, addNode.Number2)}");

@@ -21,7 +21,7 @@ public class NumericPortBuilder<T>(string name) : BasePortBuilder<NumericPortBui
     }
 
     protected override IInputPort<T> CreateInput() {
-        return new InputPort<T>(name, new NumericPortValidator<T>(this));
+        return new InputPort<T>(name, DefaultValue, new NumericPortValidator<T>(this));
     }
     protected override IOutputPort<T> CreateOutput() {
         return new OutputPort<T>(name);

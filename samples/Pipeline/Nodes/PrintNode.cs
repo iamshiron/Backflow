@@ -7,8 +7,15 @@ namespace Shiron.Lib.Samples.Pipeline.Nodes;
 
 public class PrintNode : AbstractNode {
     public IInputPort<object?> Message { get; }
+    public IInputPort<string> Prefix { get; }
 
     public PrintNode() {
+        Prefix = Input(
+            new StringPortBuilder(nameof(Prefix))
+                .Default("Message: ")
+                .Input()
+        );
+
         Message = Input(
             new AnyPortBuilder(nameof(Message))
                 .Input()
@@ -16,7 +23,7 @@ public class PrintNode : AbstractNode {
     }
 
     public override ValueTask<bool> Execute(INodeContext context) {
-        Console.WriteLine($"Message: {Message.ReadAny(context)}");
+        Console.WriteLine($"{Prefix.Read(context)}{Message.ReadAny(context)}");
         return ValueTask.FromResult(true);
     }
 }

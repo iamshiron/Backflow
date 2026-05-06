@@ -32,8 +32,9 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
                 : new PipelineContext();
 
             var executor = new PipelineExecutor(pipeline);
-            await executor.ExecuteAsync(context, cache);
+            var stats = await executor.ExecuteAsync(context, cache);
             await cache.FlushAsync(cancellationToken);
+            AnsiConsole.MarkupLine($"[green]{stats}[/]");
         } catch (Exception e) {
             AnsiConsole.WriteException(e);
         }

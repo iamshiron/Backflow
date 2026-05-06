@@ -69,7 +69,8 @@ public class ExecuteDefaultCommand : AsyncCommand {
 
         await File.WriteAllTextAsync(".output/graph.json", pipeline.SerializeDefinition(jsonOptions), cancellationToken);
         await File.WriteAllTextAsync(".output/inputs.json", pipeline.SerializeInputs(context, jsonOptions), cancellationToken);
-        await executor.ExecuteAsync(context);
+        var stats = await executor.ExecuteAsync(context);
+        Console.WriteLine(stats);
         return 0;
     }
 }

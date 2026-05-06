@@ -62,10 +62,13 @@ public class ExecuteDefaultCommand : AsyncCommand {
             Console.WriteLine($"Layer {i}: {executor.Layers[i].Length} - {string.Join(", ", executor.Layers[i].Select(n => n.Node.GetType().FullName))}");
         }
 
-        await File.WriteAllTextAsync(".output/graph.json", pipeline.Serialize(context, new JsonSerializerOptions {
+        var jsonOptions = new JsonSerializerOptions {
             WriteIndented = true,
             IndentSize = 4
-        }), cancellationToken);
+        };
+
+        await File.WriteAllTextAsync(".output/graph.json", pipeline.SerializeDefinition(jsonOptions), cancellationToken);
+        await File.WriteAllTextAsync(".output/inputs.json", pipeline.SerializeInputs(context, jsonOptions), cancellationToken);
         await executor.ExecuteAsync(context);
         return 0;
     }

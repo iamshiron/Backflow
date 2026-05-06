@@ -11,19 +11,27 @@ namespace Shiron.Lib.Pipeline;
 /// <param name="registry">Node registry used for type lookups during deserialization.</param>
 public class PipelineBuilder(NodeRegistry registry) {
     /// <summary>A node instance within the pipeline, holding port-to-channel mappings.</summary>
-    public readonly record struct NodeInstance(Guid ID, AbstractNode Node, Dictionary<IPort, Guid> Mappings);
+    public readonly record struct NodeInstance(string ID, AbstractNode Node, Dictionary<IPort, Guid> Mappings) {
+        public bool Equals(NodeInstance other) => ID == other.ID;
+        public override int GetHashCode() => ID.GetHashCode();
+    }
 
     /// <summary>A directed edge between two node ports.</summary>
     public readonly record struct EdgeInstance(NodeInstance SourceNode, IPort SourcePort, NodeInstance DestinationNode, IPort DestinationPort);
 
     private readonly DirectedAcyclicGraph<NodeInstance> _graph = new();
     private readonly List<EdgeInstance> _edges = [];
+    private readonly Dictionary<string, int> _nodeTypeCounts = [];
 
     /// <summary>Add a node to the pipeline and return its instance handle.</summary>
     /// <param name="node">Node to add.</param>
     public NodeInstance AddNode(AbstractNode node) {
+        var fullName = node.GetType().FullName!;
+        var count = _nodeTypeCounts.GetValueOrDefault(fullName, 0);
+        _nodeTypeCounts[fullName] = count + 1;
+
         var instance = new NodeInstance(
-            Guid.NewGuid(), node,
+            $"{fullName}-{count}", node,
             node.Ports.ToDictionary(IPort (p) => p, _ => Guid.NewGuid())
         );
 

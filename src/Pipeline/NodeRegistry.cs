@@ -6,11 +6,13 @@ namespace Shiron.Lib.Pipeline;
 /// </summary>
 public class NodeRegistry {
     private readonly Dictionary<Type, AbstractNode> _nodes = [];
+    private readonly Dictionary<string, AbstractNode> _nodesByFullName = [];
 
     /// <summary>Register an existing node instance.</summary>
     /// <param name="node">Node to register. Keyed by its runtime type.</param>
     public void Register(AbstractNode node) {
         _nodes.Add(node.GetType(), node);
+        _nodesByFullName[node.GetType().FullName!] = node;
     }
 
     /// <summary>Create and register a node of type <typeparamref name="T"/>.</summary>
@@ -34,10 +36,6 @@ public class NodeRegistry {
     /// <summary>Lookup by fully-qualified type name (e.g. <c>"MyNamespace.MyNode"</c>).</summary>
     /// <param name="fullName">Fully qualified type name of the node.</param>
     public AbstractNode? GetByFullName(string fullName) {
-        foreach (var kvp in _nodes) {
-            if (kvp.Key.FullName == fullName)
-                return kvp.Value;
-        }
-        return null;
+        return _nodesByFullName.GetValueOrDefault(fullName);
     }
 }

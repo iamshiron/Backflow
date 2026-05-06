@@ -1,12 +1,14 @@
-using Shiron.Lib.Collections.Bucket;
-
 namespace Shiron.Lib.Pipeline.Serialization;
 
-/// <summary>Serializable representation of a <see cref="Pipeline"/> topology.</summary>
-public record PipelineDto(
+/// <summary>Serializable representation of a <see cref="Pipeline"/> topology (nodes + edges).</summary>
+public record PipelineDefinitionDto(
     NodeInstanceDto[] Nodes,
-    EdgeDto[] Edges,
-    IDictionary<Guid, InputDto> Inputs
+    EdgeDto[] Edges
+);
+
+/// <summary>Serializable representation of pipeline inputs, keyed by node ID then port name.</summary>
+public record PipelineInputsDto(
+    IDictionary<string, Dictionary<string, InputDto>> Inputs
 );
 
 public record InputDto(
@@ -16,15 +18,15 @@ public record InputDto(
 
 /// <summary>Serializable representation of a <see cref="PipelineBuilder.NodeInstance"/>.</summary>
 public record NodeInstanceDto(
-    Guid Id,
+    string Id,
     string NodeTypeName,
     Dictionary<string, Guid> PortMappings
 );
 
 /// <summary>Serializable representation of a <see cref="PipelineBuilder.EdgeInstance"/>.</summary>
 public record EdgeDto(
-    Guid SourceNodeId,
+    string SourceNodeId,
     string SourcePortName,
-    Guid DestinationNodeId,
+    string DestinationNodeId,
     string DestinationPortName
 );

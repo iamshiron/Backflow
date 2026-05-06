@@ -9,15 +9,10 @@ namespace Shiron.Lib.Pipeline.Caching;
 /// Entries are held in memory and only persisted when <see cref="Flush"/> /
 /// <see cref="FlushAsync"/> is called (or on <see cref="Dispose"/>).
 /// </summary>
-public sealed class JsonFileNodeCache : INodeCache {
-    private readonly string _filePath;
+public sealed class JsonFileNodeCache(string filePath) : INodeCache {
     private readonly SemaphoreSlim _fileLock = new(1, 1);
     private readonly ConcurrentDictionary<string, (CacheKey Key, CacheEntry Entry)> _entries = new();
     private bool _loaded;
-
-    public JsonFileNodeCache(string filePath) {
-        _filePath = filePath;
-    }
 
     public async ValueTask<CacheEntry?> Get(CacheKey key, CancellationToken ct = default) {
         await EnsureLoadedAsync(ct);
@@ -74,9 +69,9 @@ public sealed class JsonFileNodeCache : INodeCache {
     }
 
     private async Task LoadFromFileAsync(CancellationToken ct) {
-        if (!File.Exists(_filePath)) return;
+        if (!File.Exists(filePath)) return;
 
-        await using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
         var dto = await JsonSerializer.DeserializeAsync<CacheFileDto>(stream, JsonOptions, ct);
         if (dto?.Entries is null) return;
 
@@ -93,13 +88,13 @@ public sealed class JsonFileNodeCache : INodeCache {
 
     private void WriteToFile() {
         var dto = ToFileDto();
-        using var stream = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096);
+        using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096);
         JsonSerializer.Serialize(stream, dto, JsonOptions);
     }
 
     private async Task WriteToFileAsync(CancellationToken ct) {
         var dto = ToFileDto();
-        await using var stream = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
+        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
         await JsonSerializer.SerializeAsync(stream, dto, JsonOptions, ct);
     }
 

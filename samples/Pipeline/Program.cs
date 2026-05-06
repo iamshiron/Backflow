@@ -5,6 +5,10 @@ using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 
+if (!Directory.Exists(".output")) {
+    Directory.CreateDirectory(".output");
+}
+
 var registry = new NodeRegistry();
 var addNode = registry.Register<AddNode>();
 var printNode = registry.Register<PrintNode>();
@@ -39,7 +43,7 @@ builder.AddConnection(
     printInstanceCat, printNode.Message
 );
 
-IPipelineContext context = new PipelineContext();
+PipelineContext context = new PipelineContext();
 context.Write<int>(addInstance, addNode.Number1, 19);
 context.Write<int>(addInstance, addNode.Number2, 95);
 context.Write<int>(subtractInstance, subtractNode.Number1, 100);
@@ -63,4 +67,8 @@ for (var i = 0; i < executor.Layers.Length; ++i) {
     Console.WriteLine($"Layer {i}: {executor.Layers[i].Length} - {string.Join(", ", executor.Layers[i].Select(n => n.Node.GetType().FullName))}");
 }
 
+File.WriteAllText(".output/graph.json", pipeline.Serialize(context, new JsonSerializerOptions {
+    WriteIndented = true,
+    IndentSize = 4
+}));
 await executor.ExecuteAsync(context);

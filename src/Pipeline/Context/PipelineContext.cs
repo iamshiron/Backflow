@@ -9,33 +9,33 @@ namespace Shiron.Lib.Pipeline.Context;
 /// Suitable for parallel node execution.
 /// </summary>
 public class PipelineContext : IPipelineContext {
-    private readonly ConcurrentBucketStore<Guid> _store = new();
+    internal readonly ConcurrentBucketStore<Guid> Store = new();
 
     public void Write<T>(PipelineBuilder.NodeInstance node, IPort port, T? value) {
-        _store.Set(node.Mappings[port], value);
+        Store.Set(node.Mappings[port], value);
     }
     public void Write<T>(Guid id, T? value) {
-        _store.Set(id, value);
+        Store.Set(id, value);
     }
     public void Write(Guid id, object? value) {
-        _store.Set(id, value);
+        Store.Set(id, value);
     }
     public T? Read<T>(PipelineBuilder.NodeInstance node, IPort port) {
-        return _store.Get<T>(node.Mappings[port]);
+        return Store.Get<T>(node.Mappings[port]);
     }
     public T? Read<T>(Guid id) {
-        return _store.Get<T>(id);
+        return Store.Get<T>(id);
     }
     public object? ReadAny(Guid id) {
-        return _store.GetAny(id);
+        return Store.GetAny(id);
     }
     public bool Has<T>(PipelineBuilder.NodeInstance node, IPort port) {
-        return _store.Has<T>(node.Mappings[port]);
+        return Store.Has<T>(node.Mappings[port]);
     }
     public bool Has<T>(Guid id) {
-        return _store.Has<T>(id);
+        return Store.Has<T>(id);
     }
     public bool HasAny(Guid id) {
-        return _store.HasAny(id);
+        return Store.HasAny(id);
     }
 }

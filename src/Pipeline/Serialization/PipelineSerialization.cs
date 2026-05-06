@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Shiron.Lib.Collections;
+using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Serialization;
@@ -8,7 +9,7 @@ namespace Shiron.Lib.Pipeline.Serialization;
 public static class PipelineSerialization {
     /// <summary>Convert a <see cref="Pipeline"/> to its DTO representation.</summary>
     /// <param name="pipeline">Pipeline to convert.</param>
-    public static PipelineDto ToDto(this Pipeline pipeline) {
+    public static PipelineDto ToDto(this Pipeline pipeline, PipelineContext? context = null) {
         var nodes = pipeline.Topology.Nodes.Select(n => new NodeInstanceDto(
             n.ID,
             n.Node.GetType().FullName!,
@@ -22,7 +23,16 @@ public static class PipelineSerialization {
             e.DestinationPort.Name
         )).ToArray();
 
-        return new PipelineDto(nodes, edges);
+        var inputs = context == null
+            ? []
+            : context.Store.Keys.ToDictionary(k => k,
+                k => new InputDto(context.ReadAny(k),
+                    context.Store.TypeOf(k)?.FullName ??
+                    context.Store.TypeOf(k)?.Name ?? throw new InvalidOperationException("Unable to determine type of input")
+                )
+            );
+
+        return new PipelineDto(nodes, edges, inputs);
     }
 
     /// <summary>Reconstruct a <see cref="Pipeline"/> from its DTO. Requires a populated <paramref name="registry"/>.</summary>
@@ -73,8 +83,8 @@ public static class PipelineSerialization {
     /// <summary>Serialize a <see cref="Pipeline"/> to JSON.</summary>
     /// <param name="pipeline">Pipeline to serialize.</param>
     /// <param name="options">Optional JSON serializer options.</param>
-    public static string Serialize(this Pipeline pipeline, JsonSerializerOptions? options = null) {
-        return JsonSerializer.Serialize(pipeline.ToDto(), options);
+    public static string Serialize(this Pipeline pipeline, PipelineContext? context = null, JsonSerializerOptions? options = null) {
+        return JsonSerializer.Serialize(pipeline.ToDto(context), options);
     }
 
     /// <summary>Deserialize a <see cref="Pipeline"/> from JSON. Requires a populated <paramref name="registry"/>.</summary>

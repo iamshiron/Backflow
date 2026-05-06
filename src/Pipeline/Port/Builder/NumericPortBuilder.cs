@@ -1,6 +1,7 @@
 using System.Numerics;
+using Shiron.Lib.Pipeline.Port.Validator;
 
-namespace Shiron.Lib.Pipeline.Port.Numeric;
+namespace Shiron.Lib.Pipeline.Port.Builder;
 
 public class NumericPortBuilder<T>(string name) : IPortBuilder<T> where T : INumber<T> {
     public bool IsRequired { get; private set; } = true;

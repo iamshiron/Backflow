@@ -1,6 +1,6 @@
-using Shiron.Lib.Pipeline.Port.Numeric;
+using Shiron.Lib.Pipeline.Port.Validator;
 
-namespace Shiron.Lib.Pipeline.Port.Any;
+namespace Shiron.Lib.Pipeline.Port.Builder;
 
 public class AnyPortBuilder(string name) : IPortBuilder<object?> {
     public IInputPort<object?> Input() {

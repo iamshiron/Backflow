@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Shiron.Lib.Pipeline.Node;
 
 namespace Shiron.Lib.Pipeline.Caching;
 
@@ -73,7 +74,9 @@ public sealed class CacheKey : IEquatable<CacheKey> {
     /// <summary>
     /// Creates a composite string key suitable for dictionary / JSON look-ups.
     /// </summary>
-    public string ToCompositeKey() => $"{NodeType}:{AssemblyVersion}:{InputHash}";
+    public string ToCompositeKey() {
+        return $"{NodeType}:{AssemblyVersion}:{InputHash}";
+    }
 
     public bool Equals(CacheKey? other) {
         if (other is null) return false;
@@ -82,7 +85,13 @@ public sealed class CacheKey : IEquatable<CacheKey> {
             && InputHash == other.InputHash;
     }
 
-    public override bool Equals(object? obj) => Equals(obj as CacheKey);
-    public override int GetHashCode() => HashCode.Combine(NodeType, AssemblyVersion, InputHash);
-    public override string ToString() => ToCompositeKey();
+    public override bool Equals(object? obj) {
+        return Equals(obj as CacheKey);
+    }
+    public override int GetHashCode() {
+        return HashCode.Combine(NodeType, AssemblyVersion, InputHash);
+    }
+    public override string ToString() {
+        return ToCompositeKey();
+    }
 }

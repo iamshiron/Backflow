@@ -16,7 +16,7 @@ public class PipelineExecutor(Pipeline pipeline) {
 
     private int TotalNodeCount => Layers.Sum(l => l.Length);
 
-    /// <summary>Execute all nodes synchronously, layer by layer.</summary>
+    /// <summary>ExecuteNodeAsync all nodes synchronously, layer by layer.</summary>
     /// <param name="global">Shared context for inter-node data exchange.</param>
     /// <param name="cache">Optional caching strategy. <c>null</c> disables caching entirely.</param>
     /// <param name="invalidateCache">When <c>true</c>, skip cache lookups but still write results to cache.</param>
@@ -61,7 +61,7 @@ public class PipelineExecutor(Pipeline pipeline) {
         return new ExecutionStats(TotalNodeCount, executed, skipped, hits, misses, updates, sw.Elapsed);
     }
 
-    /// <summary>Execute all nodes asynchronously. Nodes within the same layer run in parallel.</summary>
+    /// <summary>ExecuteNodeAsync all nodes asynchronously. Nodes within the same layer run in parallel.</summary>
     /// <param name="global">Shared context for inter-node data exchange.</param>
     /// <param name="cache">Optional caching strategy. <c>null</c> disables caching entirely.</param>
     /// <param name="invalidateCache">When <c>true</c>, skip cache lookups but still write results to cache.</param>
@@ -119,7 +119,7 @@ public class PipelineExecutor(Pipeline pipeline) {
 
         bool success;
         try {
-            success = node.Node.Execute(context).GetAwaiter().GetResult();
+            success = node.Node.ExecuteAsync(context).GetAwaiter().GetResult();
         } catch (Exception ex) {
             throw new NodeExecutionException(node, ex);
         }

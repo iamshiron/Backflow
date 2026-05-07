@@ -1,5 +1,6 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Builder;
 
@@ -27,7 +28,7 @@ public class ConcatNode : AbstractNode {
         );
     }
 
-    public override ValueTask<bool> Execute(INodeContext context) {
+    protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
         Concatenated.Write(context, String1.Read(context) + String2.Read(context));
         return ValueTask.FromResult(true);
     }

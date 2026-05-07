@@ -1,5 +1,6 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Builder;
 
@@ -24,7 +25,7 @@ public class PrintNode : AbstractNode {
         UseCache = false;
     }
 
-    public override ValueTask<bool> Execute(INodeContext context) {
+    protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
         Console.WriteLine($"{Prefix.Read(context)}{Message.ReadAny(context)}");
         return ValueTask.FromResult(true);
     }

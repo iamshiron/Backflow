@@ -1,5 +1,6 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Builder;
 
@@ -25,7 +26,7 @@ public class AddNode : AbstractNode {
         );
     }
 
-    public override ValueTask<bool> Execute(INodeContext context) {
+    protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
         Sum.Write(context, Number1.Read(context) + Number2.Read(context));
         return ValueTask.FromResult(true);
     }

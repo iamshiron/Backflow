@@ -1,6 +1,7 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Exceptions;
+using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Xunit;
 
@@ -8,7 +9,9 @@ namespace Shiron.Lib.Tests.Pipeline;
 
 public class PipelineBuilderTests {
     private class PassValidator<T> : IPortValidator<T> {
-        public string? Validate(T? value) => null;
+        public string? Validate(T? value) {
+            return null;
+        }
     }
 
     private class SourceNode : AbstractNode {
@@ -16,7 +19,9 @@ public class PipelineBuilderTests {
         public SourceNode() {
             Out = Output(new OutputPort<int>("out"));
         }
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     private class DestNode : AbstractNode {
@@ -24,7 +29,9 @@ public class PipelineBuilderTests {
         public DestNode() {
             In = Input(new InputPort<int>("in", 0, new PassValidator<int>()));
         }
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     private class RelayNode : AbstractNode {
@@ -34,7 +41,9 @@ public class PipelineBuilderTests {
             In = Input(new InputPort<int>("in", 0, new PassValidator<int>()));
             Out = Output(new OutputPort<int>("out"));
         }
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     private readonly NodeRegistry _registry = new();

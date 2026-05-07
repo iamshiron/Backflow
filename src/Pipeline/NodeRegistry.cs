@@ -1,3 +1,5 @@
+using Shiron.Lib.Pipeline.Node;
+
 namespace Shiron.Lib.Pipeline;
 
 /// <summary>

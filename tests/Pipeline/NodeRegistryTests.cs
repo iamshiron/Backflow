@@ -1,16 +1,21 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Node;
 using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline;
 
 public class NodeRegistryTests {
     private class StubNodeA : AbstractNode {
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     private class StubNodeB : AbstractNode {
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     [Fact]

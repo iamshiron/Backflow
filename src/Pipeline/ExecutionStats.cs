@@ -5,7 +5,7 @@ namespace Shiron.Lib.Pipeline;
 /// and <see cref="PipelineExecutor.ExecuteAsync"/>.
 /// </summary>
 /// <param name="TotalNodes">Total number of nodes in the pipeline.</param>
-/// <param name="ExecutedNodes">Nodes that actually ran their <c>Execute</c> method.</param>
+/// <param name="ExecutedNodes">Nodes that actually ran their <c>ExecuteNodeAsync</c> method.</param>
 /// <param name="SkippedNodes">Nodes whose execution was skipped due to a cache hit.</param>
 /// <param name="CacheHits">Number of successful cache lookups.</param>
 /// <param name="CacheMisses">Number of failed cache lookups (node had to execute).</param>

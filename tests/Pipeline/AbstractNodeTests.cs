@@ -1,5 +1,6 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Xunit;
 
@@ -7,7 +8,9 @@ namespace Shiron.Lib.Tests.Pipeline;
 
 public class AbstractNodeTests {
     private class PassValidator<T> : IPortValidator<T> {
-        public string? Validate(T? value) => null;
+        public string? Validate(T? value) {
+            return null;
+        }
     }
 
     private class NodeWithPorts : AbstractNode {
@@ -19,20 +22,33 @@ public class AbstractNodeTests {
             OutPort = Output(new OutputPort<string>("out"));
         }
 
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     private class EmptyNode : AbstractNode {
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     private class FakeInputPort : IInputPort<int> {
         public string Name => "fake";
         public Guid ID => Guid.NewGuid();
-        public int Read(INodeContext context) => 0;
-        public object? ReadAny(INodeContext context) => null;
-        public bool TryRead(INodeContext context, out int value) { value = 0; return true; }
-        public bool HasValue(INodeContext context) => false;
+        public int Read(INodeContext context) {
+            return 0;
+        }
+        public object? ReadAny(INodeContext context) {
+            return null;
+        }
+        public bool TryRead(INodeContext context, out int value) {
+            value = 0;
+            return true;
+        }
+        public bool HasValue(INodeContext context) {
+            return false;
+        }
     }
 
     private class FakeOutputPort : IOutputPort<int> {
@@ -102,20 +118,26 @@ public class AbstractNodeTests {
         public BadInputNode() {
             Input(new FakeInputPort());
         }
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     private class BadOutputNode : AbstractNode {
         public BadOutputNode() {
             Output(new FakeOutputPort());
         }
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 
     private class CacheDisabledNode : AbstractNode {
         public CacheDisabledNode() {
             UseCache = false;
         }
-        public override ValueTask<bool> Execute(INodeContext context) => new(true);
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            return new ValueTask<bool>(true);
+        }
     }
 }

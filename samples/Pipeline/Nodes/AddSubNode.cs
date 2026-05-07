@@ -1,5 +1,6 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Builder;
 
@@ -34,7 +35,7 @@ public class AddSubNode : AbstractNode {
         UseCache = true;
     }
 
-    public override ValueTask<bool> Execute(INodeContext context) {
+    protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
         var isSubstract = IsSubtract.Read(context);
         Console.WriteLine($"{nameof(IsSubtract)}: {isSubstract}");
 

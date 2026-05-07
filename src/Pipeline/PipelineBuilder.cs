@@ -12,8 +12,9 @@ namespace Shiron.Lib.Pipeline;
 /// <param name="registry">Node registry used for type lookups during deserialization.</param>
 public class PipelineBuilder(NodeRegistry registry) {
     /// <summary>A node instance within the pipeline, holding port-to-channel mappings.</summary>
-    public readonly record struct NodeInstance(string ID, AbstractNode Node, Dictionary<IPort, Guid> Mappings) {
-        public bool Equals(NodeInstance other) => ID == other.ID;
+    public record class NodeInstance(string ID, AbstractNode Node, Dictionary<IPort, Guid> Mappings) {
+        public NodeState State { get; set; } = NodeState.Pending;
+        public virtual bool Equals(NodeInstance? other) => other is not null && ID == other.ID;
         public override int GetHashCode() => ID.GetHashCode();
     }
 

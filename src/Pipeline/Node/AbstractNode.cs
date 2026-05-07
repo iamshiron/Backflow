@@ -10,30 +10,23 @@ public abstract class AbstractNode {
     private readonly List<INodeBehavior> _behaviors = [];
     private INodeBehavior[] _behaviorSnapshot = [];
 
-    public NodeState State { get; internal set; } = NodeState.Pending;
-
-    /// <summary>
-    /// ExecuteNodeAsync the node's logic. Read from input ports, write to output ports via <paramref name="context"/>.
-    /// </summary>
-    /// <param name="context">Per-node context for reading/writing port data.</param>
-    /// <returns><c>true</c> on success, <c>false</c> to signal failure.</returns>
     protected abstract ValueTask<bool> ExecuteNodeAsync(INodeContext context);
 
-    public async ValueTask<bool> ExecuteAsync(INodeContext context) {
+    public async ValueTask<NodeState> ExecuteAsync(INodeContext context) {
         var executeNode = true;
         for (var i = 0; i < _behaviorSnapshot.Length; ++i) {
             var (shouldContinue, bResult) = await _behaviorSnapshot[i].PreExecuteAsync(context);
-            if (!bResult) {
-                return false;
-            }
-            if (!shouldContinue) {
-                executeNode = false;
-            }
+            if (!bResult) return NodeState.Failed;
+            if (!shouldContinue) executeNode = false;
         }
 
         var coreResult = true;
         if (executeNode) {
-            coreResult = await ExecuteNodeAsync(context);
+            try {
+                coreResult = await ExecuteNodeAsync(context);
+            } catch {
+                return NodeState.Failed;
+            }
         }
 
         var finalSuccessState = executeNode && coreResult;
@@ -41,7 +34,11 @@ public abstract class AbstractNode {
             await _behaviorSnapshot[i].PostExecuteAsync(context, finalSuccessState);
         }
 
-        return coreResult;
+        return executeNode switch {
+            true when coreResult => NodeState.Done,
+            true => NodeState.Failed,
+            false => NodeState.Skipped,
+        };
     }
 
     protected void AddBehavior(INodeBehavior behavior) {

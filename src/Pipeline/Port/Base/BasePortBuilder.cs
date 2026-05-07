@@ -25,7 +25,9 @@ public abstract class BasePortBuilder<TBuilder, TValue> : IPortBuilder<TValue> w
         if (!IsRequired && !IsNullable && !HasDefaultValue) {
             throw new InvalidOperationException("Non-nullable port requires a default value when it is optional.");
         }
-        return CreateInput();
+        var port = CreateInput();
+        if (port is Port portBase) portBase.IsRequired = IsRequired;
+        return port;
     }
     public IOutputPort<TValue> Output() {
         return CreateOutput();

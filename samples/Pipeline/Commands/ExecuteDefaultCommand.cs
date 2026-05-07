@@ -80,7 +80,7 @@ public class ExecuteDefaultCommand : AsyncCommand {
             // Add Chip Enable
             context.Write<int>(addChipEnableInstance, registry.Add.Number1, 100);
             context.Write<int>(addChipEnableInstance, registry.Add.Number2, 50);
-            context.Write<bool>(addChipEnableInstance, registry.Add.ChipEnableBehavior.ChipEnable, false);
+            context.Write<bool>(addChipEnableInstance, registry.Add.ChipEnableBehavior.ChipEnable, true);
             context.Write<string>(printInstanceChipEnable, registry.Print.Prefix, "Chip Enable: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");

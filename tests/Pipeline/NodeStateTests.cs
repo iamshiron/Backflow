@@ -76,156 +76,117 @@ public class NodeStateTests {
 
     [Fact]
     public void State_DefaultIsPending() {
+        var builder = new PipelineBuilder(_registry);
         var node = new SuccessNode();
-        Assert.Equal(NodeState.Pending, node.State);
+        var inst = builder.AddNode(node);
+        Assert.Equal(NodeState.Pending, inst.State);
     }
 
     [Fact]
     public void Execute_SuccessfulNode_StateIsDone() {
         var builder = new PipelineBuilder(_registry);
         var node = new SuccessNode();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
-
-        executor.Execute(new PipelineContext());
-
-        Assert.Equal(NodeState.Done, node.State);
+        var inst = builder.AddNode(node);
+        new PipelineExecutor(builder.Build()).Execute(new PipelineContext());
+        Assert.Equal(NodeState.Done, inst.State);
     }
 
     [Fact]
     public async Task ExecuteAsync_SuccessfulNode_StateIsDone() {
         var builder = new PipelineBuilder(_registry);
         var node = new SuccessNode();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
-
-        await executor.ExecuteAsync(new PipelineContext());
-
-        Assert.Equal(NodeState.Done, node.State);
+        var inst = builder.AddNode(node);
+        await new PipelineExecutor(builder.Build()).ExecuteAsync(new PipelineContext());
+        Assert.Equal(NodeState.Done, inst.State);
     }
 
     [Fact]
     public void Execute_FailingNode_StateIsFailed() {
         var builder = new PipelineBuilder(_registry);
         var node = new FailingNode();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
-
-        Assert.Throws<NodeExecutionException>(() => executor.Execute(new PipelineContext()));
-
-        Assert.Equal(NodeState.Failed, node.State);
+        var inst = builder.AddNode(node);
+        Assert.Throws<NodeExecutionException>(() => new PipelineExecutor(builder.Build()).Execute(new PipelineContext()));
+        Assert.Equal(NodeState.Failed, inst.State);
     }
 
     [Fact]
     public async Task ExecuteAsync_FailingNode_StateIsFailed() {
         var builder = new PipelineBuilder(_registry);
         var node = new FailingNode();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
-
+        var inst = builder.AddNode(node);
         await Assert.ThrowsAsync<NodeExecutionException>(() =>
-            executor.ExecuteAsync(new PipelineContext()));
-
-        Assert.Equal(NodeState.Failed, node.State);
+            new PipelineExecutor(builder.Build()).ExecuteAsync(new PipelineContext()));
+        Assert.Equal(NodeState.Failed, inst.State);
     }
 
     [Fact]
     public void Execute_ThrowingNode_StateIsFailed() {
         var builder = new PipelineBuilder(_registry);
         var node = new ThrowingNode();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
-
-        Assert.Throws<NodeExecutionException>(() => executor.Execute(new PipelineContext()));
-
-        Assert.Equal(NodeState.Failed, node.State);
+        var inst = builder.AddNode(node);
+        Assert.Throws<NodeExecutionException>(() => new PipelineExecutor(builder.Build()).Execute(new PipelineContext()));
+        Assert.Equal(NodeState.Failed, inst.State);
     }
 
     [Fact]
     public async Task ExecuteAsync_ThrowingNode_StateIsFailed() {
         var builder = new PipelineBuilder(_registry);
         var node = new ThrowingNode();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
-
+        var inst = builder.AddNode(node);
         await Assert.ThrowsAsync<NodeExecutionException>(() =>
-            executor.ExecuteAsync(new PipelineContext()));
-
-        Assert.Equal(NodeState.Failed, node.State);
+            new PipelineExecutor(builder.Build()).ExecuteAsync(new PipelineContext()));
+        Assert.Equal(NodeState.Failed, inst.State);
     }
 
     [Fact]
     public void Execute_CacheHitNode_StateIsSkipped() {
         var builder = new PipelineBuilder(_registry);
         var node = new SuccessNodeWithPorts();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
+        var inst = builder.AddNode(node);
 
         var cachedEntry = new CacheEntry();
         cachedEntry.AddOutput("out", typeof(int), 99);
 
-        var cache = new CacheHitStub(cachedEntry);
-        executor.Execute(new PipelineContext(), cache);
-
-        Assert.Equal(NodeState.Skipped, node.State);
+        new PipelineExecutor(builder.Build()).Execute(new PipelineContext(), new CacheHitStub(cachedEntry));
+        Assert.Equal(NodeState.Skipped, inst.State);
     }
 
     [Fact]
     public async Task ExecuteAsync_CacheHitNode_StateIsSkipped() {
         var builder = new PipelineBuilder(_registry);
         var node = new SuccessNodeWithPorts();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
+        var inst = builder.AddNode(node);
 
         var cachedEntry = new CacheEntry();
         cachedEntry.AddOutput("out", typeof(int), 99);
 
-        var cache = new CacheHitStub(cachedEntry);
-        await executor.ExecuteAsync(new PipelineContext(), cache);
-
-        Assert.Equal(NodeState.Skipped, node.State);
+        await new PipelineExecutor(builder.Build()).ExecuteAsync(new PipelineContext(), new CacheHitStub(cachedEntry));
+        Assert.Equal(NodeState.Skipped, inst.State);
     }
 
     [Fact]
     public void Execute_MultipleNodes_AllStatesTransitionCorrectly() {
         var builder = new PipelineBuilder(_registry);
-        var nodeA = new SuccessNode();
-        var nodeB = new SuccessNode();
-        builder.AddNode(nodeA);
-        builder.AddNode(nodeB);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
-
-        executor.Execute(new PipelineContext());
-
-        Assert.Equal(NodeState.Done, nodeA.State);
-        Assert.Equal(NodeState.Done, nodeB.State);
+        var instA = builder.AddNode(new SuccessNode());
+        var instB = builder.AddNode(new SuccessNode());
+        new PipelineExecutor(builder.Build()).Execute(new PipelineContext());
+        Assert.Equal(NodeState.Done, instA.State);
+        Assert.Equal(NodeState.Done, instB.State);
     }
 
     [Fact]
     public void Execute_ReExecuteWithCacheHit_SecondRunNodeIsSkipped() {
         var builder = new PipelineBuilder(_registry);
         var node = new SuccessNodeWithPorts();
-        builder.AddNode(node);
-        var pipeline = builder.Build();
-        var executor = new PipelineExecutor(pipeline);
+        var inst = builder.AddNode(node);
+        var executor = new PipelineExecutor(builder.Build());
 
         executor.Execute(new PipelineContext());
-        Assert.Equal(NodeState.Done, node.State);
+        Assert.Equal(NodeState.Done, inst.State);
 
         var cachedEntry = new CacheEntry();
         cachedEntry.AddOutput("out", typeof(int), 42);
-        var cache = new CacheHitStub(cachedEntry);
-
-        executor.Execute(new PipelineContext(), cache);
-        Assert.Equal(NodeState.Skipped, node.State);
+        executor.Execute(new PipelineContext(), new CacheHitStub(cachedEntry));
+        Assert.Equal(NodeState.Skipped, inst.State);
     }
 }

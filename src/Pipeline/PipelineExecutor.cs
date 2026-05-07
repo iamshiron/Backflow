@@ -6,28 +6,37 @@ using Shiron.Lib.Pipeline.Node;
 
 namespace Shiron.Lib.Pipeline;
 
-/// <summary>
-/// Executes a <see cref="Pipeline"/> by topologically sorting nodes into layers
-/// and running each layer sequentially (sync) or in parallel (async).
-/// </summary>
-/// <param name="pipeline">Pipeline topology to execute.</param>
 public class PipelineExecutor(Pipeline pipeline) {
-    /// <summary>Topologically sorted layers of node instances.</summary>
     public PipelineBuilder.NodeInstance[][] Layers { get; } = pipeline.Topology.ToLayers();
+
+    private readonly Dictionary<string, List<PipelineBuilder.EdgeInstance>> _incomingEdges = BuildIncomingEdges(pipeline.Edges);
+
+    private static Dictionary<string, List<PipelineBuilder.EdgeInstance>> BuildIncomingEdges(PipelineBuilder.EdgeInstance[] edges) {
+        var result = new Dictionary<string, List<PipelineBuilder.EdgeInstance>>();
+        foreach (var edge in edges) {
+            if (!result.TryGetValue(edge.DestinationNode.ID, out var list)) {
+                list = [];
+                result[edge.DestinationNode.ID] = list;
+            }
+            list.Add(edge);
+        }
+        return result;
+    }
 
     private int TotalNodeCount => Layers.Sum(l => l.Length);
 
-    /// <summary>ExecuteNodeAsync all nodes synchronously, layer by layer.</summary>
-    /// <param name="global">Shared context for inter-node data exchange.</param>
-    /// <param name="cache">Optional caching strategy. <c>null</c> disables caching entirely.</param>
-    /// <param name="invalidateCache">When <c>true</c>, skip cache lookups but still write results to cache.</param>
-    /// <exception cref="NodeExecutionException">A node returned <c>false</c> or threw.</exception>
     public ExecutionStats Execute(IPipelineContext global, INodeCache? cache = null, bool invalidateCache = false) {
         var sw = Stopwatch.StartNew();
         int executed = 0, skipped = 0, hits = 0, misses = 0, updates = 0;
 
         foreach (var layer in Layers) {
             foreach (var node in layer) {
+                if (ShouldSkipDueToPropagation(node)) {
+                    node.State = NodeState.Skipped;
+                    skipped++;
+                    continue;
+                }
+
                 if (ShouldSkipCaching(cache, node)) {
                     ExecuteNode(node, global);
                     executed++;
@@ -42,7 +51,7 @@ public class PipelineExecutor(Pipeline pipeline) {
                     var cached = cache!.Get(key).GetAwaiter().GetResult();
                     if (cached is not null) {
                         RestoreOutputs(node, context, cached);
-                        node.Node.State = NodeState.Skipped;
+                        node.State = NodeState.Skipped;
                         skipped++;
                         hits++;
                         continue;
@@ -63,11 +72,6 @@ public class PipelineExecutor(Pipeline pipeline) {
         return new ExecutionStats(TotalNodeCount, executed, skipped, hits, misses, updates, sw.Elapsed);
     }
 
-    /// <summary>ExecuteNodeAsync all nodes asynchronously. Nodes within the same layer run in parallel.</summary>
-    /// <param name="global">Shared context for inter-node data exchange.</param>
-    /// <param name="cache">Optional caching strategy. <c>null</c> disables caching entirely.</param>
-    /// <param name="invalidateCache">When <c>true</c>, skip cache lookups but still write results to cache.</param>
-    /// <exception cref="NodeExecutionException">A node returned <c>false</c> or threw.</exception>
     public async Task<ExecutionStats> ExecuteAsync(IPipelineContext global, INodeCache? cache = null, bool invalidateCache = false) {
         var sw = Stopwatch.StartNew();
         int executed = 0, skipped = 0, hits = 0, misses = 0, updates = 0;
@@ -76,6 +80,12 @@ public class PipelineExecutor(Pipeline pipeline) {
             List<Task> tasks = [];
             foreach (var node in layer) {
                 tasks.Add(Task.Run(async () => {
+                    if (ShouldSkipDueToPropagation(node)) {
+                        node.State = NodeState.Skipped;
+                        Interlocked.Increment(ref skipped);
+                        return;
+                    }
+
                     if (ShouldSkipCaching(cache, node)) {
                         ExecuteNode(node, global);
                         Interlocked.Increment(ref executed);
@@ -90,7 +100,7 @@ public class PipelineExecutor(Pipeline pipeline) {
                         var cached = await cache!.Get(key);
                         if (cached is not null) {
                             RestoreOutputs(node, context, cached);
-                            node.Node.State = NodeState.Skipped;
+                            node.State = NodeState.Skipped;
                             Interlocked.Increment(ref skipped);
                             Interlocked.Increment(ref hits);
                             return;
@@ -117,24 +127,30 @@ public class PipelineExecutor(Pipeline pipeline) {
         return cache is null || !node.Node.UseCache;
     }
 
+    private bool ShouldSkipDueToPropagation(PipelineBuilder.NodeInstance node) {
+        if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return false;
+
+        foreach (var edge in edges) {
+            if (edge.SourceNode.State != NodeState.Skipped) continue;
+            if (edge.DestinationPort is Port.Port { IsRequired: true }) return true;
+        }
+
+        return false;
+    }
+
     private static void ExecuteNode(PipelineBuilder.NodeInstance node, IPipelineContext global) {
         var context = new NodeContext(global, node.Mappings);
 
-        node.Node.State = NodeState.Executing;
-        bool success;
+        NodeState state;
         try {
-            success = node.Node.ExecuteAsync(context).GetAwaiter().GetResult();
+            state = node.Node.ExecuteAsync(context).GetAwaiter().GetResult();
         } catch (Exception ex) {
-            node.Node.State = NodeState.Failed;
+            node.State = NodeState.Failed;
             throw new NodeExecutionException(node, ex);
         }
 
-        if (!success) {
-            node.Node.State = NodeState.Failed;
-            throw new NodeExecutionException(node);
-        }
-
-        node.Node.State = NodeState.Done;
+        node.State = state;
+        if (state == NodeState.Failed) throw new NodeExecutionException(node);
     }
 
     private static List<(string PortName, Type Type, object? Value)> ReadInputs(

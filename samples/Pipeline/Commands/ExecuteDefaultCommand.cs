@@ -21,10 +21,17 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var concatInstance = builder.AddNode(registry.Concat);
             var printInstanceCat = builder.AddNode(registry.Print);
             var addSubInstance = builder.AddNode(registry.AddSub);
+            var addChipEnableInstance = builder.AddNode(registry.Add);
+            var printInstanceChipEnable = builder.AddNode(registry.Print);
 
             builder.AddConnection(
                 addInstance, registry.Add.Sum,
                 printInstance, registry.Print.Message
+            );
+
+            builder.AddConnection(
+                addChipEnableInstance, registry.Add.Sum,
+                printInstanceChipEnable, registry.Print.Message
             );
 
             builder.AddConnection(
@@ -62,6 +69,12 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<int>(addSubInstance, registry.AddSub.Number2, 50);
             context.Write<bool>(addSubInstance, registry.AddSub.IsSubtract, true);
             context.Write<string>(printInstanceAddSub, registry.Print.Prefix, "Result Add Sub: ");
+
+            // Add Chip Enable
+            context.Write<int>(addChipEnableInstance, registry.Add.Number1, 100);
+            context.Write<int>(addChipEnableInstance, registry.Add.Number2, 50);
+            context.Write<bool>(addChipEnableInstance, registry.Add.ChipEnableBehavior.ChipEnable, false);
+            context.Write<string>(printInstanceChipEnable, registry.Print.Prefix, "Chip Enable: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

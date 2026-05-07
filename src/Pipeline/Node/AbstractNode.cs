@@ -44,11 +44,11 @@ public abstract class AbstractNode {
 
     public bool UseCache { get; protected set; } = true;
 
-    protected IInputPort<T> Input<T>(IInputPort<T> port) {
+    public IInputPort<T> Input<T>(IInputPort<T> port) {
         Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
-    protected IOutputPort<T> Output<T>(IOutputPort<T> port) {
+    public IOutputPort<T> Output<T>(IOutputPort<T> port) {
         Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }

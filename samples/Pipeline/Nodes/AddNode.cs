@@ -1,6 +1,7 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Node;
+using Shiron.Lib.Pipeline.Node.Behvaior;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Builder;
 
@@ -10,8 +11,11 @@ public class AddNode : AbstractNode {
     public IInputPort<int> Number1 { get; }
     public IInputPort<int> Number2 { get; }
     public IOutputPort<int> Sum { get; }
+    public ChipEnableBehavior ChipEnableBehavior { get; } = new();
 
     public AddNode() {
+        AddBehavior(ChipEnableBehavior);
+
         Number1 = Input(
             new NumericPortBuilder<int>(nameof(Number1))
                 .Input()

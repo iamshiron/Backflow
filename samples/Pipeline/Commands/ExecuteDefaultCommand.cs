@@ -24,6 +24,18 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var addChipEnableInstance = builder.AddNode(registry.Add);
             var printInstanceChipEnable = builder.AddNode(registry.Print);
             var printInstanceAddEnableOut = builder.AddNode(registry.Print);
+            var readFileInstance = builder.AddNode(registry.ReadFile);
+            var blurInstance = builder.AddNode(registry.Blur);
+            var saveFileInstance = builder.AddNode(registry.SaveFile);
+
+            builder.AddConnection(
+                readFileInstance, registry.ReadFile.Data,
+                blurInstance, registry.Blur.Data
+            );
+            builder.AddConnection(
+                blurInstance, registry.Blur.Out,
+                saveFileInstance, registry.SaveFile.Data
+            );
 
             builder.AddConnection(
                 addInstance, registry.Add.Sum,
@@ -82,6 +94,11 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<int>(addChipEnableInstance, registry.Add.Number2, 50);
             context.Write<bool>(addChipEnableInstance, registry.Add.ChipEnableBehavior.ChipEnable, true);
             context.Write<string>(printInstanceChipEnable, registry.Print.Prefix, "Chip Enable: ");
+
+            // Data Sub Nodes
+            context.Write<string>(readFileInstance, registry.ReadFile.FileName, "./.output/image.png");
+            context.Write<string>(saveFileInstance, registry.SaveFile.FileName, "./.output/image-blur.png");
+            context.Write<int>(blurInstance, registry.Blur.Radius, 32);
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

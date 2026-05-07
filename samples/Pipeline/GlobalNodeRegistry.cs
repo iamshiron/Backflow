@@ -10,6 +10,9 @@ public class GlobalNodeRegistry {
     public SubtractNode Subtract { get; }
     public ConcatNode Concat { get; }
     public AddSubNode AddSub { get; }
+    public BlurNode Blur { get; }
+    public SaveFileNode SaveFile { get; }
+    public ReadFileNode ReadFile { get; }
 
     public GlobalNodeRegistry() {
         Print = Registry.Register<PrintNode>();
@@ -17,5 +20,8 @@ public class GlobalNodeRegistry {
         Subtract = Registry.Register<SubtractNode>();
         Concat = Registry.Register<ConcatNode>();
         AddSub = Registry.Register<AddSubNode>();
+        Blur = Registry.Register<BlurNode>();
+        SaveFile = Registry.Register<SaveFileNode>();
+        ReadFile = Registry.Register<ReadFileNode>();
     }
 }

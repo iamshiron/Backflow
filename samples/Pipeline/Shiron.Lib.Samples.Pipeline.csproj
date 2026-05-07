@@ -12,6 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="SixLabors.ImageSharp"/>
         <PackageReference Include="Spectre.Console.Cli"/>
     </ItemGroup>
 

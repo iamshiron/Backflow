@@ -44,7 +44,7 @@ public sealed class CacheEntry {
     public Type? OutputTypeOf(string portName) => _outputStore.TypeOf(portName);
 
     internal IEnumerable<(string PortName, Type Type, object? Value)> GetOutputPairs() {
-        foreach (var kvp in _outputStore.Buckets) {
+        foreach (var kvp in _outputStore.ValueTypes) {
             var type = kvp.Key;
             var bucket = kvp.Value;
             foreach (var key in bucket.Keys) {

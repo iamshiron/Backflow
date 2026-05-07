@@ -12,6 +12,10 @@ public class StringPortValidator(StringPortBuilder builder) : BasePortValidator<
         if (builder.MinLengthValue.HasValue && value.Length < builder.MinLengthValue.Value) {
             return $"Length {value.Length} is below minimum {builder.MinLengthValue.Value}.";
         }
+        if (builder.AllowMultiline.HasValue && !builder.AllowMultiline.Value && value.Contains(Environment.NewLine)) {
+            return $"String contains newline characters, but multiline is not allowed.";
+        }
+
         return null;
     }
 }

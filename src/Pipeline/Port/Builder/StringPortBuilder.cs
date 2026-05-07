@@ -7,6 +7,7 @@ namespace Shiron.Lib.Pipeline.Port.Builder;
 public class StringPortBuilder(string name) : BasePortBuilder<StringPortBuilder, string> {
     public int? MaxLengthValue { get; protected set; }
     public int? MinLengthValue { get; protected set; }
+    public bool? AllowMultiline { get; protected set; }
 
     public StringPortBuilder MaxLength(int maxLength) {
         MaxLengthValue = maxLength;
@@ -18,6 +19,10 @@ public class StringPortBuilder(string name) : BasePortBuilder<StringPortBuilder,
     }
     public StringPortBuilder Range(int minLength, int maxLength) {
         return MinLength(minLength).MaxLength(maxLength);
+    }
+    public StringPortBuilder Multiline(bool allowMultiline = true) {
+        AllowMultiline = allowMultiline;
+        return this;
     }
 
     protected override IInputPort<string> CreateInput() {

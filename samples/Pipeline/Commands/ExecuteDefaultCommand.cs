@@ -17,8 +17,10 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var subtractInstance = builder.AddNode(registry.Subtract);
             var printInstance = builder.AddNode(registry.Print);
             var printInstance2 = builder.AddNode(registry.Print);
+            var printInstanceAddSub = builder.AddNode(registry.Print);
             var concatInstance = builder.AddNode(registry.Concat);
             var printInstanceCat = builder.AddNode(registry.Print);
+            var addSubInstance = builder.AddNode(registry.AddSub);
 
             builder.AddConnection(
                 addInstance, registry.Add.Sum,
@@ -40,6 +42,11 @@ public class ExecuteDefaultCommand : AsyncCommand {
                 printInstanceCat, registry.Print.Message
             );
 
+            builder.AddConnection(
+                addSubInstance, registry.AddSub.Result,
+                printInstanceAddSub, registry.Print.Message
+            );
+
             var context = new PipelineContext();
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
@@ -49,6 +56,12 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<string>(printInstanceCat, registry.Print.Prefix, "Concatenation: ");
             context.Write<string>(concatInstance, registry.Concat.String1, "Hello ");
             context.Write<string>(concatInstance, registry.Concat.String2, "World!");
+
+            // Add Sub
+            context.Write<int>(addSubInstance, registry.AddSub.Number1, 100);
+            context.Write<int>(addSubInstance, registry.AddSub.Number2, 50);
+            context.Write<bool>(addSubInstance, registry.AddSub.IsSubtract, true);
+            context.Write<string>(printInstanceAddSub, registry.Print.Prefix, "Result Add Sub: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

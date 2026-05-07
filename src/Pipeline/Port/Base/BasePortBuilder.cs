@@ -6,6 +6,7 @@ public abstract class BasePortBuilder<TBuilder, TValue> : IPortBuilder<TValue> w
     public bool IsRequired { get; private set; } = true;
     public bool IsNullable { get; private set; } = false;
     public TValue? DefaultValue { get; private set; } = default;
+    public bool HasDefaultValue { get; private set; } = false;
 
     public TBuilder Optional(bool optional = true) {
         IsRequired = !optional;
@@ -17,11 +18,11 @@ public abstract class BasePortBuilder<TBuilder, TValue> : IPortBuilder<TValue> w
     }
     public TBuilder Default(TValue? value) {
         DefaultValue = value;
+        HasDefaultValue = value is not null;
         return (TBuilder) this;
     }
-
     public IInputPort<TValue> Input() {
-        if (!IsRequired && !IsNullable && DefaultValue is null) {
+        if (!IsRequired && !IsNullable && !HasDefaultValue) {
             throw new InvalidOperationException("Non-nullable port requires a default value when it is optional.");
         }
         return CreateInput();
@@ -29,7 +30,6 @@ public abstract class BasePortBuilder<TBuilder, TValue> : IPortBuilder<TValue> w
     public IOutputPort<TValue> Output() {
         return CreateOutput();
     }
-
     protected abstract IInputPort<TValue> CreateInput();
     protected abstract IOutputPort<TValue> CreateOutput();
 }

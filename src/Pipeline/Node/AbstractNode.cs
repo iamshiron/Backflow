@@ -10,6 +10,8 @@ public abstract class AbstractNode {
     private readonly List<INodeBehavior> _behaviors = [];
     private INodeBehavior[] _behaviorSnapshot = [];
 
+    public NodeState State { get; internal set; } = NodeState.Pending;
+
     /// <summary>
     /// ExecuteNodeAsync the node's logic. Read from input ports, write to output ports via <paramref name="context"/>.
     /// </summary>

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Exceptions;
+using Shiron.Lib.Pipeline.Node;
 
 namespace Shiron.Lib.Pipeline;
 
@@ -41,6 +42,7 @@ public class PipelineExecutor(Pipeline pipeline) {
                     var cached = cache!.Get(key).GetAwaiter().GetResult();
                     if (cached is not null) {
                         RestoreOutputs(node, context, cached);
+                        node.Node.State = NodeState.Skipped;
                         skipped++;
                         hits++;
                         continue;
@@ -88,6 +90,7 @@ public class PipelineExecutor(Pipeline pipeline) {
                         var cached = await cache!.Get(key);
                         if (cached is not null) {
                             RestoreOutputs(node, context, cached);
+                            node.Node.State = NodeState.Skipped;
                             Interlocked.Increment(ref skipped);
                             Interlocked.Increment(ref hits);
                             return;
@@ -117,14 +120,21 @@ public class PipelineExecutor(Pipeline pipeline) {
     private static void ExecuteNode(PipelineBuilder.NodeInstance node, IPipelineContext global) {
         var context = new NodeContext(global, node.Mappings);
 
+        node.Node.State = NodeState.Executing;
         bool success;
         try {
             success = node.Node.ExecuteAsync(context).GetAwaiter().GetResult();
         } catch (Exception ex) {
+            node.Node.State = NodeState.Failed;
             throw new NodeExecutionException(node, ex);
         }
 
-        if (!success) throw new NodeExecutionException(node);
+        if (!success) {
+            node.Node.State = NodeState.Failed;
+            throw new NodeExecutionException(node);
+        }
+
+        node.Node.State = NodeState.Done;
     }
 
     private static List<(string PortName, Type Type, object? Value)> ReadInputs(

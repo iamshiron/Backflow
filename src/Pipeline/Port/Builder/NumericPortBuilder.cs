@@ -4,7 +4,7 @@ using Shiron.Lib.Pipeline.Port.Validator;
 
 namespace Shiron.Lib.Pipeline.Port.Builder;
 
-public class NumericPortBuilder<T>(string name) : BasePortBuilder<NumericPortBuilder<T>, T> where T : INumber<T> {
+public class NumericPortBuilder<T>(string name) : BasePortBuilder<NumericPortBuilder<T>, T> where T : struct, INumber<T> {
     public T? MinValue { get; protected set; }
     public T? MaxValue { get; protected set; }
 

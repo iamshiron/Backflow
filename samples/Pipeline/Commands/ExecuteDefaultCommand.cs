@@ -23,6 +23,7 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var addSubInstance = builder.AddNode(registry.AddSub);
             var addChipEnableInstance = builder.AddNode(registry.Add);
             var printInstanceChipEnable = builder.AddNode(registry.Print);
+            var printInstanceAddEnableOut = builder.AddNode(registry.Print);
 
             builder.AddConnection(
                 addInstance, registry.Add.Sum,
@@ -32,6 +33,11 @@ public class ExecuteDefaultCommand : AsyncCommand {
             builder.AddConnection(
                 addChipEnableInstance, registry.Add.Sum,
                 printInstanceChipEnable, registry.Print.Message
+            );
+
+            builder.AddConnection(
+                addChipEnableInstance, registry.Add.EnableOutBehavior.EnableOut,
+                printInstanceAddEnableOut, registry.Print.Message
             );
 
             builder.AddConnection(
@@ -69,6 +75,7 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<int>(addSubInstance, registry.AddSub.Number2, 50);
             context.Write<bool>(addSubInstance, registry.AddSub.IsSubtract, true);
             context.Write<string>(printInstanceAddSub, registry.Print.Prefix, "Result Add Sub: ");
+            context.Write<string>(printInstanceAddEnableOut, registry.Print.Prefix, "Result Add Enable Out: ");
 
             // Add Chip Enable
             context.Write<int>(addChipEnableInstance, registry.Add.Number1, 100);

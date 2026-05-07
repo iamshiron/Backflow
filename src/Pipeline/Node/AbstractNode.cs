@@ -18,18 +18,28 @@ public abstract class AbstractNode {
     protected abstract ValueTask<bool> ExecuteNodeAsync(INodeContext context);
 
     public async ValueTask<bool> ExecuteAsync(INodeContext context) {
+        var executeNode = true;
         for (var i = 0; i < _behaviorSnapshot.Length; ++i) {
             var (shouldContinue, bResult) = await _behaviorSnapshot[i].PreExecuteAsync(context);
-            if (!shouldContinue) return bResult;
+            if (!bResult) {
+                return false;
+            }
+            if (!shouldContinue) {
+                executeNode = false;
+            }
         }
 
-        var result = await ExecuteNodeAsync(context);
+        var coreResult = true;
+        if (executeNode) {
+            coreResult = await ExecuteNodeAsync(context);
+        }
 
+        var finalSuccessState = executeNode && coreResult;
         for (var i = 0; i < _behaviorSnapshot.Length; ++i) {
-            await _behaviorSnapshot[i].PostExecuteAsync(context, result);
+            await _behaviorSnapshot[i].PostExecuteAsync(context, finalSuccessState);
         }
 
-        return result;
+        return coreResult;
     }
 
     protected void AddBehavior(INodeBehavior behavior) {

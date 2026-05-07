@@ -12,9 +12,11 @@ public class AddNode : AbstractNode {
     public IInputPort<int> Number2 { get; }
     public IOutputPort<int> Sum { get; }
     public ChipEnableBehavior ChipEnableBehavior { get; } = new();
+    public EnableOutBehavior EnableOutBehavior { get; } = new();
 
     public AddNode() {
         AddBehavior(ChipEnableBehavior);
+        AddBehavior(EnableOutBehavior);
 
         Number1 = Input(
             new NumericPortBuilder<int>(nameof(Number1))

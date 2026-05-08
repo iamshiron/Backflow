@@ -13,6 +13,7 @@ public class GlobalNodeRegistry {
     public BlurNode Blur { get; }
     public SaveFileNode SaveFile { get; }
     public ReadFileNode ReadFile { get; }
+    public DecodeImageNode DecodeImage { get; }
 
     public GlobalNodeRegistry() {
         Print = Registry.Register<PrintNode>();
@@ -23,5 +24,6 @@ public class GlobalNodeRegistry {
         Blur = Registry.Register<BlurNode>();
         SaveFile = Registry.Register<SaveFileNode>();
         ReadFile = Registry.Register<ReadFileNode>();
+        DecodeImage = Registry.Register<DecodeImageNode>();
     }
 }

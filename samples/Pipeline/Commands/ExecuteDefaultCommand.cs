@@ -27,9 +27,14 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var readFileInstance = builder.AddNode(registry.ReadFile);
             var blurInstance = builder.AddNode(registry.Blur);
             var saveFileInstance = builder.AddNode(registry.SaveFile);
+            var decodeImageInstance = builder.AddNode(registry.DecodeImage);
 
             builder.AddConnection(
                 readFileInstance, registry.ReadFile.Data,
+                decodeImageInstance, registry.DecodeImage.Data
+            );
+            builder.AddConnection(
+                decodeImageInstance, registry.DecodeImage.Out,
                 blurInstance, registry.Blur.Data
             );
             builder.AddConnection(

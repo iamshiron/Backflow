@@ -8,7 +8,7 @@ namespace Shiron.Lib.Samples.Pipeline.Nodes;
 
 public class ReadFileNode : AbstractNode {
     public IInputPort<string> FileName { get; }
-    public IOutputPort<IImageBlob> Data { get; }
+    public IOutputPort<IBlob> Data { get; }
 
     public ReadFileNode() {
         FileName = Input(
@@ -19,7 +19,7 @@ public class ReadFileNode : AbstractNode {
         );
 
         Data = Output(
-            new BlobPortBuilder<IImageBlob>(nameof(Data))
+            new BlobPortBuilder<IBlob>(nameof(Data))
                 .Output()
         );
     }
@@ -28,8 +28,9 @@ public class ReadFileNode : AbstractNode {
         var fileName = FileName.Read(context)!;
 
         Console.WriteLine($"Reading file {fileName}");
-        var blob = new MemoryBlob();
-        blob.Data = await File.ReadAllBytesAsync(fileName);
+        var blob = new MemoryBlob {
+            Data = await File.ReadAllBytesAsync(fileName)
+        };
         Data.Write(context, blob);
 
         return true;

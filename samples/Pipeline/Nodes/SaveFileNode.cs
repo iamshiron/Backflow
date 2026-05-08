@@ -7,12 +7,12 @@ using Shiron.Lib.Pipeline.Types;
 namespace Shiron.Lib.Samples.Pipeline.Nodes;
 
 public class SaveFileNode : AbstractNode {
-    public IInputPort<IImageBlob> Data { get; }
+    public IInputPort<IBlob> Data { get; }
     public IInputPort<string> FileName { get; }
 
     public SaveFileNode() {
         Data = Input(
-            new BlobPortBuilder<IImageBlob>(nameof(Data))
+            new BlobPortBuilder<IBlob>(nameof(Data))
                 .Input()
         );
         FileName = Input(

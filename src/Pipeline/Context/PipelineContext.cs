@@ -21,19 +21,19 @@ public class PipelineContext : IPipelineContext {
         Store.Set(id, value);
     }
     public T? Read<T>(PipelineBuilder.NodeInstance node, IPort port) {
-        return Store.Get<T>(node.Mappings[port]);
+        return Store.Get<T>(node.Mappings[port]) ?? Store.GetAs<T>(node.Mappings[port]) ?? default;
     }
     public T? Read<T>(Guid id) {
-        return Store.Get<T>(id);
+        return Store.Get<T>(id) ?? Store.GetAs<T>(id) ?? default;
     }
     public object? ReadAny(Guid id) {
         return Store.GetAny(id);
     }
     public bool Has<T>(PipelineBuilder.NodeInstance node, IPort port) {
-        return Store.Has<T>(node.Mappings[port]);
+        return Store.Has<T>(node.Mappings[port]) || Store.CanCast<T>(node.Mappings[port]);
     }
     public bool Has<T>(Guid id) {
-        return Store.Has<T>(id);
+        return Store.Has<T>(id) || Store.CanCast<T>(id);
     }
     public bool HasAny(Guid id) {
         return Store.HasAny(id);

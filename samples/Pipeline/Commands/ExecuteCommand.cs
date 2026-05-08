@@ -22,7 +22,8 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
     protected async override Task<int> ExecuteAsync(CommandContext cmdContext, Settings settings, CancellationToken cancellationToken) {
         try {
             var registry = new GlobalNodeRegistry();
-            var cache = new JsonFileNodeCache("./.output/cache.json");
+            var blobStore = new FileSystemBlobStore("./.output/cache/blobs");
+            var cache = new JsonFileNodeCache("./.output/cache.json", blobStore);
 
             var pipeline =
                 PipelineSerialization.DeserializeDefinition(await File.ReadAllTextAsync(settings.File, cancellationToken), registry.Registry);
@@ -34,6 +35,7 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
             var executor = new PipelineExecutor(pipeline);
             var stats = await executor.ExecuteAsync(context, cache);
             await cache.FlushAsync(cancellationToken);
+            await blobStore.FlushAsync(cancellationToken);
             AnsiConsole.MarkupLine($"[green]{stats}[/]");
         } catch (Exception e) {
             AnsiConsole.WriteException(e);

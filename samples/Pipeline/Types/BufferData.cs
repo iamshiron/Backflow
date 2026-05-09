@@ -1,4 +1,4 @@
-namespace Shiron.Lib.Pipeline.Types;
+namespace Shiron.Lib.Samples.Pipeline.Types;
 
 public class BufferData(byte[] data) : IBufferData {
     public ReadOnlyMemory<byte> Data { get; } = data;

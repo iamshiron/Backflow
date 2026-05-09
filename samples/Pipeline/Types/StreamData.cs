@@ -1,4 +1,4 @@
-namespace Shiron.Lib.Pipeline.Types;
+namespace Shiron.Lib.Samples.Pipeline.Types;
 
 public class StreamData(Func<Stream> streamFactory) : IStreamData {
     public Stream OpenRead() {

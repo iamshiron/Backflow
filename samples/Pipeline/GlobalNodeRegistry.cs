@@ -1,6 +1,5 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Samples.Pipeline.Nodes;
-using Shiron.Lib.Pipeline.Types.Meta;
 
 namespace Shiron.Lib.Samples.Pipeline;
 

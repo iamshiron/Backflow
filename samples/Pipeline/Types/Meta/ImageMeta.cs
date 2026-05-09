@@ -1,4 +1,4 @@
-namespace Shiron.Lib.Pipeline.Types.Meta;
+namespace Shiron.Lib.Samples.Pipeline.Types.Meta;
 
 public readonly record struct ImageMeta(
     int Width,

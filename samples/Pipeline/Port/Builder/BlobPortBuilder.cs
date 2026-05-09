@@ -1,8 +1,9 @@
+using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Base;
 using Shiron.Lib.Pipeline.Port.Validator;
-using Shiron.Lib.Pipeline.Types;
+using Shiron.Lib.Samples.Pipeline.Types;
 
-namespace Shiron.Lib.Pipeline.Port.Builder;
+namespace Shiron.Lib.Samples.Pipeline.Port.Builder;
 
 public class BlobPortBuilder<TValue>(string name) : BasePortBuilder<BlobPortBuilder<TValue>, TValue> where TValue : class, IBlob {
     protected override IInputPort<TValue> CreateInput() {

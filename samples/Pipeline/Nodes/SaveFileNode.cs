@@ -2,7 +2,8 @@ using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Builder;
-using Shiron.Lib.Pipeline.Types;
+using Shiron.Lib.Samples.Pipeline.Port.Builder;
+using Shiron.Lib.Samples.Pipeline.Types;
 
 namespace Shiron.Lib.Samples.Pipeline.Nodes;
 

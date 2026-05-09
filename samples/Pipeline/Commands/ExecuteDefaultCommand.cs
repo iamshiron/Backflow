@@ -37,8 +37,11 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var printInstanceWidth = builder.AddNode(registry.Print);
             var printInstanceHeight = builder.AddNode(registry.Print);
             var packVector2Instance = builder.AddNode(registry.PackVector2);
-            var unpackVector2Instance = builder.AddNode(registry.UnpackVector2);
             var printVector2Instance = builder.AddNode(registry.Print);
+            var packVector3Instance = builder.AddNode(registry.PackVector3);
+            var printVector3Instance = builder.AddNode(registry.Print);
+            var packVector4Instance = builder.AddNode(registry.PackVector4);
+            var printVector4Instance = builder.AddNode(registry.Print);
 
             builder.AddConnection(
                 readFileInstance, registry.ReadFile.Data,
@@ -95,6 +98,32 @@ public class ExecuteDefaultCommand : AsyncCommand {
             builder.AddConnection(
                 packVector2Instance, registry.PackVector2.Out,
                 printVector2Instance, registry.Print.Message
+            );
+
+            builder.AddConnection(
+                imageInfoInstance, registry.ImageInfo.Width,
+                packVector3Instance, registry.PackVector3.X
+            );
+            builder.AddConnection(
+                imageInfoInstance, registry.ImageInfo.Height,
+                packVector3Instance, registry.PackVector3.Y
+            );
+            builder.AddConnection(
+                packVector3Instance, registry.PackVector3.Out,
+                printVector3Instance, registry.Print.Message
+            );
+
+            builder.AddConnection(
+                imageInfoInstance, registry.ImageInfo.Width,
+                packVector4Instance, registry.PackVector4.X
+            );
+            builder.AddConnection(
+                imageInfoInstance, registry.ImageInfo.Height,
+                packVector4Instance, registry.PackVector4.Y
+            );
+            builder.AddConnection(
+                packVector4Instance, registry.PackVector4.Out,
+                printVector4Instance, registry.Print.Message
             );
 
             builder.AddConnection(
@@ -164,7 +193,20 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<int>(blurInstance2, registry.Blur.Radius, 32);
             context.Write<string>(printInstanceWidth, registry.Print.Prefix, "Image Width: ");
             context.Write<string>(printInstanceHeight, registry.Print.Prefix, "Image Height: ");
-            context.Write<string>(printVector2Instance, registry.Print.Prefix, "Dimensions: ");
+
+            // Vector Pack Demo
+            context.Write<int>(packVector2Instance, registry.PackVector2.X, 10);
+            context.Write<int>(packVector2Instance, registry.PackVector2.Y, 20);
+            context.Write<int>(packVector3Instance, registry.PackVector3.X, 10);
+            context.Write<int>(packVector3Instance, registry.PackVector3.Y, 20);
+            context.Write<int>(packVector3Instance, registry.PackVector3.Z, 30);
+            context.Write<int>(packVector4Instance, registry.PackVector4.X, 10);
+            context.Write<int>(packVector4Instance, registry.PackVector4.Y, 20);
+            context.Write<int>(packVector4Instance, registry.PackVector4.Z, 30);
+            context.Write<int>(packVector4Instance, registry.PackVector4.W, 40);
+            context.Write<string>(printVector2Instance, registry.Print.Prefix, "Vector2: ");
+            context.Write<string>(printVector3Instance, registry.Print.Prefix, "Vector3: ");
+            context.Write<string>(printVector4Instance, registry.Print.Prefix, "Vector4: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

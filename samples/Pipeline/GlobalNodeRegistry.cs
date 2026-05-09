@@ -20,6 +20,10 @@ public class GlobalNodeRegistry {
     public GrayScaleNode GrayScale { get; }
     public PackVector2Node PackVector2 { get; }
     public UnpackVector2Node UnpackVector2 { get; }
+    public PackVector3Node PackVector3 { get; }
+    public UnpackVector3Node UnpackVector3 { get; }
+    public PackVector4Node PackVector4 { get; }
+    public UnpackVector4Node UnpackVector4 { get; }
 
     public GlobalNodeRegistry() {
         Print = Registry.Register<PrintNode>();
@@ -36,5 +40,9 @@ public class GlobalNodeRegistry {
         GrayScale = Registry.Register<GrayScaleNode>();
         PackVector2 = Registry.Register<PackVector2Node>();
         UnpackVector2 = Registry.Register<UnpackVector2Node>();
+        PackVector3 = Registry.Register<PackVector3Node>();
+        UnpackVector3 = Registry.Register<UnpackVector3Node>();
+        PackVector4 = Registry.Register<PackVector4Node>();
+        UnpackVector4 = Registry.Register<UnpackVector4Node>();
     }
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Serialization;
+using Shiron.Lib.Samples.Pipeline.Types;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -42,6 +43,13 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var printVector3Instance = builder.AddNode(registry.Print);
             var packVector4Instance = builder.AddNode(registry.PackVector4);
             var printVector4Instance = builder.AddNode(registry.Print);
+            var greetInstance = builder.AddNode(registry.Greet);
+            var printInstanceGreet = builder.AddNode(registry.Print);
+
+            builder.AddConnection(
+                greetInstance, registry.Greet.Greeting,
+                printInstanceGreet, registry.Print.Message
+            );
 
             builder.AddConnection(
                 readFileInstance, registry.ReadFile.Data,
@@ -207,6 +215,9 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<string>(printVector2Instance, registry.Print.Prefix, "Vector2: ");
             context.Write<string>(printVector3Instance, registry.Print.Prefix, "Vector3: ");
             context.Write<string>(printVector4Instance, registry.Print.Prefix, "Vector4: ");
+
+            context.Write<TimeOfDay>(greetInstance, registry.Greet.TimeOfDay, TimeOfDay.Night);
+            context.Write<string>(printInstanceGreet, registry.Print.Prefix, "Greeting: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

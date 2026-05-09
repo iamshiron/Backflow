@@ -24,6 +24,7 @@ public class GlobalNodeRegistry {
     public UnpackVector3Node UnpackVector3 { get; }
     public PackVector4Node PackVector4 { get; }
     public UnpackVector4Node UnpackVector4 { get; }
+    public GreetNode Greet { get; }
 
     public GlobalNodeRegistry() {
         Print = Registry.Register<PrintNode>();
@@ -44,5 +45,6 @@ public class GlobalNodeRegistry {
         UnpackVector3 = Registry.Register<UnpackVector3Node>();
         PackVector4 = Registry.Register<PackVector4Node>();
         UnpackVector4 = Registry.Register<UnpackVector4Node>();
+        Greet = Registry.Register<GreetNode>();
     }
 }

@@ -33,6 +33,9 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var saveFileInstance2 = builder.AddNode(registry.SaveFile);
             var saveFileInstance3 = builder.AddNode(registry.SaveFile);
             var grayScaleInstance = builder.AddNode(registry.GrayScale);
+            var imageInfoInstance = builder.AddNode(registry.ImageInfo);
+            var printInstanceWidth = builder.AddNode(registry.Print);
+            var printInstanceHeight = builder.AddNode(registry.Print);
 
             builder.AddConnection(
                 readFileInstance, registry.ReadFile.Data,
@@ -45,6 +48,18 @@ public class ExecuteDefaultCommand : AsyncCommand {
             builder.AddConnection(
                 decodeImageInstance, registry.DecodeImage.Out,
                 blurInstance, registry.Blur.In
+            );
+            builder.AddConnection(
+                decodeImageInstance, registry.DecodeImage.Out,
+                imageInfoInstance, registry.ImageInfo.In
+            );
+            builder.AddConnection(
+                imageInfoInstance, registry.ImageInfo.Width,
+                printInstanceWidth, registry.Print.Message
+            );
+            builder.AddConnection(
+                imageInfoInstance, registry.ImageInfo.Height,
+                printInstanceHeight, registry.Print.Message
             );
             builder.AddConnection(
                 blurInstance, registry.Blur.Out,
@@ -133,6 +148,8 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<string>(saveFileInstance3, registry.SaveFile.FileName, "./.output/image-grayscale.png");
             context.Write<int>(blurInstance, registry.Blur.Radius, 4);
             context.Write<int>(blurInstance2, registry.Blur.Radius, 32);
+            context.Write<string>(printInstanceWidth, registry.Print.Prefix, "Image Width: ");
+            context.Write<string>(printInstanceHeight, registry.Print.Prefix, "Image Height: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

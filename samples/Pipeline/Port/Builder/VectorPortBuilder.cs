@@ -11,16 +11,16 @@ public abstract class VectorPortBuilder<TBuilder, TVector, TComponent>
     : BasePortBuilder<TBuilder, TVector>
     where TBuilder : VectorPortBuilder<TBuilder, TVector, TComponent>
     where TComponent : unmanaged, INumber<TComponent> {
-    public TComponent? MinComponentValue { get; protected set; }
-    public TComponent? MaxComponentValue { get; protected set; }
+    public TComponent? MinValue { get; protected set; }
+    public TComponent? MaxValue { get; protected set; }
 
     public TBuilder Min(TComponent? min) {
-        MinComponentValue = min;
+        MinValue = min;
         return (TBuilder) this;
     }
 
     public TBuilder Max(TComponent? max) {
-        MaxComponentValue = max;
+        MaxValue = max;
         return (TBuilder) this;
     }
 

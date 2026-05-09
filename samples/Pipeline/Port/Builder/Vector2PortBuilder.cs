@@ -9,7 +9,7 @@ public class Vector2PortBuilder<TComponent>(string name)
     : VectorPortBuilder<Vector2PortBuilder<TComponent>, Vector2D<TComponent>, TComponent>
     where TComponent : unmanaged, INumber<TComponent> {
     protected override IInputPort<Vector2D<TComponent>> CreateInput() {
-        return new InputPort<Vector2D<TComponent>>(name, default, new Vector2PortValidator<TComponent>());
+        return new InputPort<Vector2D<TComponent>>(name, default, new Vector2PortValidator<TComponent>(this));
     }
     protected override IOutputPort<Vector2D<TComponent>> CreateOutput() {
         return new OutputPort<Vector2D<TComponent>>(name);

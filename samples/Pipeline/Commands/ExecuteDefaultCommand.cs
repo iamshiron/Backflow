@@ -36,6 +36,9 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var imageInfoInstance = builder.AddNode(registry.ImageInfo);
             var printInstanceWidth = builder.AddNode(registry.Print);
             var printInstanceHeight = builder.AddNode(registry.Print);
+            var packVector2Instance = builder.AddNode(registry.PackVector2);
+            var unpackVector2Instance = builder.AddNode(registry.UnpackVector2);
+            var printVector2Instance = builder.AddNode(registry.Print);
 
             builder.AddConnection(
                 readFileInstance, registry.ReadFile.Data,
@@ -73,7 +76,6 @@ public class ExecuteDefaultCommand : AsyncCommand {
                 grayScaleInstance, registry.GrayScale.Out,
                 saveFileInstance3, registry.SaveFile.Data
             );
-
             builder.AddConnection(
                 blurInstance, registry.Blur.Out,
                 blurInstance2, registry.Blur.In
@@ -81,6 +83,18 @@ public class ExecuteDefaultCommand : AsyncCommand {
             builder.AddConnection(
                 blurInstance2, registry.Blur.Out,
                 saveFileInstance2, registry.SaveFile.Data
+            );
+            builder.AddConnection(
+                imageInfoInstance, registry.ImageInfo.Width,
+                packVector2Instance, registry.PackVector2.X
+            );
+            builder.AddConnection(
+                imageInfoInstance, registry.ImageInfo.Height,
+                packVector2Instance, registry.PackVector2.Y
+            );
+            builder.AddConnection(
+                packVector2Instance, registry.PackVector2.Out,
+                printVector2Instance, registry.Print.Message
             );
 
             builder.AddConnection(
@@ -150,6 +164,7 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<int>(blurInstance2, registry.Blur.Radius, 32);
             context.Write<string>(printInstanceWidth, registry.Print.Prefix, "Image Width: ");
             context.Write<string>(printInstanceHeight, registry.Print.Prefix, "Image Height: ");
+            context.Write<string>(printVector2Instance, registry.Print.Prefix, "Dimensions: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

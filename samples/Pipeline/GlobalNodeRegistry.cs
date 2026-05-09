@@ -18,6 +18,8 @@ public class GlobalNodeRegistry {
     public DecodeImageNode DecodeImage { get; }
     public ImageInfoNode ImageInfo { get; }
     public GrayScaleNode GrayScale { get; }
+    public PackVector2Node PackVector2 { get; }
+    public UnpackVector2Node UnpackVector2 { get; }
 
     public GlobalNodeRegistry() {
         Print = Registry.Register<PrintNode>();
@@ -32,5 +34,7 @@ public class GlobalNodeRegistry {
         DecodeImage = Registry.Register<DecodeImageNode>();
         ImageInfo = Registry.Register<ImageInfoNode>();
         GrayScale = Registry.Register<GrayScaleNode>();
+        PackVector2 = Registry.Register<PackVector2Node>();
+        UnpackVector2 = Registry.Register<UnpackVector2Node>();
     }
 }

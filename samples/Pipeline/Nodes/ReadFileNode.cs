@@ -26,13 +26,14 @@ public class ReadFileNode : AbstractNode {
 
     protected async override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
         var fileName = FileName.Read(context)!;
+        if (!File.Exists(fileName)) {
+            Console.WriteLine($"File {fileName} not found!");
+            return false;
+        }
 
-        Console.WriteLine($"Reading file {fileName}");
-        var blob = new MemoryBlob {
-            Data = await File.ReadAllBytesAsync(fileName)
-        };
-        Data.Write(context, blob);
+        var fileStream = File.OpenRead(fileName);
 
+        Data.Write(context, new RawBlob(new StreamData(() => fileStream)));
         return true;
     }
 }

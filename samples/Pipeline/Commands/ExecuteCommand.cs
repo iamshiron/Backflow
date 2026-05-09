@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using Shiron.Lib.Pipeline;
-using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Serialization;
 using Spectre.Console;
@@ -22,8 +21,6 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
     protected async override Task<int> ExecuteAsync(CommandContext cmdContext, Settings settings, CancellationToken cancellationToken) {
         try {
             var registry = new GlobalNodeRegistry();
-            var blobStore = new FileSystemBlobStore("./.output/cache/blobs");
-            var cache = new JsonFileNodeCache("./.output/cache.json", blobStore);
 
             var pipeline =
                 PipelineSerialization.DeserializeDefinition(await File.ReadAllTextAsync(settings.File, cancellationToken), registry.Registry);
@@ -33,9 +30,7 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
                 : new PipelineContext();
 
             var executor = new PipelineExecutor(pipeline);
-            var stats = await executor.ExecuteAsync(context, cache);
-            await cache.FlushAsync(cancellationToken);
-            await blobStore.FlushAsync(cancellationToken);
+            var stats = await executor.ExecuteAsync(context);
             AnsiConsole.MarkupLine($"[green]{stats}[/]");
         } catch (Exception e) {
             AnsiConsole.WriteException(e);

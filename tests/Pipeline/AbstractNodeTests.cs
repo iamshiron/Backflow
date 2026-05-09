@@ -102,18 +102,6 @@ public class AbstractNodeTests {
         });
     }
 
-    [Fact]
-    public void UseCache_DefaultIsTrue() {
-        var node = new EmptyNode();
-        Assert.True(node.UseCache);
-    }
-
-    [Fact]
-    public void UseCache_CanBeSetToFalse() {
-        var node = new CacheDisabledNode();
-        Assert.False(node.UseCache);
-    }
-
     private class BadInputNode : AbstractNode {
         public BadInputNode() {
             Input(new FakeInputPort());
@@ -132,12 +120,4 @@ public class AbstractNodeTests {
         }
     }
 
-    private class CacheDisabledNode : AbstractNode {
-        public CacheDisabledNode() {
-            UseCache = false;
-        }
-        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
-            return new ValueTask<bool>(true);
-        }
-    }
 }

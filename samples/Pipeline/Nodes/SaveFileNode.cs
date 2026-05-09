@@ -25,12 +25,11 @@ public class SaveFileNode : AbstractNode {
 
     protected async override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
         var fileName = FileName.Read(context)!;
-        var data = Data.Read(context)!.Data;
+        var data = Data.Read(context)!;
 
-        Console.WriteLine($"Saving file to {fileName}, Size {data.Length}");
-
-        await File.WriteAllBytesAsync(fileName, data);
-
+        await using var dataStream = data.Storage.OpenRead();
+        await using var fileStream = File.OpenWrite(fileName);
+        await dataStream.CopyToAsync(fileStream);
         return true;
     }
 }

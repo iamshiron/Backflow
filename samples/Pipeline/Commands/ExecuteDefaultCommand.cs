@@ -28,18 +28,44 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var blurInstance = builder.AddNode(registry.Blur);
             var saveFileInstance = builder.AddNode(registry.SaveFile);
             var decodeImageInstance = builder.AddNode(registry.DecodeImage);
+            var bufferizeImageInstance = builder.AddNode(registry.BufferizeImage);
+            var blurInstance2 = builder.AddNode(registry.Blur);
+            var saveFileInstance2 = builder.AddNode(registry.SaveFile);
+            var saveFileInstance3 = builder.AddNode(registry.SaveFile);
+            var grayScaleInstance = builder.AddNode(registry.GrayScale);
 
             builder.AddConnection(
                 readFileInstance, registry.ReadFile.Data,
-                decodeImageInstance, registry.DecodeImage.Data
+                decodeImageInstance, registry.DecodeImage.In
             );
             builder.AddConnection(
                 decodeImageInstance, registry.DecodeImage.Out,
-                blurInstance, registry.Blur.Data
+                bufferizeImageInstance, registry.BufferizeImage.In
+            );
+            builder.AddConnection(
+                bufferizeImageInstance, registry.BufferizeImage.Out,
+                blurInstance, registry.Blur.In
             );
             builder.AddConnection(
                 blurInstance, registry.Blur.Out,
                 saveFileInstance, registry.SaveFile.Data
+            );
+            builder.AddConnection(
+                blurInstance, registry.Blur.Out,
+                grayScaleInstance, registry.GrayScale.In
+            );
+            builder.AddConnection(
+                grayScaleInstance, registry.GrayScale.Out,
+                saveFileInstance3, registry.SaveFile.Data
+            );
+
+            builder.AddConnection(
+                blurInstance, registry.Blur.Out,
+                blurInstance2, registry.Blur.In
+            );
+            builder.AddConnection(
+                blurInstance2, registry.Blur.Out,
+                saveFileInstance2, registry.SaveFile.Data
             );
 
             builder.AddConnection(
@@ -100,10 +126,13 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<bool>(addChipEnableInstance, registry.Add.ChipEnableBehavior.ChipEnable, true);
             context.Write<string>(printInstanceChipEnable, registry.Print.Prefix, "Chip Enable: ");
 
-            // Data Sub Nodes
+            // Image Sub Nodes
             context.Write<string>(readFileInstance, registry.ReadFile.FileName, "./.output/image.png");
             context.Write<string>(saveFileInstance, registry.SaveFile.FileName, "./.output/image-blur.png");
-            context.Write<int>(blurInstance, registry.Blur.Radius, 32);
+            context.Write<string>(saveFileInstance2, registry.SaveFile.FileName, "./.output/image-blur-2.png");
+            context.Write<string>(saveFileInstance3, registry.SaveFile.FileName, "./.output/image-grayscale.png");
+            context.Write<int>(blurInstance, registry.Blur.Radius, 4);
+            context.Write<int>(blurInstance2, registry.Blur.Radius, 32);
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

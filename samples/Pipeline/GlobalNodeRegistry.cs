@@ -1,10 +1,12 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Samples.Pipeline.Nodes;
+using Shiron.Lib.Pipeline.Types.Meta;
 
 namespace Shiron.Lib.Samples.Pipeline;
 
 public class GlobalNodeRegistry {
     public NodeRegistry Registry { get; } = new();
+
     public PrintNode Print { get; }
     public AddNode Add { get; }
     public SubtractNode Subtract { get; }
@@ -14,6 +16,8 @@ public class GlobalNodeRegistry {
     public SaveFileNode SaveFile { get; }
     public ReadFileNode ReadFile { get; }
     public DecodeImageNode DecodeImage { get; }
+    public BufferizeImageNode BufferizeImage { get; }
+    public GrayScaleNode GrayScale { get; }
 
     public GlobalNodeRegistry() {
         Print = Registry.Register<PrintNode>();
@@ -25,5 +29,7 @@ public class GlobalNodeRegistry {
         SaveFile = Registry.Register<SaveFileNode>();
         ReadFile = Registry.Register<ReadFileNode>();
         DecodeImage = Registry.Register<DecodeImageNode>();
+        BufferizeImage = Registry.Register<BufferizeImageNode>();
+        GrayScale = Registry.Register<GrayScaleNode>();
     }
 }

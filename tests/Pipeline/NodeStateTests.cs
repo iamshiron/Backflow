@@ -1,5 +1,4 @@
 using Shiron.Lib.Pipeline;
-using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Node;
@@ -36,15 +35,6 @@ public class NodeStateTests {
             context.Write(Out, 42);
             return new ValueTask<bool>(true);
         }
-    }
-
-    private class CacheHitStub : INodeCache {
-        private readonly CacheEntry? _entry;
-        public CacheHitStub(CacheEntry? entry) => _entry = entry;
-        public ValueTask<CacheEntry?> Get(CacheKey key, CancellationToken ct = default) => new(_entry);
-        public ValueTask Set(CacheKey key, CacheEntry entry, CancellationToken ct = default) => default;
-        public ValueTask DisposeAsync() => default;
-        public void Dispose() { }
     }
 
     private readonly NodeRegistry _registry = new();
@@ -139,32 +129,6 @@ public class NodeStateTests {
     }
 
     [Fact]
-    public void Execute_CacheHitNode_StateIsSkipped() {
-        var builder = new PipelineBuilder(_registry);
-        var node = new SuccessNodeWithPorts();
-        var inst = builder.AddNode(node);
-
-        var cachedEntry = new CacheEntry();
-        cachedEntry.AddOutput("out", typeof(int), 99);
-
-        new PipelineExecutor(builder.Build()).Execute(new PipelineContext(), new CacheHitStub(cachedEntry));
-        Assert.Equal(NodeState.Skipped, inst.State);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_CacheHitNode_StateIsSkipped() {
-        var builder = new PipelineBuilder(_registry);
-        var node = new SuccessNodeWithPorts();
-        var inst = builder.AddNode(node);
-
-        var cachedEntry = new CacheEntry();
-        cachedEntry.AddOutput("out", typeof(int), 99);
-
-        await new PipelineExecutor(builder.Build()).ExecuteAsync(new PipelineContext(), new CacheHitStub(cachedEntry));
-        Assert.Equal(NodeState.Skipped, inst.State);
-    }
-
-    [Fact]
     public void Execute_MultipleNodes_AllStatesTransitionCorrectly() {
         var builder = new PipelineBuilder(_registry);
         var instA = builder.AddNode(new SuccessNode());
@@ -174,19 +138,4 @@ public class NodeStateTests {
         Assert.Equal(NodeState.Done, instB.State);
     }
 
-    [Fact]
-    public void Execute_ReExecuteWithCacheHit_SecondRunNodeIsSkipped() {
-        var builder = new PipelineBuilder(_registry);
-        var node = new SuccessNodeWithPorts();
-        var inst = builder.AddNode(node);
-        var executor = new PipelineExecutor(builder.Build());
-
-        executor.Execute(new PipelineContext());
-        Assert.Equal(NodeState.Done, inst.State);
-
-        var cachedEntry = new CacheEntry();
-        cachedEntry.AddOutput("out", typeof(int), 42);
-        executor.Execute(new PipelineContext(), new CacheHitStub(cachedEntry));
-        Assert.Equal(NodeState.Skipped, inst.State);
-    }
 }

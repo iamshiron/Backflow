@@ -22,11 +22,7 @@ public abstract class AbstractNode {
 
         var coreResult = true;
         if (executeNode) {
-            try {
-                coreResult = await ExecuteNodeAsync(context);
-            } catch {
-                return NodeState.Failed;
-            }
+            coreResult = await ExecuteNodeAsync(context);
         }
 
         var finalSuccessState = executeNode && coreResult;
@@ -37,7 +33,7 @@ public abstract class AbstractNode {
         return executeNode switch {
             true when coreResult => NodeState.Done,
             true => NodeState.Failed,
-            false => NodeState.Skipped,
+            false => NodeState.Skipped
         };
     }
 

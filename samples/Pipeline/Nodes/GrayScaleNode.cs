@@ -9,23 +9,15 @@ using SixLabors.ImageSharp.Processing;
 
 namespace Shiron.Lib.Samples.Pipeline.Nodes;
 
-public class BlurNode : AbstractNode {
+public class GrayScaleNode : AbstractNode {
     public IInputPort<IBlob<ImageMeta, IBufferData>> In { get; }
-    public IInputPort<int> Radius { get; }
-
     public IOutputPort<IBlob<ImageMeta, IBufferData>> Out { get; }
 
-    public BlurNode() {
+    public GrayScaleNode() {
         In = Input(
             new BlobPortBuilder<IBlob<ImageMeta, IBufferData>>(nameof(In))
                 .Input()
         );
-        Radius = Input(
-            new NumericPortBuilder<int>(nameof(Radius))
-                .Default(5)
-                .Input()
-        );
-
         Out = Output(
             new BlobPortBuilder<IBlob<ImageMeta, IBufferData>>(nameof(Out))
                 .Output()
@@ -34,19 +26,17 @@ public class BlurNode : AbstractNode {
 
     protected async override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
         var data = In.Read(context)!;
-        var radius = Radius.Read(context);
 
         Console.WriteLine($"Data: {data}");
         Console.WriteLine($"Stream: {data.Storage}");
 
         using var image = await Image.LoadAsync(data.Storage.OpenRead());
-        image.Mutate(i => i.GaussianBlur(radius));
+        image.Mutate(i => i.Grayscale());
 
         using var ms = new MemoryStream();
         await image.SaveAsPngAsync(ms);
 
         Out.Write(context, new Blob<ImageMeta, IBufferData>(data.Meta, new BufferData(ms.ToArray())));
-
         return true;
     }
 }

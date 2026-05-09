@@ -25,10 +25,10 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var printInstanceChipEnable = builder.AddNode(registry.Print);
             var printInstanceAddEnableOut = builder.AddNode(registry.Print);
             var readFileInstance = builder.AddNode(registry.ReadFile);
+            var bufferizeInstance = builder.AddNode(registry.Bufferize);
+            var decodeImageInstance = builder.AddNode(registry.DecodeImage);
             var blurInstance = builder.AddNode(registry.Blur);
             var saveFileInstance = builder.AddNode(registry.SaveFile);
-            var decodeImageInstance = builder.AddNode(registry.DecodeImage);
-            var bufferizeImageInstance = builder.AddNode(registry.BufferizeImage);
             var blurInstance2 = builder.AddNode(registry.Blur);
             var saveFileInstance2 = builder.AddNode(registry.SaveFile);
             var saveFileInstance3 = builder.AddNode(registry.SaveFile);
@@ -36,14 +36,14 @@ public class ExecuteDefaultCommand : AsyncCommand {
 
             builder.AddConnection(
                 readFileInstance, registry.ReadFile.Data,
+                bufferizeInstance, registry.Bufferize.In
+            );
+            builder.AddConnection(
+                bufferizeInstance, registry.Bufferize.Out,
                 decodeImageInstance, registry.DecodeImage.In
             );
             builder.AddConnection(
                 decodeImageInstance, registry.DecodeImage.Out,
-                bufferizeImageInstance, registry.BufferizeImage.In
-            );
-            builder.AddConnection(
-                bufferizeImageInstance, registry.BufferizeImage.Out,
                 blurInstance, registry.Blur.In
             );
             builder.AddConnection(

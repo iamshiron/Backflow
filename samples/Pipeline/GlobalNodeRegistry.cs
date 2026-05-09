@@ -15,8 +15,8 @@ public class GlobalNodeRegistry {
     public BlurNode Blur { get; }
     public SaveFileNode SaveFile { get; }
     public ReadFileNode ReadFile { get; }
+    public BufferizeNode Bufferize { get; }
     public DecodeImageNode DecodeImage { get; }
-    public BufferizeImageNode BufferizeImage { get; }
     public GrayScaleNode GrayScale { get; }
 
     public GlobalNodeRegistry() {
@@ -28,8 +28,8 @@ public class GlobalNodeRegistry {
         Blur = Registry.Register<BlurNode>();
         SaveFile = Registry.Register<SaveFileNode>();
         ReadFile = Registry.Register<ReadFileNode>();
+        Bufferize = Registry.Register<BufferizeNode>();
         DecodeImage = Registry.Register<DecodeImageNode>();
-        BufferizeImage = Registry.Register<BufferizeImageNode>();
         GrayScale = Registry.Register<GrayScaleNode>();
     }
 }

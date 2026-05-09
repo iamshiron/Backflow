@@ -31,9 +31,7 @@ public class ReadFileNode : AbstractNode {
             return false;
         }
 
-        var fileStream = File.OpenRead(fileName);
-
-        Data.Write(context, new RawBlob(new StreamData(() => fileStream)));
+        Data.Write(context, new RawBlob(new StreamData(() => File.OpenRead(fileName))));
         return true;
     }
 }

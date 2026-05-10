@@ -2,6 +2,7 @@ using System.Text.Json;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Serialization;
+using Shiron.Lib.Samples.Pipeline.Nodes.Generic;
 using Shiron.Lib.Samples.Pipeline.Types;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -46,9 +47,18 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var greetInstance = builder.AddNode(registry.Greet);
             var printInstanceGreet = builder.AddNode(registry.Print);
 
+            var genericAddInstance = builder.AddNode(registry.GenericAdd, [typeof(double)]);
+            var genericAddNode = (GenericAddNode<double>) genericAddInstance.Node;
+            var printGenericAdd = builder.AddNode(registry.Print);
+
             builder.AddConnection(
                 greetInstance, registry.Greet.Greeting,
                 printInstanceGreet, registry.Print.Message
+            );
+
+            builder.AddConnection(
+                genericAddInstance, genericAddNode.Sum,
+                printGenericAdd, registry.Print.Message
             );
 
             builder.AddConnection(
@@ -218,6 +228,10 @@ public class ExecuteDefaultCommand : AsyncCommand {
 
             context.Write<TimeOfDay>(greetInstance, registry.Greet.TimeOfDay, TimeOfDay.Night);
             context.Write<string>(printInstanceGreet, registry.Print.Prefix, "Greeting: ");
+
+            context.Write<double>(genericAddInstance, genericAddNode.Number1, Math.PI);
+            context.Write<double>(genericAddInstance, genericAddNode.Number2, Math.E);
+            context.Write<string>(printGenericAdd, registry.Print.Prefix, "Generic Add: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

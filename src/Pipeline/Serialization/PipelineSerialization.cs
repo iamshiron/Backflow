@@ -1,19 +1,33 @@
 using System.Text.Json;
 using Shiron.Lib.Collections;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Generic;
+using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Serialization;
 
-/// <summary>JSON serialization/deserialization extensions for <see cref="Pipeline"/>.</summary>
 public static class PipelineSerialization {
-    /// <summary>Convert a <see cref="Pipeline"/> to its definition DTO (topology + edges).</summary>
     public static PipelineDefinitionDto ToDefinitionDto(this Pipeline pipeline) {
-        var nodes = pipeline.Topology.Nodes.Select(n => new NodeInstanceDto(
-            n.ID,
-            n.Node.GetType().FullName!,
-            n.Mappings.ToDictionary(kvp => kvp.Key.Name, kvp => kvp.Value)
-        )).ToArray();
+        var nodes = pipeline.Topology.Nodes.Select(n => {
+            var nodeType = n.Node.GetType();
+            string[]? genericArgs = null;
+            string typeName;
+
+            if (nodeType.IsGenericType) {
+                typeName = nodeType.GetGenericTypeDefinition().FullName!;
+                genericArgs = nodeType.GetGenericArguments().Select(a => a.FullName ?? a.Name).ToArray();
+            } else {
+                typeName = nodeType.FullName!;
+            }
+
+            return new NodeInstanceDto(
+                n.ID,
+                typeName,
+                n.Mappings.ToDictionary(kvp => kvp.Key.Name, kvp => kvp.Value),
+                genericArgs
+            );
+        }).ToArray();
 
         var edges = pipeline.Edges.Select(e => new EdgeDto(
             e.SourceNode.ID,
@@ -25,7 +39,6 @@ public static class PipelineSerialization {
         return new PipelineDefinitionDto(nodes, edges);
     }
 
-    /// <summary>Convert pipeline inputs to a DTO keyed by node ID and port name.</summary>
     public static PipelineInputsDto ToInputsDto(this Pipeline pipeline, PipelineContext context) {
         var inputs = new Dictionary<string, Dictionary<string, InputDto>>();
 
@@ -50,13 +63,27 @@ public static class PipelineSerialization {
         return new PipelineInputsDto(inputs);
     }
 
-    /// <summary>Reconstruct a <see cref="Pipeline"/> from its definition DTO. Requires a populated <paramref name="registry"/>.</summary>
     public static Pipeline FromDefinitionDto(this PipelineDefinitionDto dto, NodeRegistry registry) {
         var nodeInstances = new Dictionary<string, PipelineBuilder.NodeInstance>();
 
         foreach (var nodeDto in dto.Nodes) {
-            var node = registry.GetByFullName(nodeDto.NodeTypeName)
-                ?? throw new InvalidOperationException($"Node type not registered in registry: {nodeDto.NodeTypeName}");
+            AbstractNode node;
+
+            if (nodeDto.GenericTypeArgs is { Length: > 0 }) {
+                var blueprint = registry.GetBlueprint(nodeDto.NodeTypeName)
+                    ?? throw new InvalidOperationException($"Generic node blueprint not registered: {nodeDto.NodeTypeName}");
+
+                var typeArgs = new Type[nodeDto.GenericTypeArgs.Length];
+                for (var i = 0; i < nodeDto.GenericTypeArgs.Length; i++) {
+                    typeArgs[i] = Type.GetType(nodeDto.GenericTypeArgs[i])
+                        ?? throw new InvalidOperationException($"Cannot resolve type: {nodeDto.GenericTypeArgs[i]}");
+                }
+
+                node = registry.GetOrCreateConcrete(blueprint.OpenType, typeArgs);
+            } else {
+                node = registry.GetByFullName(nodeDto.NodeTypeName)
+                    ?? throw new InvalidOperationException($"Node type not registered in registry: {nodeDto.NodeTypeName}");
+            }
 
             var mappings = new Dictionary<IPort, Guid>();
             foreach (var (portName, mappingId) in nodeDto.PortMappings) {
@@ -93,7 +120,6 @@ public static class PipelineSerialization {
         return new Pipeline(graph, edges);
     }
 
-    /// <summary>Reconstruct a <see cref="PipelineContext"/> from an inputs DTO.</summary>
     public static PipelineContext FromInputs(this PipelineInputsDto dto, Pipeline pipeline) {
         var context = new PipelineContext();
         var nodeLookup = pipeline.Topology.Nodes.ToDictionary(n => n.ID);
@@ -120,17 +146,14 @@ public static class PipelineSerialization {
         return context;
     }
 
-    /// <summary>Serialize a <see cref="Pipeline"/> definition (topology + edges) to JSON.</summary>
     public static string SerializeDefinition(this Pipeline pipeline, JsonSerializerOptions? options = null) {
         return JsonSerializer.Serialize(pipeline.ToDefinitionDto(), options);
     }
 
-    /// <summary>Serialize pipeline inputs to JSON, keyed by node ID and port name.</summary>
     public static string SerializeInputs(this Pipeline pipeline, PipelineContext context, JsonSerializerOptions? options = null) {
         return JsonSerializer.Serialize(pipeline.ToInputsDto(context), options);
     }
 
-    /// <summary>Deserialize a <see cref="Pipeline"/> definition from JSON. Requires a populated <paramref name="registry"/>.</summary>
     public static Pipeline DeserializeDefinition(string json, NodeRegistry registry, JsonSerializerOptions? options = null) {
         var dto = JsonSerializer.Deserialize<PipelineDefinitionDto>(json, options)
             ?? throw new InvalidOperationException("Failed to deserialize pipeline definition JSON.");
@@ -138,7 +161,6 @@ public static class PipelineSerialization {
         return dto.FromDefinitionDto(registry);
     }
 
-    /// <summary>Deserialize pipeline inputs from JSON. Requires the <paramref name="pipeline"/> to resolve node ports.</summary>
     public static PipelineContext DeserializeInputs(string json, Pipeline pipeline, JsonSerializerOptions? options = null) {
         var dto = JsonSerializer.Deserialize<PipelineInputsDto>(json, options)
             ?? throw new InvalidOperationException("Failed to deserialize pipeline inputs JSON.");

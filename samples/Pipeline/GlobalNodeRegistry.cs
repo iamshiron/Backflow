@@ -1,5 +1,7 @@
 using Shiron.Lib.Pipeline;
+using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Samples.Pipeline.Nodes;
+using Shiron.Lib.Samples.Pipeline.Nodes.Generic;
 
 namespace Shiron.Lib.Samples.Pipeline;
 
@@ -26,6 +28,8 @@ public class GlobalNodeRegistry {
     public UnpackVector4Node UnpackVector4 { get; }
     public GreetNode Greet { get; }
 
+    public NodeBlueprint GenericAdd { get; }
+
     public GlobalNodeRegistry() {
         Print = Registry.Register<PrintNode>();
         Add = Registry.Register<AddNode>();
@@ -46,5 +50,7 @@ public class GlobalNodeRegistry {
         PackVector4 = Registry.Register<PackVector4Node>();
         UnpackVector4 = Registry.Register<UnpackVector4Node>();
         Greet = Registry.Register<GreetNode>();
+
+        GenericAdd = Registry.RegisterGeneric(typeof(GenericAddNode<>));
     }
 }

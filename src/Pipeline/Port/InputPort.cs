@@ -4,6 +4,7 @@ using Shiron.Lib.Pipeline.Exceptions;
 namespace Shiron.Lib.Pipeline.Port;
 
 public class InputPort<T>(string name, T? defaultValue, IPortValidator<T> validator) : Port(name), IInputPort<T> {
+    public override Type PortType { get; protected set; } = typeof(T);
     public T? Read(INodeContext context) {
         var value = context.Has<T>(this) ? context.Read<T>(this) ?? defaultValue : defaultValue;
         FailFast(value);

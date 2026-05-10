@@ -20,7 +20,8 @@ public record InputDto(
 public record NodeInstanceDto(
     string Id,
     string NodeTypeName,
-    Dictionary<string, Guid> PortMappings
+    Dictionary<string, Guid> PortMappings,
+    string[]? GenericTypeArgs = null
 );
 
 /// <summary>Serializable representation of a <see cref="PipelineBuilder.EdgeInstance"/>.</summary>

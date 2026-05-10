@@ -47,9 +47,8 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var greetInstance = builder.AddNode(registry.Greet);
             var printInstanceGreet = builder.AddNode(registry.Print);
 
-            var genericAddInstance = builder.AddNode(registry.GenericAdd, [typeof(double)]);
-            var genericAddNode = (GenericAddNode<double>) genericAddInstance.Node;
-            var printGenericAdd = builder.AddNode(registry.Print);
+            var genericAddRef = builder.AddNode(registry.GenericAdd);
+            var genericPrintAdd = builder.AddNode(registry.Print);
 
             builder.AddConnection(
                 greetInstance, registry.Greet.Greeting,
@@ -57,8 +56,16 @@ public class ExecuteDefaultCommand : AsyncCommand {
             );
 
             builder.AddConnection(
-                genericAddInstance, genericAddNode.Sum,
-                printGenericAdd, registry.Print.Message
+                addInstance, registry.Add.Sum,
+                genericAddRef, genericAddRef.Port("Number1")
+            );
+            builder.AddConnection(
+                addInstance, registry.Add.Sum,
+                genericAddRef, genericAddRef.Port("Number2")
+            );
+            builder.AddConnection(
+                genericAddRef, genericAddRef.Port("Sum"),
+                genericPrintAdd, registry.Print.Message
             );
 
             builder.AddConnection(
@@ -229,9 +236,7 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<TimeOfDay>(greetInstance, registry.Greet.TimeOfDay, TimeOfDay.Night);
             context.Write<string>(printInstanceGreet, registry.Print.Prefix, "Greeting: ");
 
-            context.Write<double>(genericAddInstance, genericAddNode.Number1, Math.PI);
-            context.Write<double>(genericAddInstance, genericAddNode.Number2, Math.E);
-            context.Write<string>(printGenericAdd, registry.Print.Prefix, "Generic Add: ");
+            context.Write<string>(genericPrintAdd, registry.Print.Prefix, "Generic Add: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

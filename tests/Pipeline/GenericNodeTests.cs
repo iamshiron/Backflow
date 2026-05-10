@@ -481,7 +481,7 @@ public class GenericNodeTests {
     }
 
     [Fact]
-    public void GenericNodeRef_Port_ReturnsBlueprintPort() {
+    public void GenericNodeRef_Port_ReturnsBlueprintPort_WhenUnresolved() {
         var registry = new NodeRegistry();
         var blueprint = registry.RegisterGeneric(typeof(TestGenericAddNode<>));
         var builder = new PipelineBuilder(registry);
@@ -489,8 +489,25 @@ public class GenericNodeTests {
 
         var portA = genericRef.Port("A");
         Assert.Equal("A", portA.Name);
-        Assert.Equal(0, portA.TypeParameterIndex);
-        Assert.Equal(PortDirection.Input, portA.Direction);
+        Assert.IsType<BlueprintPort>(portA);
+    }
+
+    [Fact]
+    public void GenericNodeRef_Port_ReturnsRealPort_WhenResolved() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericAddNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new IntSourceNode();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("A"));
+
+        var portSum = genericRef.Port("Sum");
+        Assert.Equal("Sum", portSum.Name);
+        Assert.IsNotType<BlueprintPort>(portSum);
+        Assert.Equal(typeof(int), portSum.PortType);
     }
 
     [Fact]
@@ -509,5 +526,94 @@ public class GenericNodeTests {
         var args = node.GetTypeArguments();
         Assert.Single(args);
         Assert.Equal(typeof(int), args[0]);
+    }
+
+    [Fact]
+    public void DynamicTypeInference_ConnectAfterResolution_UsesRealPorts() {
+        var registry = new NodeRegistry();
+        var addBlueprint = registry.RegisterGeneric(typeof(TestGenericAddNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new IntSourceNode();
+        var consumerNode = new IntConsumerNode();
+
+        var source = builder.AddNode(srcNode);
+        var addRef = builder.AddNode(addBlueprint);
+        var consumer = builder.AddNode(consumerNode);
+
+        builder.AddConnection(source, srcNode.Out, addRef, addRef.Port("A"));
+        builder.AddConnection(source, srcNode.Out, addRef, addRef.Port("B"));
+
+        Assert.True(addRef.IsResolved);
+        Assert.NotNull(addRef.MaterializedNode);
+
+        var sumPort = addRef.Port("Sum");
+        Assert.IsNotType<BlueprintPort>(sumPort);
+        Assert.Equal(typeof(int), sumPort.PortType);
+
+        builder.AddConnection(addRef, sumPort, consumer, consumerNode.In);
+
+        var pipeline = builder.Build();
+        Assert.Equal(3, pipeline.Topology.Nodes.Count());
+        Assert.Equal(3, pipeline.Edges.Length);
+    }
+
+    [Fact]
+    public void DynamicTypeInference_ResolvedGenericToGeneric() {
+        var registry = new NodeRegistry();
+        var addBlueprint = registry.RegisterGeneric(typeof(TestGenericAddNode<>));
+        var passBlueprint = registry.RegisterGeneric(typeof(TestGenericPassthroughNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new IntSourceNode();
+
+        var source = builder.AddNode(srcNode);
+        var addRef = builder.AddNode(addBlueprint);
+        var passRef = builder.AddNode(passBlueprint);
+
+        builder.AddConnection(source, srcNode.Out, addRef, addRef.Port("A"));
+        builder.AddConnection(source, srcNode.Out, addRef, addRef.Port("B"));
+
+        var sumPort = addRef.Port("Sum");
+        builder.AddConnection(addRef, sumPort, passRef, passRef.Port("In"));
+
+        Assert.True(passRef.IsResolved);
+        Assert.Equal(typeof(int), passRef.TypeArgs[0]);
+
+        var pipeline = builder.Build();
+        Assert.Equal(3, pipeline.Topology.Nodes.Count());
+        Assert.Single(pipeline.Topology.Nodes, n => n.Node is TestGenericPassthroughNode<int>);
+    }
+
+    [Fact]
+    public void DynamicTypeInference_FullExecution() {
+        var registry = new NodeRegistry();
+        var addBlueprint = registry.RegisterGeneric(typeof(TestGenericAddNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode1 = new IntSourceNode();
+        var srcNode2 = new IntSourceNode();
+
+        var source1 = builder.AddNode(srcNode1);
+        var source2 = builder.AddNode(srcNode2);
+        var addRef = builder.AddNode(addBlueprint);
+
+        builder.AddConnection(source1, srcNode1.Out, addRef, addRef.Port("A"));
+        builder.AddConnection(source2, srcNode2.Out, addRef, addRef.Port("B"));
+
+        var sumPort = addRef.Port("Sum");
+
+        var pipeline = builder.Build();
+
+        var context = new PipelineContext();
+        var srcInst1 = pipeline.Topology.Nodes.First(n => n.Node == source1.Node);
+        var srcInst2 = pipeline.Topology.Nodes.First(n => n.Node == source2.Node);
+        var addInst = pipeline.Topology.Nodes.First(n => n.Node is TestGenericAddNode<int>);
+
+        context.Write(srcInst1, srcNode1.Out, 15);
+        context.Write(srcInst2, srcNode2.Out, 27);
+
+        var executor = new PipelineExecutor(pipeline);
+        executor.Execute(context);
+
+        var resultPort = addInst.Node.Ports.First(p => p.Name == "Sum");
+        Assert.Equal(42, context.Read<int>(addInst, resultPort));
     }
 }

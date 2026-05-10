@@ -59,7 +59,7 @@ public class PipelineBuilder(NodeRegistry registry) {
             portMappings[port.Name] = Guid.NewGuid();
         }
 
-        var genericRef = new GenericNodeRef(id, blueprint, portMappings);
+        var genericRef = new GenericNodeRef(id, blueprint, portMappings, registry);
         _genericNodes[id] = genericRef;
         return genericRef;
     }
@@ -77,33 +77,40 @@ public class PipelineBuilder(NodeRegistry registry) {
         destination.Mappings[destinationPort] = source.Mappings[sourcePort];
     }
 
-    public void AddConnection(NodeInstance source, IPort sourcePort, GenericNodeRef destination, BlueprintPort destinationPort) {
+    public void AddConnection(NodeInstance source, IPort sourcePort, GenericNodeRef destination, IPort destinationPort) {
         CheckCycle(source.ID, destination.ID);
         _pendingEdges.Add(new PendingEdge(source.ID, sourcePort, destination.ID, destinationPort));
 
-        ResolveTypeArgFromConcreteSource(destination, destinationPort, sourcePort);
+        if (!destination.IsResolved) {
+            var sourceType = sourcePort.PortType;
+            if (sourceType != typeof(void) && destinationPort is BlueprintPort bp)
+                TryResolveTypeArg(destination, bp.TypeParameterIndex, sourceType);
+        }
     }
 
-    public void AddConnection(GenericNodeRef source, BlueprintPort sourcePort, NodeInstance destination, IPort destinationPort) {
+    public void AddConnection(GenericNodeRef source, IPort sourcePort, NodeInstance destination, IPort destinationPort) {
         CheckCycle(source.ID, destination.ID);
         _pendingEdges.Add(new PendingEdge(source.ID, sourcePort, destination.ID, destinationPort));
 
-        if (source.IsResolved) return;
-        var destType = destinationPort.PortType;
-        if (destType == typeof(void)) return;
-        TryResolveTypeArg(source, sourcePort.TypeParameterIndex, destType);
+        if (!source.IsResolved && sourcePort is BlueprintPort bp) {
+            var destType = destinationPort.PortType;
+            if (destType != typeof(void))
+                TryResolveTypeArg(source, bp.TypeParameterIndex, destType);
+        }
     }
 
-    public void AddConnection(GenericNodeRef source, BlueprintPort sourcePort, GenericNodeRef destination, BlueprintPort destinationPort) {
+    public void AddConnection(GenericNodeRef source, IPort sourcePort, GenericNodeRef destination, IPort destinationPort) {
         CheckCycle(source.ID, destination.ID);
         _pendingEdges.Add(new PendingEdge(source.ID, sourcePort, destination.ID, destinationPort));
 
-        if (source.IsResolved && !destination.IsResolved) {
-            TryResolveTypeArg(destination, destinationPort.TypeParameterIndex,
-                GetResolvedPortType(source, sourcePort));
-        } else if (destination.IsResolved && !source.IsResolved) {
-            TryResolveTypeArg(source, sourcePort.TypeParameterIndex,
-                GetResolvedPortType(destination, destinationPort));
+        if (source.IsResolved && !destination.IsResolved && destinationPort is BlueprintPort destBp) {
+            var type = GetResolvedPortType(source, sourcePort);
+            if (type != typeof(void))
+                TryResolveTypeArg(destination, destBp.TypeParameterIndex, type);
+        } else if (destination.IsResolved && !source.IsResolved && sourcePort is BlueprintPort srcBp) {
+            var type = GetResolvedPortType(destination, destinationPort);
+            if (type != typeof(void))
+                TryResolveTypeArg(source, srcBp.TypeParameterIndex, type);
         }
     }
 
@@ -119,9 +126,8 @@ public class PipelineBuilder(NodeRegistry registry) {
                 throw new InvalidOperationException(
                     $"Generic node '{id}' has unresolved type parameters: {UnresolvedParamsDescription(genericRef)}");
 
-            var concreteNode = registry.GetOrCreateConcrete(
-                genericRef.Blueprint.OpenType,
-                genericRef.TypeArgs!);
+            var concreteNode = genericRef.MaterializedNode
+                ?? registry.GetOrCreateConcrete(genericRef.Blueprint.OpenType, genericRef.TypeArgs!);
 
             var mappings = new Dictionary<IPort, Guid>();
             foreach (var port in concreteNode.Ports) {
@@ -184,13 +190,6 @@ public class PipelineBuilder(NodeRegistry registry) {
         return false;
     }
 
-    private void ResolveTypeArgFromConcreteSource(GenericNodeRef dest, BlueprintPort destPort, IPort sourcePort) {
-        if (dest.IsResolved) return;
-        var sourceType = sourcePort.PortType;
-        if (sourceType == typeof(void)) return;
-        TryResolveTypeArg(dest, destPort.TypeParameterIndex, sourceType);
-    }
-
     private void TryResolveTypeArg(GenericNodeRef node, int typeParamIndex, Type type) {
         if (typeParamIndex < 0 || typeParamIndex >= node.TypeArgs.Length) return;
         ref var current = ref node.TypeArgs[typeParamIndex];
@@ -199,12 +198,18 @@ public class PipelineBuilder(NodeRegistry registry) {
                 $"Type conflict for '{node.ID}': type param '{node.Blueprint.TypeParameters[typeParamIndex].Name}' " +
                 $"already resolved to '{current}' but connection requires '{type}'.");
         current = type;
+
+        if (node.IsResolved)
+            node.Materialize();
     }
 
-    private Type GetResolvedPortType(GenericNodeRef node, BlueprintPort port) {
-        if (port.TypeParameterIndex < 0 || port.TypeParameterIndex >= node.TypeArgs.Length)
-            return typeof(void);
-        return node.TypeArgs[port.TypeParameterIndex] ?? typeof(void);
+    private static Type GetResolvedPortType(GenericNodeRef node, IPort port) {
+        if (port is BlueprintPort bp) {
+            if (bp.TypeParameterIndex < 0 || bp.TypeParameterIndex >= node.TypeArgs.Length)
+                return typeof(void);
+            return node.TypeArgs[bp.TypeParameterIndex] ?? typeof(void);
+        }
+        return port.PortType;
     }
 
     private void ResolveAllTypeArgs() {
@@ -217,9 +222,9 @@ public class PipelineBuilder(NodeRegistry registry) {
 
                 if (srcGeneric is not null && !srcGeneric.IsResolved) {
                     if (dstGeneric is not null && dstGeneric.IsResolved) {
-                        var resolvedType = GetResolvedPortType(dstGeneric, (BlueprintPort) pending.DestPort);
-                        if (resolvedType != typeof(void)) {
-                            TryResolveTypeArg(srcGeneric, ((BlueprintPort) pending.SourcePort).TypeParameterIndex, resolvedType);
+                        var resolvedType = GetResolvedPortType(dstGeneric, pending.DestPort);
+                        if (resolvedType != typeof(void) && pending.SourcePort is BlueprintPort srcBp) {
+                            TryResolveTypeArg(srcGeneric, srcBp.TypeParameterIndex, resolvedType);
                             changed = true;
                         }
                     }
@@ -227,9 +232,9 @@ public class PipelineBuilder(NodeRegistry registry) {
 
                 if (dstGeneric is not null && !dstGeneric.IsResolved) {
                     if (srcGeneric is not null && srcGeneric.IsResolved) {
-                        var resolvedType = GetResolvedPortType(srcGeneric, (BlueprintPort) pending.SourcePort);
-                        if (resolvedType != typeof(void)) {
-                            TryResolveTypeArg(dstGeneric, ((BlueprintPort) pending.DestPort).TypeParameterIndex, resolvedType);
+                        var resolvedType = GetResolvedPortType(srcGeneric, pending.SourcePort);
+                        if (resolvedType != typeof(void) && pending.DestPort is BlueprintPort dstBp) {
+                            TryResolveTypeArg(dstGeneric, dstBp.TypeParameterIndex, resolvedType);
                             changed = true;
                         }
                     }

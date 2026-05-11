@@ -2,6 +2,7 @@ using System.Text.Json;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Serialization;
+using Shiron.Lib.Samples.Pipeline.Nodes;
 using Shiron.Lib.Samples.Pipeline.Nodes.Generic;
 using Shiron.Lib.Samples.Pipeline.Types;
 using Spectre.Console;
@@ -52,6 +53,8 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var getJsonElementInstance = builder.AddNode(registry.GetJsonElement);
             var jsonElementIntInstance = builder.AddNode(registry.JsonElementInt);
             var printJsonElementIntInstance = builder.AddNode(registry.Print);
+            var compareInstance = builder.AddNode(registry.Comparison);
+            var printCompareInstance = builder.AddNode(registry.Print);
 
             var genericAddRef = builder.AddNode(registry.GenericAdd);
             var genericPrintAdd = builder.AddNode(registry.Print);
@@ -214,6 +217,20 @@ public class ExecuteDefaultCommand : AsyncCommand {
                 printJsonElementIntInstance, registry.Print.Message
             );
 
+            // Compare
+            builder.AddConnection(
+                addInstance, registry.Add.Sum,
+                compareInstance, registry.Comparison.A
+            );
+            builder.AddConnection(
+                subtractInstance, registry.Subtract.Diff,
+                compareInstance, registry.Comparison.B
+            );
+            builder.AddConnection(
+                compareInstance, registry.Comparison.Result,
+                printCompareInstance, registry.Print.Message
+            );
+
             var context = new PipelineContext();
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
@@ -273,6 +290,10 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<string>(printWebFetchCodeInstance, registry.Print.Prefix, "Web Fetch Code: ");
             context.Write<string>(getJsonElementInstance, registry.GetJsonElement.Path, "userId");
             context.Write<string>(printJsonElementIntInstance, registry.Print.Prefix, "Json Element Int: ");
+
+            // Compare
+            context.Write<ComparisonOperator>(compareInstance, registry.Comparison.Operator, ComparisonOperator.GreaterThan);
+            context.Write<string>(printCompareInstance, registry.Print.Prefix, "Compare: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

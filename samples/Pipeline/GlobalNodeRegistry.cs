@@ -31,6 +31,7 @@ public class GlobalNodeRegistry {
     public WebFetchNode WebFetch { get; }
     public GetJsonElementNode GetJsonElement { get; }
     public JsonElementIntNode JsonElementInt { get; }
+    public ComparisonNode Comparison { get; }
 
     public NodeBlueprint GenericAdd { get; }
 
@@ -57,6 +58,7 @@ public class GlobalNodeRegistry {
         WebFetch = Registry.Register<WebFetchNode>();
         GetJsonElement = Registry.Register<GetJsonElementNode>();
         JsonElementInt = Registry.Register<JsonElementIntNode>();
+        Comparison = Registry.Register<ComparisonNode>();
 
         GenericAdd = Registry.RegisterGeneric(typeof(GenericAddNode<>));
     }

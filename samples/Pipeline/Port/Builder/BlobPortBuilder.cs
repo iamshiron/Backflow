@@ -7,7 +7,7 @@ namespace Shiron.Lib.Samples.Pipeline.Port.Builder;
 
 public class BlobPortBuilder<TValue>(string name) : BasePortBuilder<BlobPortBuilder<TValue>, TValue> where TValue : class, IBlob {
     protected override IInputPort<TValue> CreateInput() {
-        return new InputPort<TValue>(name, null, new PassAllPortValidator());
+        return new InputPort<TValue>(name, null, new PassAllPortValidator<TValue>());
     }
     protected override IOutputPort<TValue> CreateOutput() {
         return new OutputPort<TValue>(name);

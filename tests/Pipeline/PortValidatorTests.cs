@@ -16,13 +16,13 @@ public class NumericPortValidatorTests {
 
     [Fact]
     public void Validate_WithinRange_ReturnsNull() {
-        var validator = CreateValidator(min: 0, max: 100);
+        var validator = CreateValidator(0, 100);
         Assert.Null(validator.Validate(50));
     }
 
     [Fact]
     public void Validate_BelowMin_ReturnsErrorMessage() {
-        var validator = CreateValidator(min: 10, max: 100);
+        var validator = CreateValidator(10, 100);
         var error = validator.Validate(5);
         Assert.NotNull(error);
         Assert.Contains("5", error);
@@ -32,7 +32,7 @@ public class NumericPortValidatorTests {
 
     [Fact]
     public void Validate_AboveMax_ReturnsErrorMessage() {
-        var validator = CreateValidator(min: 0, max: 100);
+        var validator = CreateValidator(0, 100);
         var error = validator.Validate(150);
         Assert.NotNull(error);
         Assert.Contains("150", error);
@@ -42,13 +42,13 @@ public class NumericPortValidatorTests {
 
     [Fact]
     public void Validate_ExactlyMin_ReturnsNull() {
-        var validator = CreateValidator(min: 10, max: 100);
+        var validator = CreateValidator(10, 100);
         Assert.Null(validator.Validate(10));
     }
 
     [Fact]
     public void Validate_ExactlyMax_ReturnsNull() {
-        var validator = CreateValidator(min: 10, max: 100);
+        var validator = CreateValidator(10, 100);
         Assert.Null(validator.Validate(100));
     }
 
@@ -60,13 +60,13 @@ public class NumericPortValidatorTests {
 
     [Fact]
     public void Validate_MinOnly_ReturnsNullWhenAbove() {
-        var validator = CreateValidator(min: 5, max: 100);
+        var validator = CreateValidator(5, 100);
         Assert.Null(validator.Validate(100));
     }
 
     [Fact]
     public void Validate_MinOnly_ReturnsErrorWhenBelow() {
-        var validator = CreateValidator(min: 5);
+        var validator = CreateValidator(5);
         Assert.NotNull(validator.Validate(3));
     }
 
@@ -84,13 +84,13 @@ public class NumericPortValidatorTests {
 
     [Fact]
     public void Validate_ZeroValueInRange_ReturnsNull() {
-        var validator = CreateValidator(min: -10, max: 10);
+        var validator = CreateValidator(-10, 10);
         Assert.Null(validator.Validate(0));
     }
 
     [Fact]
     public void Validate_NegativeInRange_ReturnsNull() {
-        var validator = CreateValidator(min: -100, max: 0);
+        var validator = CreateValidator(-100, 0);
         Assert.Null(validator.Validate(-50));
     }
 }
@@ -106,13 +106,13 @@ public class StringPortValidatorTests {
 
     [Fact]
     public void Validate_WithinLengthRange_ReturnsNull() {
-        var validator = CreateValidator(minLength: 1, maxLength: 10);
+        var validator = CreateValidator(1, 10);
         Assert.Null(validator.Validate("hello"));
     }
 
     [Fact]
     public void Validate_BelowMinLength_ReturnsErrorMessage() {
-        var validator = CreateValidator(minLength: 5, maxLength: 20);
+        var validator = CreateValidator(5, 20);
         var error = validator.Validate("hi");
         Assert.NotNull(error);
         Assert.Contains("2", error);
@@ -122,7 +122,7 @@ public class StringPortValidatorTests {
 
     [Fact]
     public void Validate_AboveMaxLength_ReturnsErrorMessage() {
-        var validator = CreateValidator(minLength: 1, maxLength: 5);
+        var validator = CreateValidator(1, 5);
         var error = validator.Validate("hello world");
         Assert.NotNull(error);
         Assert.Contains("11", error);
@@ -132,13 +132,13 @@ public class StringPortValidatorTests {
 
     [Fact]
     public void Validate_ExactlyMinLength_ReturnsNull() {
-        var validator = CreateValidator(minLength: 5, maxLength: 10);
+        var validator = CreateValidator(5, 10);
         Assert.Null(validator.Validate("hello"));
     }
 
     [Fact]
     public void Validate_ExactlyMaxLength_ReturnsNull() {
-        var validator = CreateValidator(minLength: 1, maxLength: 5);
+        var validator = CreateValidator(1, 5);
         Assert.Null(validator.Validate("hello"));
     }
 
@@ -150,13 +150,13 @@ public class StringPortValidatorTests {
 
     [Fact]
     public void Validate_MinLengthOnly_ReturnsNullWhenAbove() {
-        var validator = CreateValidator(minLength: 3);
+        var validator = CreateValidator(3);
         Assert.Null(validator.Validate("hello"));
     }
 
     [Fact]
     public void Validate_MinLengthOnly_ReturnsErrorWhenBelow() {
-        var validator = CreateValidator(minLength: 10);
+        var validator = CreateValidator(10);
         Assert.NotNull(validator.Validate("short"));
     }
 
@@ -189,13 +189,13 @@ public class StringPortValidatorTests {
 
     [Fact]
     public void Validate_EmptyStringWithinRange_ReturnsNull() {
-        var validator = CreateValidator(minLength: 0, maxLength: 10);
+        var validator = CreateValidator(0, 10);
         Assert.Null(validator.Validate(""));
     }
 }
 
 public class PassAllPortValidatorTests {
-    private readonly PassAllPortValidator _validator = new();
+    private readonly PassAllPortValidator<object?> _validator = new();
 
     [Fact]
     public void Validate_NonNullValue_ReturnsNull() {

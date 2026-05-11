@@ -1,7 +1,7 @@
 namespace Shiron.Lib.Pipeline.Port.Validator;
 
-public class PassAllPortValidator : IPortValidator<object?> {
-    public string? Validate(object? value) {
+public class PassAllPortValidator<T> : IPortValidator<T> {
+    public string? Validate(T? value) {
         return null;
     }
 }

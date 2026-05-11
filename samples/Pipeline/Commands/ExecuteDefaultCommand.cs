@@ -49,6 +49,9 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var webFetchInstance = builder.AddNode(registry.WebFetch);
             var printWebFetchInstance = builder.AddNode(registry.Print);
             var printWebFetchCodeInstance = builder.AddNode(registry.Print);
+            var getJsonElementInstance = builder.AddNode(registry.GetJsonElement);
+            var jsonElementIntInstance = builder.AddNode(registry.JsonElementInt);
+            var printJsonElementIntInstance = builder.AddNode(registry.Print);
 
             var genericAddRef = builder.AddNode(registry.GenericAdd);
             var genericPrintAdd = builder.AddNode(registry.Print);
@@ -198,6 +201,18 @@ public class ExecuteDefaultCommand : AsyncCommand {
                 webFetchInstance, registry.WebFetch.ResponseCode,
                 printWebFetchCodeInstance, registry.Print.Message
             );
+            builder.AddConnection(
+                webFetchInstance, registry.WebFetch.Response,
+                getJsonElementInstance, registry.GetJsonElement.Json
+            );
+            builder.AddConnection(
+                getJsonElementInstance, registry.GetJsonElement.Element,
+                jsonElementIntInstance, registry.JsonElementInt.Element
+            );
+            builder.AddConnection(
+                jsonElementIntInstance, registry.JsonElementInt.Element,
+                printJsonElementIntInstance, registry.Print.Message
+            );
 
             var context = new PipelineContext();
             context.Write<int>(addInstance, registry.Add.Number1, 19);
@@ -256,6 +271,8 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<string>(webFetchInstance, registry.WebFetch.Method, "GET");
             context.Write<string>(printWebFetchInstance, registry.Print.Prefix, "Web Fetch: ");
             context.Write<string>(printWebFetchCodeInstance, registry.Print.Prefix, "Web Fetch Code: ");
+            context.Write<string>(getJsonElementInstance, registry.GetJsonElement.Path, "userId");
+            context.Write<string>(printJsonElementIntInstance, registry.Print.Prefix, "Json Element Int: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

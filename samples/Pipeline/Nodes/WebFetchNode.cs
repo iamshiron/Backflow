@@ -26,7 +26,7 @@ public class WebFetchNode : AbstractNode {
                 .Input()
         );
         Response = Output(
-            new JsonPortBuilder("Response")
+            new JsonDocumentPortBuilder("Response")
                 .Output()
         );
         ResponseCode = Output(

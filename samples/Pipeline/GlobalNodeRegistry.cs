@@ -2,6 +2,7 @@ using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 using Shiron.Lib.Samples.Pipeline.Nodes.Generic;
+using Shiron.Lib.Samples.Pipeline.Nodes.Json;
 
 namespace Shiron.Lib.Samples.Pipeline;
 
@@ -28,6 +29,8 @@ public class GlobalNodeRegistry {
     public UnpackVector4Node UnpackVector4 { get; }
     public GreetNode Greet { get; }
     public WebFetchNode WebFetch { get; }
+    public GetJsonElementNode GetJsonElement { get; }
+    public JsonElementIntNode JsonElementInt { get; }
 
     public NodeBlueprint GenericAdd { get; }
 
@@ -52,6 +55,8 @@ public class GlobalNodeRegistry {
         UnpackVector4 = Registry.Register<UnpackVector4Node>();
         Greet = Registry.Register<GreetNode>();
         WebFetch = Registry.Register<WebFetchNode>();
+        GetJsonElement = Registry.Register<GetJsonElementNode>();
+        JsonElementInt = Registry.Register<JsonElementIntNode>();
 
         GenericAdd = Registry.RegisterGeneric(typeof(GenericAddNode<>));
     }

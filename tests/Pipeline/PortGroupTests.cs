@@ -7,11 +7,7 @@ using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline;
 
-public class PortGroupTests {
-    private class PassValidator<T> : IPortValidator<T> {
-        public string? Validate(T? value) => null;
-    }
-
+public class ArrayInputPortTests {
     private class SourceNode : AbstractNode {
         public readonly IOutputPort<int> Out;
         public SourceNode() {
@@ -22,13 +18,13 @@ public class PortGroupTests {
         }
     }
 
-    private class GroupNode : AbstractNode {
-        public readonly IInputPortGroup<int> Values;
+    private class ArrayNode : AbstractNode {
+        public readonly IArrayInputPort<int> Values;
         public readonly IOutputPort<int> Result;
 
-        public GroupNode() {
-            Values = InputGroup(
-                new PortGroupBuilder<int>(nameof(Values))
+        public ArrayNode() {
+            Values = Input(
+                new ArrayPortBuilder<int>(nameof(Values))
                     .Using(new NumericPortBuilder<int>(""))
                     .MinCount(1)
                     .MaxCount(5)
@@ -38,18 +34,18 @@ public class PortGroupTests {
         }
 
         protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
-            var values = Values.ReadAll(context);
-            Result.Write(context, values.Sum());
+            var values = Values.Read(context);
+            Result.Write(context, values?.Sum() ?? 0);
             return ValueTask.FromResult(true);
         }
     }
 
-    private class OptionalGroupNode : AbstractNode {
-        public readonly IInputPortGroup<int> Values;
+    private class OptionalArrayNode : AbstractNode {
+        public readonly IArrayInputPort<int> Values;
 
-        public OptionalGroupNode() {
-            Values = InputGroup(
-                new PortGroupBuilder<int>(nameof(Values))
+        public OptionalArrayNode() {
+            Values = Input(
+                new ArrayPortBuilder<int>(nameof(Values))
                     .Using(new NumericPortBuilder<int>(""))
                     .Input()
             );
@@ -63,30 +59,29 @@ public class PortGroupTests {
     private readonly NodeRegistry _registry = new();
 
     [Fact]
-    public void AddNode_WithGroupCounts_CreatesGroupMappings() {
+    public void AddNode_WithArrayCounts_FreezesPortCount() {
         var builder = new PipelineBuilder(_registry);
-        var node = new GroupNode();
+        var node = new ArrayNode();
         var instance = builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 3 });
 
-        Assert.True(instance.GroupMappings.ContainsKey(node.Values));
-        Assert.Equal(3, instance.GroupMappings[node.Values].Count);
-        Assert.Equal(3, instance.GroupMappings[node.Values].Keys.Max() + 1);
+        Assert.Equal(3, node.Values.Count);
+        Assert.True(node.Values.IsFrozen);
     }
 
     [Fact]
-    public void AddNode_WithZeroGroupCount_SucceedsWhenMinIsZero() {
+    public void AddNode_WithZeroArrayCount_SucceedsWhenMinIsZero() {
         var builder = new PipelineBuilder(_registry);
-        var node = new OptionalGroupNode();
+        var node = new OptionalArrayNode();
         var instance = builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 0 });
 
-        Assert.True(instance.GroupMappings.ContainsKey(node.Values));
-        Assert.Empty(instance.GroupMappings[node.Values]);
+        Assert.Equal(0, node.Values.Count);
+        Assert.True(node.Values.IsFrozen);
     }
 
     [Fact]
     public void AddNode_BelowMinCount_Throws() {
         var builder = new PipelineBuilder(_registry);
-        var node = new GroupNode();
+        var node = new ArrayNode();
         Assert.Throws<ArgumentException>(() =>
             builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 0 }));
     }
@@ -94,50 +89,51 @@ public class PortGroupTests {
     [Fact]
     public void AddNode_AboveMaxCount_Throws() {
         var builder = new PipelineBuilder(_registry);
-        var node = new GroupNode();
+        var node = new ArrayNode();
         Assert.Throws<ArgumentException>(() =>
             builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 10 }));
     }
 
     [Fact]
-    public void AddNode_WithoutGroupCounts_DefaultsToZero() {
+    public void AddNode_WithoutArrayCounts_CountNotFrozen() {
         var builder = new PipelineBuilder(_registry);
-        var node = new OptionalGroupNode();
+        var node = new OptionalArrayNode();
         var instance = builder.AddNode(node);
 
-        Assert.True(instance.GroupMappings.ContainsKey(node.Values));
-        Assert.Empty(instance.GroupMappings[node.Values]);
+        Assert.Null(node.Values.Count);
+        Assert.False(node.Values.IsFrozen);
     }
 
     [Fact]
-    public void AddConnection_ToGroupIndex_SharesChannelMapping() {
+    public void AddConnection_ToArrayIndex_Succeeds() {
         var builder = new PipelineBuilder(_registry);
         var source = new SourceNode();
-        var groupNode = new GroupNode();
+        var arrayNode = new ArrayNode();
 
         var srcInstance = builder.AddNode(source);
-        var groupInstance = builder.AddNode(groupNode, new Dictionary<string, int> { ["Values"] = 3 });
+        var arrInstance = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 3 });
 
-        builder.AddConnection(srcInstance, source.Out, groupInstance, groupNode.Values, 1);
+        var exception = Record.Exception(() =>
+            builder.AddConnection(srcInstance, source.Out, arrInstance, (IPort) arrayNode.Values, 1));
 
-        Assert.Equal(srcInstance.Mappings[source.Out], groupInstance.GroupMappings[groupNode.Values][1]);
+        Assert.Null(exception);
     }
 
     [Fact]
     public void AddConnection_ToInvalidIndex_Throws() {
         var builder = new PipelineBuilder(_registry);
         var source = new SourceNode();
-        var groupNode = new GroupNode();
+        var arrayNode = new ArrayNode();
 
         var srcInstance = builder.AddNode(source);
-        var groupInstance = builder.AddNode(groupNode, new Dictionary<string, int> { ["Values"] = 2 });
+        var arrInstance = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 2 });
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            builder.AddConnection(srcInstance, source.Out, groupInstance, groupNode.Values, 5));
+            builder.AddConnection(srcInstance, source.Out, arrInstance, (IPort) arrayNode.Values, 5));
     }
 
     [Fact]
-    public void AddConnection_ToNonGroupPortWithIndex_Throws() {
+    public void AddConnection_ToNonArrayPortWithIndex_Throws() {
         var builder = new PipelineBuilder(_registry);
         var source = new SourceNode();
         var dest = new SourceNode();
@@ -150,34 +146,21 @@ public class PortGroupTests {
     }
 
     [Fact]
-    public void AddConnection_GroupIndexOutOfRange_Throws() {
-        var builder = new PipelineBuilder(_registry);
-        var source = new SourceNode();
-        var groupNode = new OptionalGroupNode();
-
-        var srcInstance = builder.AddNode(source);
-        var groupInstance = builder.AddNode(groupNode);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            builder.AddConnection(srcInstance, source.Out, groupInstance, groupNode.Values, 0));
-    }
-
-    [Fact]
-    public void Build_WithGroupConnections_Succeeds() {
+    public void Build_WithArrayConnections_Succeeds() {
         var builder = new PipelineBuilder(_registry);
         var s1 = new SourceNode();
         var s2 = new SourceNode();
         var s3 = new SourceNode();
-        var groupNode = new GroupNode();
+        var arrayNode = new ArrayNode();
 
         var i1 = builder.AddNode(s1);
         var i2 = builder.AddNode(s2);
         var i3 = builder.AddNode(s3);
-        var gi = builder.AddNode(groupNode, new Dictionary<string, int> { ["Values"] = 3 });
+        var ai = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 3 });
 
-        builder.AddConnection(i1, s1.Out, gi, groupNode.Values, 0);
-        builder.AddConnection(i2, s2.Out, gi, groupNode.Values, 1);
-        builder.AddConnection(i3, s3.Out, gi, groupNode.Values, 2);
+        builder.AddConnection(i1, s1.Out, ai, (IPort) arrayNode.Values, 0);
+        builder.AddConnection(i2, s2.Out, ai, (IPort) arrayNode.Values, 1);
+        builder.AddConnection(i3, s3.Out, ai, (IPort) arrayNode.Values, 2);
 
         var pipeline = builder.Build();
         Assert.Equal(3, pipeline.Edges.Length);
@@ -185,18 +168,18 @@ public class PortGroupTests {
     }
 
     [Fact]
-    public async Task Execution_ReadAll_ReturnsAllValues() {
+    public async Task Execution_AssembledArray_ReturnsAllValues() {
         var builder = new PipelineBuilder(_registry);
         var s1 = new SourceNode();
         var s2 = new SourceNode();
-        var groupNode = new GroupNode();
+        var arrayNode = new ArrayNode();
 
         var i1 = builder.AddNode(s1);
         var i2 = builder.AddNode(s2);
-        var gi = builder.AddNode(groupNode, new Dictionary<string, int> { ["Values"] = 2 });
+        var ai = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 2 });
 
-        builder.AddConnection(i1, s1.Out, gi, groupNode.Values, 0);
-        builder.AddConnection(i2, s2.Out, gi, groupNode.Values, 1);
+        builder.AddConnection(i1, s1.Out, ai, (IPort) arrayNode.Values, 0);
+        builder.AddConnection(i2, s2.Out, ai, (IPort) arrayNode.Values, 1);
 
         var pipeline = builder.Build();
         var context = new PipelineContext();
@@ -207,44 +190,38 @@ public class PortGroupTests {
         var executor = new PipelineExecutor(pipeline);
         await executor.ExecuteAsync(context);
 
-        var result = context.Read<int>(gi, groupNode.Result);
+        var result = context.Read<int>(ai, arrayNode.Result);
         Assert.Equal(30, result);
     }
 
     [Fact]
-    public async Task Execution_PipelineContext_WriteGroup_WritesToCorrectSlot() {
+    public async Task Execution_DirectWrite_WorksForArrayPort() {
         var builder = new PipelineBuilder(_registry);
-        var groupNode = new GroupNode();
+        var arrayNode = new ArrayNode();
 
-        var gi = builder.AddNode(groupNode, new Dictionary<string, int> { ["Values"] = 3 });
+        var ai = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 3 });
 
         var pipeline = builder.Build();
         var context = new PipelineContext();
 
-        context.WriteGroup(gi, groupNode.Values, 0, 5);
-        context.WriteGroup(gi, groupNode.Values, 1, 10);
-        context.WriteGroup(gi, groupNode.Values, 2, 15);
-
-        Assert.Equal(5, context.ReadGroup<int>(gi, groupNode.Values, 0));
-        Assert.Equal(10, context.ReadGroup<int>(gi, groupNode.Values, 1));
-        Assert.Equal(15, context.ReadGroup<int>(gi, groupNode.Values, 2));
+        context.Write<int[]>(ai, (IPort) arrayNode.Values, [5, 10, 15]);
 
         var executor = new PipelineExecutor(pipeline);
         await executor.ExecuteAsync(context);
 
-        Assert.Equal(30, context.Read<int>(gi, groupNode.Result));
+        Assert.Equal(30, context.Read<int>(ai, arrayNode.Result));
     }
 
     [Fact]
     public void EdgeInstance_CarriesDestIndex() {
         var builder = new PipelineBuilder(_registry);
         var source = new SourceNode();
-        var groupNode = new GroupNode();
+        var arrayNode = new ArrayNode();
 
         var srcInstance = builder.AddNode(source);
-        var groupInstance = builder.AddNode(groupNode, new Dictionary<string, int> { ["Values"] = 2 });
+        var arrInstance = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 2 });
 
-        builder.AddConnection(srcInstance, source.Out, groupInstance, groupNode.Values, 1);
+        builder.AddConnection(srcInstance, source.Out, arrInstance, (IPort) arrayNode.Values, 1);
 
         var pipeline = builder.Build();
         var edge = pipeline.Edges[0];
@@ -270,28 +247,26 @@ public class PortGroupTests {
     }
 
     [Fact]
-    public void InputPortGroup_HasCorrectMetadata() {
-        var node = new GroupNode();
-        var group = node.Values;
+    public void ArrayInputPort_HasCorrectMetadata() {
+        var node = new ArrayNode();
+        var port = node.Values;
 
-        Assert.Equal(typeof(int), group.PortType);
-        Assert.Equal(typeof(int), group.ElementType);
-        Assert.Equal(1, group.MinCount);
-        Assert.Equal(5, group.MaxCount);
-        Assert.Equal("Values", group.Name);
+        Assert.Equal(typeof(int[]), port.PortType);
+        Assert.Equal(1, port.MinCount);
+        Assert.Equal(5, port.MaxCount);
+        Assert.Equal("Values", port.Name);
     }
 
     [Fact]
-    public async Task Execution_GroupWithPartialData_UsesDefault() {
+    public async Task Execution_ArrayWithPartialData_UsesDefault() {
         var builder = new PipelineBuilder(_registry);
         var s1 = new SourceNode();
-        var groupNode = new GroupNode();
+        var arrayNode = new ArrayNode();
 
         var i1 = builder.AddNode(s1);
-        var gi = builder.AddNode(groupNode, new Dictionary<string, int> { ["Values"] = 2 });
+        var ai = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 2 });
 
-        builder.AddConnection(i1, s1.Out, gi, groupNode.Values, 0);
-        // Index 1 has no connection — should use default (0)
+        builder.AddConnection(i1, s1.Out, ai, (IPort) arrayNode.Values, 0);
 
         var pipeline = builder.Build();
         var context = new PipelineContext();
@@ -300,6 +275,17 @@ public class PortGroupTests {
         var executor = new PipelineExecutor(pipeline);
         await executor.ExecuteAsync(context);
 
-        Assert.Equal(42, context.Read<int>(gi, groupNode.Result));
+        Assert.Equal(42, context.Read<int>(ai, arrayNode.Result));
+    }
+
+    [Fact]
+    public void SetCount_FreezesAfterFirstCall() {
+        var node = new OptionalArrayNode();
+        node.Values.SetCount(3);
+
+        Assert.Equal(3, node.Values.Count);
+        Assert.True(node.Values.IsFrozen);
+
+        Assert.Throws<InvalidOperationException>(() => node.Values.SetCount(5));
     }
 }

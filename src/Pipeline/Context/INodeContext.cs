@@ -10,8 +10,5 @@ public interface INodeContext {
     bool Has<T>(IPort port);
     bool HasAny(IPort port);
 
-    T? ReadGroup<T>(IPort group, int index);
-    void WriteGroup<T>(IPort group, int index, T? value);
-    bool HasGroup<T>(IPort group, int index);
-    int GetGroupCount(IPort group);
+    void InitializeArray<T>(IArrayInputPort<T> port, int count);
 }

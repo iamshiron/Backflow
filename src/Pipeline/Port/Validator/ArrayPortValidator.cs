@@ -13,6 +13,14 @@ public class ArrayPortValidator<T>(ArrayPortBuilder<T> builder) : BasePortValida
             return $"Array length must be at most {builder.MaxLengthValue}";
         }
 
+        if (value.Length < builder.MinCountValue) {
+            return $"Array count must be at least {builder.MinCountValue}";
+        }
+
+        if (builder.MaxCountValue.HasValue && value.Length > builder.MaxCountValue) {
+            return $"Array count must be at most {builder.MaxCountValue}";
+        }
+
         return null;
     }
 }

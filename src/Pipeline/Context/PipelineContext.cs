@@ -35,15 +35,26 @@ public class PipelineContext : IPipelineContext {
         return Store.HasAny(id);
     }
 
-    public void WriteGroup<T>(PipelineBuilder.NodeInstance node, IPort group, int index, T? value) {
-        Store.Set(node.GroupMappings[group][index], value);
-    }
-    public T? ReadGroup<T>(PipelineBuilder.NodeInstance node, IPort group, int index) {
-        var guid = node.GroupMappings[group][index];
-        return Store.Get<T>(guid) ?? Store.GetAs<T>(guid) ?? default;
-    }
-    public bool HasGroup<T>(PipelineBuilder.NodeInstance node, IPort group, int index) {
-        var guid = node.GroupMappings[group][index];
-        return Store.Has<T>(guid) || Store.CanCast<T>(guid);
+    public void WriteAt<T>(PipelineBuilder.NodeInstance node, IArrayInputPortMarker port, int index, T? value) {
+        var guid = node.Mappings[(IPort) port];
+        var existing = Store.Get<T[]>(guid);
+        T[] array;
+
+        if (existing is not null) {
+            array = existing;
+        } else if (port.Count.HasValue) {
+            array = new T[port.Count.Value];
+        } else {
+            array = new T[index + 1];
+        }
+
+        if (index >= array.Length) {
+            var resized = new T[index + 1];
+            Array.Copy(array, resized, array.Length);
+            array = resized;
+        }
+
+        array[index] = value!;
+        Store.Set(guid, array);
     }
 }

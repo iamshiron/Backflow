@@ -53,12 +53,12 @@ public abstract class AbstractNode {
         Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
+    public IArrayInputPort<T> Input<T>(IArrayInputPort<T> port) {
+        Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
+        return port;
+    }
     public IOutputPort<T> Output<T>(IOutputPort<T> port) {
         Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
-    }
-    public IInputPortGroup<T> InputGroup<T>(InputPortGroup<T> group) {
-        Inputs.Add(group);
-        return group;
     }
 }

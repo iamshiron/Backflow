@@ -5,10 +5,11 @@ namespace Shiron.Lib.Pipeline.Context;
 public class NodeContext(
     IPipelineContext context,
     IReadOnlyDictionary<IPort, Guid> mappings,
-    IReadOnlyDictionary<IPort, Dictionary<int, Guid>> groupMappings
+    IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, Guid SourceGuid)>> indexedInputs
 ) : INodeContext {
     public NodeContext(IPipelineContext context, IReadOnlyDictionary<IPort, Guid> mappings)
-        : this(context, mappings, new Dictionary<IPort, Dictionary<int, Guid>>()) { }
+        : this(context, mappings, new Dictionary<IPort, IReadOnlyList<(int Index, Guid SourceGuid)>>()) {
+    }
 
     public void Write<T>(IPort port, T? value) {
         context.Write<T>(mappings[port], value);
@@ -29,17 +30,22 @@ public class NodeContext(
         return context.HasAny(mappings[port]);
     }
 
-    public T? ReadGroup<T>(IPort group, int index) {
-        return context.Read<T>(groupMappings[group][index]);
+    public void InitializeArray<T>(IArrayInputPort<T> port) {
+        var targetGuid = mappings[(IPort) port];
+
+        if (indexedInputs.TryGetValue((IPort) port, out var sources) && sources.Count > 0) {
+            var count = sources.Max(s => s.Index) + 1;
+            ((IArrayPortAssembly) port).AssembleWithCount(context, targetGuid, sources, count);
+        } else {
+            throw new InvalidOperationException(
+                $"Cannot initialize array port '{port.Name}' without indexed connections.");
+        }
     }
-    public void WriteGroup<T>(IPort group, int index, T? value) {
-        context.Write(groupMappings[group][index], value);
-    }
-    public bool HasGroup<T>(IPort group, int index) {
-        var guid = groupMappings[group][index];
-        return context.Has<T>(guid);
-    }
-    public int GetGroupCount(IPort group) {
-        return groupMappings.TryGetValue(group, out var map) ? map.Count : 0;
+
+    public void InitializeArray<T>(IArrayInputPort<T> port, int count) {
+        var targetGuid = mappings[(IPort) port];
+        var sources = indexedInputs.TryGetValue((IPort) port, out var s) ? s : [];
+
+        ((IArrayPortAssembly) port).AssembleWithCount(context, targetGuid, sources, count);
     }
 }

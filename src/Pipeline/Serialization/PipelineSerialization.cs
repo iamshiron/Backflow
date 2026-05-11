@@ -56,19 +56,6 @@ public static class PipelineSerialization {
                 );
             }
 
-            foreach (var (group, indexMap) in node.GroupMappings) {
-                foreach (var (index, guid) in indexMap) {
-                    if (!context.Store.HasAny(guid)) continue;
-
-                    nodeInputs[$"{group.Name}[{index}]"] = new InputDto(
-                        context.ReadAny(guid),
-                        context.Store.TypeOf(guid)?.FullName ??
-                            context.Store.TypeOf(guid)?.Name ??
-                            throw new InvalidOperationException("Unable to determine type of input")
-                    );
-                }
-            }
-
             if (nodeInputs.Count > 0) {
                 inputs[node.ID] = nodeInputs;
             }
@@ -78,7 +65,7 @@ public static class PipelineSerialization {
     }
 
     public static Pipeline FromDefinitionDto(this PipelineDefinitionDto dto, NodeRegistry registry) {
-        var groupCounts = BuildGroupCounts(dto.Edges);
+        var arrayCounts = BuildArrayCounts(dto.Edges);
 
         var nodeInstances = new Dictionary<string, PipelineBuilder.NodeInstance>();
 
@@ -101,38 +88,18 @@ public static class PipelineSerialization {
                     ?? throw new InvalidOperationException($"Node type not registered in registry: {nodeDto.NodeTypeName}");
             }
 
-            var nodeGroupCounts = groupCounts.GetValueOrDefault(nodeDto.Id, new Dictionary<string, int>());
+            var nodeArrayCounts = arrayCounts.GetValueOrDefault(nodeDto.Id, new Dictionary<string, int>());
 
-            var mappings = new Dictionary<IPort, Guid>();
-            var groupMappings = new Dictionary<IPort, Dictionary<int, Guid>>();
+            var builder = new PipelineBuilder(registry);
+            var instance = builder.AddNode(node, nodeArrayCounts);
 
             foreach (var port in node.Ports) {
-                if (port is IPortGroup group) {
-                    var count = nodeGroupCounts.TryGetValue(port.Name, out var c) ? c : 0;
-                    if (count < group.MinCount) {
-                        throw new InvalidOperationException(
-                            $"Group '{port.Name}' on node '{nodeDto.Id}' requires at least {group.MinCount} ports, got {count}.");
-                    }
-                    if (group.MaxCount.HasValue && count > group.MaxCount.Value) {
-                        throw new InvalidOperationException(
-                            $"Group '{port.Name}' on node '{nodeDto.Id}' supports at most {group.MaxCount.Value} ports, got {count}.");
-                    }
-
-                    var indexMap = new Dictionary<int, Guid>();
-                    for (var i = 0; i < count; i++) {
-                        indexMap[i] = Guid.NewGuid();
-                    }
-                    groupMappings[port] = indexMap;
-                }
-
                 if (nodeDto.PortMappings.TryGetValue(port.Name, out var mappingGuid)) {
-                    mappings[port] = mappingGuid;
-                } else {
-                    mappings[port] = Guid.NewGuid();
+                    instance.Mappings[port] = mappingGuid;
                 }
             }
 
-            nodeInstances[nodeDto.Id] = new PipelineBuilder.NodeInstance(nodeDto.Id, node, mappings, groupMappings);
+            nodeInstances[nodeDto.Id] = instance;
         }
 
         var graph = new DirectedAcyclicGraph<PipelineBuilder.NodeInstance>();
@@ -152,17 +119,7 @@ public static class PipelineSerialization {
             var destPort = dest.Node.Ports.FirstOrDefault(p => p.Name == edgeDto.DestinationPortName)
                 ?? throw new InvalidOperationException($"Destination port '{edgeDto.DestinationPortName}' not found on node {edgeDto.DestinationNodeId}");
 
-            if (edgeDto.DestIndex.HasValue) {
-                if (!dest.GroupMappings.TryGetValue(destPort, out var indexMap)) {
-                    throw new InvalidOperationException(
-                        $"Group '{edgeDto.DestinationPortName}' not configured on node '{edgeDto.DestinationNodeId}'.");
-                }
-                if (!indexMap.ContainsKey(edgeDto.DestIndex.Value)) {
-                    throw new InvalidOperationException(
-                        $"Group index {edgeDto.DestIndex.Value} out of range for '{edgeDto.DestinationPortName}' on node '{edgeDto.DestinationNodeId}'.");
-                }
-                indexMap[edgeDto.DestIndex.Value] = source.Mappings[sourcePort];
-            } else {
+            if (!edgeDto.DestIndex.HasValue) {
                 dest.Mappings[destPort] = source.Mappings[sourcePort];
             }
 
@@ -189,22 +146,10 @@ public static class PipelineSerialization {
                     ? je.Deserialize(type)
                     : inputDto.Value;
 
-                var groupIndex = ParseGroupKey(portKey);
-                if (groupIndex is not null) {
-                    var (groupName, index) = groupIndex.Value;
-                    var group = node.Node.Ports.FirstOrDefault(p => p.Name == groupName)
-                        ?? throw new InvalidOperationException($"Port '{groupName}' not found on node '{nodeId}'.");
-                    if (!node.GroupMappings.TryGetValue(group, out var indexMap) || !indexMap.ContainsKey(index)) {
-                        throw new InvalidOperationException(
-                            $"Group '{groupName}' index {index} not configured on node '{nodeId}'.");
-                    }
-                    context.Store.Set(indexMap[index], value, type);
-                } else {
-                    var port = node.Node.Ports.FirstOrDefault(p => p.Name == portKey)
-                        ?? throw new InvalidOperationException($"Port '{portKey}' not found on node '{nodeId}'.");
-                    var mappingGuid = node.Mappings[port];
-                    context.Store.Set(mappingGuid, value, type);
-                }
+                var port = node.Node.Ports.FirstOrDefault(p => p.Name == portKey)
+                    ?? throw new InvalidOperationException($"Port '{portKey}' not found on node '{nodeId}'.");
+                var mappingGuid = node.Mappings[port];
+                context.Store.Set(mappingGuid, value, type);
             }
         }
         return context;
@@ -232,35 +177,22 @@ public static class PipelineSerialization {
         return dto.FromInputs(pipeline);
     }
 
-    private static Dictionary<string, Dictionary<string, int>> BuildGroupCounts(EdgeDto[] edges) {
+    private static Dictionary<string, Dictionary<string, int>> BuildArrayCounts(EdgeDto[] edges) {
         var result = new Dictionary<string, Dictionary<string, int>>();
 
         foreach (var edge in edges) {
             if (!edge.DestIndex.HasValue) continue;
 
-            if (!result.TryGetValue(edge.DestinationNodeId, out var nodeGroups)) {
-                nodeGroups = [];
-                result[edge.DestinationNodeId] = nodeGroups;
+            if (!result.TryGetValue(edge.DestinationNodeId, out var nodePorts)) {
+                nodePorts = [];
+                result[edge.DestinationNodeId] = nodePorts;
             }
 
-            ref var current = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault(nodeGroups, edge.DestinationPortName, out _);
+            ref var current = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault(nodePorts, edge.DestinationPortName, out _);
             var needed = edge.DestIndex.Value + 1;
             if (needed > current) current = needed;
         }
 
         return result;
-    }
-
-    private static (string groupName, int index)? ParseGroupKey(string portKey) {
-        var bracketOpen = portKey.IndexOf('[');
-        if (bracketOpen < 0) return null;
-        var bracketClose = portKey.IndexOf(']', bracketOpen);
-        if (bracketClose < 0) return null;
-
-        var groupName = portKey[..bracketOpen];
-        var indexStr = portKey.Substring(bracketOpen + 1, bracketClose - bracketOpen - 1);
-        if (!int.TryParse(indexStr, out var index)) return null;
-
-        return (groupName, index);
     }
 }

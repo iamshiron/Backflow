@@ -10,12 +10,8 @@ public class PipelineBuilder(NodeRegistry registry) {
     public record class NodeInstance(
         string ID,
         AbstractNode Node,
-        Dictionary<IPort, Guid> Mappings,
-        Dictionary<IPort, Dictionary<int, Guid>> GroupMappings
+        Dictionary<IPort, Guid> Mappings
     ) {
-        public NodeInstance(string ID, AbstractNode Node, Dictionary<IPort, Guid> Mappings)
-            : this(ID, Node, Mappings, []) { }
-
         public NodeState State { get; set; } = NodeState.Pending;
         public virtual bool Equals(NodeInstance? other) {
             return other is not null && ID == other.ID;
@@ -48,38 +44,33 @@ public class PipelineBuilder(NodeRegistry registry) {
         return AddNode(node, []);
     }
 
-    public NodeInstance AddNode(AbstractNode node, Dictionary<string, int> groupCounts) {
+    public NodeInstance AddNode(AbstractNode node, Dictionary<string, int> arrayCounts) {
         var fullName = node.GetType().FullName!;
         var id = NextId(fullName);
 
         var mappings = new Dictionary<IPort, Guid>();
-        var groupMappings = new Dictionary<IPort, Dictionary<int, Guid>>();
 
         foreach (var port in node.Ports) {
-            if (port is IPortGroup group) {
-                var count = groupCounts.TryGetValue(port.Name, out var c) ? c : 0;
-                if (count < group.MinCount) {
-                    throw new ArgumentException(
-                        $"Group '{port.Name}' requires at least {group.MinCount} ports, got {count}.",
-                        nameof(groupCounts));
-                }
-                if (group.MaxCount.HasValue && count > group.MaxCount.Value) {
-                    throw new ArgumentException(
-                        $"Group '{port.Name}' supports at most {group.MaxCount.Value} ports, got {count}.",
-                        nameof(groupCounts));
-                }
-
-                var indexMap = new Dictionary<int, Guid>();
-                for (var i = 0; i < count; i++) {
-                    indexMap[i] = Guid.NewGuid();
-                }
-                groupMappings[port] = indexMap;
-            }
-
             mappings[port] = Guid.NewGuid();
+
+            if (port is IArrayInputPortMarker arrayPort) {
+                if (arrayCounts.TryGetValue(port.Name, out var count)) {
+                    if (count < arrayPort.MinCount) {
+                        throw new ArgumentException(
+                            $"Array port '{port.Name}' requires at least {arrayPort.MinCount} elements, got {count}.",
+                            nameof(arrayCounts));
+                    }
+                    if (arrayPort.MaxCount.HasValue && count > arrayPort.MaxCount.Value) {
+                        throw new ArgumentException(
+                            $"Array port '{port.Name}' supports at most {arrayPort.MaxCount.Value} elements, got {count}.",
+                            nameof(arrayCounts));
+                    }
+                    arrayPort.SetCount(count);
+                }
+            }
         }
 
-        var instance = new NodeInstance(id, node, mappings, groupMappings);
+        var instance = new NodeInstance(id, node, mappings);
         _graph.AddNode(instance);
         return instance;
     }
@@ -116,25 +107,22 @@ public class PipelineBuilder(NodeRegistry registry) {
         destination.Mappings[destinationPort] = source.Mappings[sourcePort];
     }
 
-    public void AddConnection(NodeInstance source, IPort sourcePort, NodeInstance dest, IPort destGroup, int destIndex) {
-        if (!dest.Node.Ports.Contains(destGroup))
-            throw new InvalidPortException(destGroup, dest.Node.GetType());
+    public void AddConnection(NodeInstance source, IPort sourcePort, NodeInstance dest, IPort destPort, int destIndex) {
+        if (!dest.Node.Ports.Contains(destPort))
+            throw new InvalidPortException(destPort, dest.Node.GetType());
 
-        if (destGroup is not IPortGroup)
-            throw new ArgumentException($"Port '{destGroup.Name}' is not a port group.", nameof(destGroup));
+        if (destPort is not IArrayInputPortMarker)
+            throw new ArgumentException($"Port '{destPort.Name}' is not an array input port.", nameof(destPort));
 
-        if (!dest.GroupMappings.TryGetValue(destGroup, out var indexMap))
-            throw new InvalidOperationException(
-                $"Group '{destGroup.Name}' not configured. Provide group counts when calling AddNode.");
-
-        if (!indexMap.ContainsKey(destIndex))
-            throw new ArgumentOutOfRangeException(nameof(destIndex),
-                $"Group index {destIndex} is out of range for group '{destGroup.Name}' (count: {indexMap.Count}).");
+        if (destPort is IArrayInputPortMarker { IsFrozen: true } frozen) {
+            if (destIndex < 0 || destIndex >= frozen.Count!.Value)
+                throw new ArgumentOutOfRangeException(nameof(destIndex),
+                    $"Index {destIndex} is out of range for array port '{destPort.Name}' (count: {frozen.Count}).");
+        }
 
         CheckCycle(source.ID, dest.ID);
 
-        indexMap[destIndex] = source.Mappings[sourcePort];
-        _edges.Add(new EdgeInstance(source, sourcePort, dest, destGroup, destIndex));
+        _edges.Add(new EdgeInstance(source, sourcePort, dest, destPort, destIndex));
     }
 
     public void AddConnection(NodeInstance source, IPort sourcePort, GenericNodeRef destination, IPort destinationPort) {

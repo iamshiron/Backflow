@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Node;
+using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline;
 
@@ -36,6 +37,7 @@ public class PipelineExecutor(Pipeline pipeline) {
                     continue;
                 }
 
+                AssembleFrozenArrayInputs(node, global);
                 ExecuteNodeAsync(node, global).GetAwaiter().GetResult();
                 executed++;
             }
@@ -59,6 +61,7 @@ public class PipelineExecutor(Pipeline pipeline) {
                         return;
                     }
 
+                    AssembleFrozenArrayInputs(node, global);
                     await ExecuteNodeAsync(node, global);
                     Interlocked.Increment(ref executed);
                 }));
@@ -68,6 +71,48 @@ public class PipelineExecutor(Pipeline pipeline) {
 
         sw.Stop();
         return new ExecutionStats(TotalNodeCount, executed, skipped, sw.Elapsed);
+    }
+
+    private void AssembleFrozenArrayInputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+        if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return;
+
+        var indexedByPort = new Dictionary<IPort, List<(int Index, Guid SourceGuid)>>();
+
+        foreach (var edge in edges) {
+            if (!edge.DestIndex.HasValue) continue;
+
+            if (!indexedByPort.TryGetValue(edge.DestinationPort, out var list)) {
+                list = [];
+                indexedByPort[edge.DestinationPort] = list;
+            }
+            list.Add((edge.DestIndex.Value, edge.SourceNode.Mappings[edge.SourcePort]));
+        }
+
+        foreach (var (port, sources) in indexedByPort) {
+            if (port is not IArrayInputPortMarker { IsFrozen: true }) continue;
+
+            var targetGuid = node.Mappings[port];
+            ((IArrayPortAssembly) port).Assemble(global, targetGuid, sources);
+        }
+    }
+
+    private Dictionary<IPort, IReadOnlyList<(int Index, Guid SourceGuid)>> BuildIndexedInputs(PipelineBuilder.NodeInstance node) {
+        var result = new Dictionary<IPort, IReadOnlyList<(int Index, Guid SourceGuid)>>();
+
+        if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return result;
+
+        foreach (var edge in edges) {
+            if (!edge.DestIndex.HasValue) continue;
+
+            if (!result.TryGetValue(edge.DestinationPort, out var list)) {
+                list = new List<(int Index, Guid SourceGuid)>();
+                result[edge.DestinationPort] = list;
+            }
+
+            ((List<(int Index, Guid SourceGuid)>) list).Add((edge.DestIndex.Value, edge.SourceNode.Mappings[edge.SourcePort]));
+        }
+
+        return result;
     }
 
     private bool ShouldSkipDueToPropagation(PipelineBuilder.NodeInstance node) {
@@ -83,8 +128,9 @@ public class PipelineExecutor(Pipeline pipeline) {
         return false;
     }
 
-    private static async Task ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global) {
-        var context = new NodeContext(global, node.Mappings, node.GroupMappings);
+    private async Task ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+        var indexedInputs = BuildIndexedInputs(node);
+        var context = new NodeContext(global, node.Mappings, indexedInputs);
 
         NodeState state;
         try {
@@ -98,4 +144,9 @@ public class PipelineExecutor(Pipeline pipeline) {
         node.State = state;
         if (state == NodeState.Failed) throw new NodeExecutionException(node);
     }
+}
+
+internal interface IArrayPortAssembly {
+    void Assemble(IPipelineContext context, Guid targetGuid, IReadOnlyList<(int Index, Guid SourceGuid)> sources);
+    void AssembleWithCount(IPipelineContext context, Guid targetGuid, IReadOnlyList<(int Index, Guid SourceGuid)> sources, int count);
 }

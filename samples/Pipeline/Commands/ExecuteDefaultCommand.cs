@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 using Shiron.Lib.Samples.Pipeline.Types;
@@ -337,11 +338,7 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<string>(printIntArrayElementAtInstance, registry.Print.Prefix, "Array Element At: ");
             context.Write<string>(printIntArrayLengthInstance, registry.Print.Prefix, "Array Length: ");
 
-            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 0, 10);
-            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 1, 20);
-            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 2, 30);
-            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 3, 40);
-            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 4, 50);
+            context.Write<int[]>(intAverageInstance, (IPort) registry.IntAverage.Values, [10, 20, 30, 40, 50]);
             context.Write<string>(printIntAverageInstance, registry.Print.Prefix, "Average: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");

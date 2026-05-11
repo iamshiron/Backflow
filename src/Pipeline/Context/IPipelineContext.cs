@@ -51,4 +51,10 @@ public interface IPipelineContext {
     /// Returns <c>true</c> if the port is stored in any bucket.
     /// </summary>
     bool HasAny(Guid id);
+
+    /// <summary>
+    /// Write to a specific index of an array input port. Reads the existing array (or creates a default one),
+    /// sets the element at <paramref name="index"/> to <paramref name="value"/>, and writes it back.
+    /// </summary>
+    void WriteAt<T>(PipelineBuilder.NodeInstance node, IArrayInputPortMarker port, int index, T? value);
 }

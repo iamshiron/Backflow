@@ -32,6 +32,9 @@ public class GlobalNodeRegistry {
     public GetJsonElementNode GetJsonElement { get; }
     public JsonElementIntNode JsonElementInt { get; }
     public ComparisonNode Comparison { get; }
+    public IntRangeArrayNode IntRangeArray { get; }
+    public IntArrayElementAtNode IntArrayElementAt { get; }
+    public IntArrayLengthNode IntArrayLength { get; }
 
     public NodeBlueprint GenericAdd { get; }
 
@@ -59,6 +62,9 @@ public class GlobalNodeRegistry {
         GetJsonElement = Registry.Register<GetJsonElementNode>();
         JsonElementInt = Registry.Register<JsonElementIntNode>();
         Comparison = Registry.Register<ComparisonNode>();
+        IntRangeArray = Registry.Register<IntRangeArrayNode>();
+        IntArrayElementAt = Registry.Register<IntArrayElementAtNode>();
+        IntArrayLength = Registry.Register<IntArrayLengthNode>();
 
         GenericAdd = Registry.RegisterGeneric(typeof(GenericAddNode<>));
     }

@@ -55,6 +55,12 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var printJsonElementIntInstance = builder.AddNode(registry.Print);
             var compareInstance = builder.AddNode(registry.Comparison);
             var printCompareInstance = builder.AddNode(registry.Print);
+            var intRangeArrayInstance = builder.AddNode(registry.IntRangeArray);
+            var printRangeArrayInstance = builder.AddNode(registry.Print);
+            var intArrayElementAtInstance = builder.AddNode(registry.IntArrayElementAt);
+            var printIntArrayElementAtInstance = builder.AddNode(registry.Print);
+            var intArrayLengthInstance = builder.AddNode(registry.IntArrayLength);
+            var printIntArrayLengthInstance = builder.AddNode(registry.Print);
 
             var genericAddRef = builder.AddNode(registry.GenericAdd);
             var genericPrintAdd = builder.AddNode(registry.Print);
@@ -231,6 +237,28 @@ public class ExecuteDefaultCommand : AsyncCommand {
                 printCompareInstance, registry.Print.Message
             );
 
+            // Array
+            builder.AddConnection(
+                intRangeArrayInstance, registry.IntRangeArray.Out,
+                printRangeArrayInstance, registry.Print.Message
+            );
+            builder.AddConnection(
+                intRangeArrayInstance, registry.IntRangeArray.Out,
+                intArrayElementAtInstance, registry.IntArrayElementAt.Array
+            );
+            builder.AddConnection(
+                intArrayElementAtInstance, registry.IntArrayElementAt.Out,
+                printIntArrayElementAtInstance, registry.Print.Message
+            );
+            builder.AddConnection(
+                intRangeArrayInstance, registry.IntRangeArray.Out,
+                intArrayLengthInstance, registry.IntArrayLength.Array
+            );
+            builder.AddConnection(
+                intArrayLengthInstance, registry.IntArrayLength.Length,
+                printIntArrayLengthInstance, registry.Print.Message
+            );
+
             var context = new PipelineContext();
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
@@ -294,6 +322,13 @@ public class ExecuteDefaultCommand : AsyncCommand {
             // Compare
             context.Write<ComparisonOperator>(compareInstance, registry.Comparison.Operator, ComparisonOperator.GreaterThan);
             context.Write<string>(printCompareInstance, registry.Print.Prefix, "Compare: ");
+
+            // Array
+            context.Write(intRangeArrayInstance, registry.IntRangeArray.Size, 27);
+            context.Write<string>(printRangeArrayInstance, registry.Print.Prefix, "Range Array: ");
+            context.Write<int>(intArrayElementAtInstance, registry.IntArrayElementAt.Index, 10);
+            context.Write<string>(printIntArrayElementAtInstance, registry.Print.Prefix, "Array Element At: ");
+            context.Write<string>(printIntArrayLengthInstance, registry.Print.Prefix, "Array Length: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

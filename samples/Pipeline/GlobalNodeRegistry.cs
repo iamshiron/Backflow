@@ -27,6 +27,7 @@ public class GlobalNodeRegistry {
     public PackVector4Node PackVector4 { get; }
     public UnpackVector4Node UnpackVector4 { get; }
     public GreetNode Greet { get; }
+    public WebFetchNode WebFetch { get; }
 
     public NodeBlueprint GenericAdd { get; }
 
@@ -50,6 +51,7 @@ public class GlobalNodeRegistry {
         PackVector4 = Registry.Register<PackVector4Node>();
         UnpackVector4 = Registry.Register<UnpackVector4Node>();
         Greet = Registry.Register<GreetNode>();
+        WebFetch = Registry.Register<WebFetchNode>();
 
         GenericAdd = Registry.RegisterGeneric(typeof(GenericAddNode<>));
     }

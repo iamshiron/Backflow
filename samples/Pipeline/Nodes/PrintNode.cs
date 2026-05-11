@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Node;
@@ -26,7 +27,15 @@ public class PrintNode : AbstractNode {
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
-        Console.WriteLine($"{Prefix.Read(context)}{Message.ReadAny(context)}");
+        var prefix = Prefix.Read(context);
+        var data = Message.ReadAny(context);
+
+        if (data is JsonDocument json) {
+            Console.WriteLine($"{prefix}{json.RootElement.GetRawText()}");
+            return ValueTask.FromResult(true);
+        }
+
+        Console.WriteLine($"{prefix}{data}");
         return ValueTask.FromResult(true);
     }
 }

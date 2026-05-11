@@ -46,6 +46,9 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var printVector4Instance = builder.AddNode(registry.Print);
             var greetInstance = builder.AddNode(registry.Greet);
             var printInstanceGreet = builder.AddNode(registry.Print);
+            var webFetchInstance = builder.AddNode(registry.WebFetch);
+            var printWebFetchInstance = builder.AddNode(registry.Print);
+            var printWebFetchCodeInstance = builder.AddNode(registry.Print);
 
             var genericAddRef = builder.AddNode(registry.GenericAdd);
             var genericPrintAdd = builder.AddNode(registry.Print);
@@ -186,6 +189,16 @@ public class ExecuteDefaultCommand : AsyncCommand {
                 printInstanceAddSub, registry.Print.Message
             );
 
+            // Json Tests
+            builder.AddConnection(
+                webFetchInstance, registry.WebFetch.Response,
+                printWebFetchInstance, registry.Print.Message
+            );
+            builder.AddConnection(
+                webFetchInstance, registry.WebFetch.ResponseCode,
+                printWebFetchCodeInstance, registry.Print.Message
+            );
+
             var context = new PipelineContext();
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
@@ -237,6 +250,12 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<string>(printInstanceGreet, registry.Print.Prefix, "Greeting: ");
 
             context.Write<string>(genericPrintAdd, registry.Print.Prefix, "Generic Add: ");
+
+            // Web Fetch
+            context.Write<string>(webFetchInstance, registry.WebFetch.Url, "https://jsonplaceholder.typicode.com/posts/42");
+            context.Write<string>(webFetchInstance, registry.WebFetch.Method, "GET");
+            context.Write<string>(printWebFetchInstance, registry.Print.Prefix, "Web Fetch: ");
+            context.Write<string>(printWebFetchCodeInstance, registry.Print.Prefix, "Web Fetch Code: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

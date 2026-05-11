@@ -19,8 +19,10 @@ public class ArrayPortBuilder<T>(string name) : BasePortBuilder<ArrayPortBuilder
         return MinLength(minLength).MaxLength(maxLength);
     }
 
+    public override IPortValidator<T[]> CreateValidator() => new ArrayPortValidator<T>(this);
+
     protected override IInputPort<T[]> CreateInput() {
-        return new InputPort<T[]>(name, [], new ArrayPortValidator<T>(this));
+        return new InputPort<T[]>(name, [], CreateValidator());
     }
     protected override IOutputPort<T[]> CreateOutput() {
         return new OutputPort<T[]>(name);

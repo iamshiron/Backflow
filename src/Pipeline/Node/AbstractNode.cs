@@ -57,4 +57,8 @@ public abstract class AbstractNode {
         Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
+    public IInputPortGroup<T> InputGroup<T>(InputPortGroup<T> group) {
+        Inputs.Add(group);
+        return group;
+    }
 }

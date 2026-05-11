@@ -74,6 +74,8 @@ public class PipelineExecutor(Pipeline pipeline) {
         if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return false;
 
         foreach (var edge in edges) {
+            if (edge.DestIndex.HasValue) continue;
+
             if (edge.SourceNode.State != NodeState.Skipped) continue;
             if (edge.DestinationPort is Port.Port { IsRequired: true }) return true;
         }
@@ -82,7 +84,7 @@ public class PipelineExecutor(Pipeline pipeline) {
     }
 
     private static async Task ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global) {
-        var context = new NodeContext(global, node.Mappings);
+        var context = new NodeContext(global, node.Mappings, node.GroupMappings);
 
         NodeState state;
         try {

@@ -7,7 +7,15 @@ using Shiron.Lib.Pipeline.Port;
 namespace Shiron.Lib.Pipeline;
 
 public class PipelineBuilder(NodeRegistry registry) {
-    public record class NodeInstance(string ID, AbstractNode Node, Dictionary<IPort, Guid> Mappings) {
+    public record class NodeInstance(
+        string ID,
+        AbstractNode Node,
+        Dictionary<IPort, Guid> Mappings,
+        Dictionary<IPort, Dictionary<int, Guid>> GroupMappings
+    ) {
+        public NodeInstance(string ID, AbstractNode Node, Dictionary<IPort, Guid> Mappings)
+            : this(ID, Node, Mappings, []) { }
+
         public NodeState State { get; set; } = NodeState.Pending;
         public virtual bool Equals(NodeInstance? other) {
             return other is not null && ID == other.ID;
@@ -17,7 +25,11 @@ public class PipelineBuilder(NodeRegistry registry) {
         }
     }
 
-    public readonly record struct EdgeInstance(NodeInstance SourceNode, IPort SourcePort, NodeInstance DestinationNode, IPort DestinationPort);
+    public readonly record struct EdgeInstance(
+        NodeInstance SourceNode, IPort SourcePort,
+        NodeInstance DestinationNode, IPort DestinationPort,
+        int? DestIndex = null
+    );
 
     private readonly DirectedAcyclicGraph<NodeInstance> _graph = new();
     private readonly List<EdgeInstance> _edges = [];
@@ -33,14 +45,41 @@ public class PipelineBuilder(NodeRegistry registry) {
     }
 
     public NodeInstance AddNode(AbstractNode node) {
+        return AddNode(node, []);
+    }
+
+    public NodeInstance AddNode(AbstractNode node, Dictionary<string, int> groupCounts) {
         var fullName = node.GetType().FullName!;
         var id = NextId(fullName);
 
-        var instance = new NodeInstance(
-            id, node,
-            node.Ports.ToDictionary(IPort (p) => p, _ => Guid.NewGuid())
-        );
+        var mappings = new Dictionary<IPort, Guid>();
+        var groupMappings = new Dictionary<IPort, Dictionary<int, Guid>>();
 
+        foreach (var port in node.Ports) {
+            if (port is IPortGroup group) {
+                var count = groupCounts.TryGetValue(port.Name, out var c) ? c : 0;
+                if (count < group.MinCount) {
+                    throw new ArgumentException(
+                        $"Group '{port.Name}' requires at least {group.MinCount} ports, got {count}.",
+                        nameof(groupCounts));
+                }
+                if (group.MaxCount.HasValue && count > group.MaxCount.Value) {
+                    throw new ArgumentException(
+                        $"Group '{port.Name}' supports at most {group.MaxCount.Value} ports, got {count}.",
+                        nameof(groupCounts));
+                }
+
+                var indexMap = new Dictionary<int, Guid>();
+                for (var i = 0; i < count; i++) {
+                    indexMap[i] = Guid.NewGuid();
+                }
+                groupMappings[port] = indexMap;
+            }
+
+            mappings[port] = Guid.NewGuid();
+        }
+
+        var instance = new NodeInstance(id, node, mappings, groupMappings);
         _graph.AddNode(instance);
         return instance;
     }
@@ -75,6 +114,27 @@ public class PipelineBuilder(NodeRegistry registry) {
 
         _edges.Add(new EdgeInstance(source, sourcePort, destination, destinationPort));
         destination.Mappings[destinationPort] = source.Mappings[sourcePort];
+    }
+
+    public void AddConnection(NodeInstance source, IPort sourcePort, NodeInstance dest, IPort destGroup, int destIndex) {
+        if (!dest.Node.Ports.Contains(destGroup))
+            throw new InvalidPortException(destGroup, dest.Node.GetType());
+
+        if (destGroup is not IPortGroup)
+            throw new ArgumentException($"Port '{destGroup.Name}' is not a port group.", nameof(destGroup));
+
+        if (!dest.GroupMappings.TryGetValue(destGroup, out var indexMap))
+            throw new InvalidOperationException(
+                $"Group '{destGroup.Name}' not configured. Provide group counts when calling AddNode.");
+
+        if (!indexMap.ContainsKey(destIndex))
+            throw new ArgumentOutOfRangeException(nameof(destIndex),
+                $"Group index {destIndex} is out of range for group '{destGroup.Name}' (count: {indexMap.Count}).");
+
+        CheckCycle(source.ID, dest.ID);
+
+        indexMap[destIndex] = source.Mappings[sourcePort];
+        _edges.Add(new EdgeInstance(source, sourcePort, dest, destGroup, destIndex));
     }
 
     public void AddConnection(NodeInstance source, IPort sourcePort, GenericNodeRef destination, IPort destinationPort) {

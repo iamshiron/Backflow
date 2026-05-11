@@ -3,7 +3,6 @@ using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Nodes;
-using Shiron.Lib.Samples.Pipeline.Nodes.Generic;
 using Shiron.Lib.Samples.Pipeline.Types;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -61,6 +60,9 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var printIntArrayElementAtInstance = builder.AddNode(registry.Print);
             var intArrayLengthInstance = builder.AddNode(registry.IntArrayLength);
             var printIntArrayLengthInstance = builder.AddNode(registry.Print);
+
+            var intAverageInstance = builder.AddNode(registry.IntAverage, new Dictionary<string, int> { ["Values"] = 5 });
+            var printIntAverageInstance = builder.AddNode(registry.Print);
 
             var genericAddRef = builder.AddNode(registry.GenericAdd);
             var genericPrintAdd = builder.AddNode(registry.Print);
@@ -259,6 +261,11 @@ public class ExecuteDefaultCommand : AsyncCommand {
                 printIntArrayLengthInstance, registry.Print.Message
             );
 
+            builder.AddConnection(
+                intAverageInstance, registry.IntAverage.Average,
+                printIntAverageInstance, registry.Print.Message
+            );
+
             var context = new PipelineContext();
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
@@ -329,6 +336,13 @@ public class ExecuteDefaultCommand : AsyncCommand {
             context.Write<int>(intArrayElementAtInstance, registry.IntArrayElementAt.Index, 10);
             context.Write<string>(printIntArrayElementAtInstance, registry.Print.Prefix, "Array Element At: ");
             context.Write<string>(printIntArrayLengthInstance, registry.Print.Prefix, "Array Length: ");
+
+            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 0, 10);
+            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 1, 20);
+            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 2, 30);
+            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 3, 40);
+            context.WriteGroup(intAverageInstance, registry.IntAverage.Values, 4, 50);
+            context.Write<string>(printIntAverageInstance, registry.Print.Prefix, "Average: ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

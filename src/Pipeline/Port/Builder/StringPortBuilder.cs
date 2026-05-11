@@ -1,4 +1,3 @@
-using System.Numerics;
 using Shiron.Lib.Pipeline.Port.Base;
 using Shiron.Lib.Pipeline.Port.Validator;
 
@@ -25,8 +24,10 @@ public class StringPortBuilder(string name) : BasePortBuilder<StringPortBuilder,
         return this;
     }
 
+    public override IPortValidator<string> CreateValidator() => new StringPortValidator(this);
+
     protected override IInputPort<string> CreateInput() {
-        return new InputPort<string>(name, DefaultValue, new StringPortValidator(this));
+        return new InputPort<string>(name, DefaultValue, CreateValidator());
     }
     protected override IOutputPort<string> CreateOutput() {
         return new OutputPort<string>(name);

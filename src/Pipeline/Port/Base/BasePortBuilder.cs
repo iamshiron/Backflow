@@ -2,7 +2,7 @@ using Shiron.Lib.Pipeline.Port.Builder;
 
 namespace Shiron.Lib.Pipeline.Port.Base;
 
-public abstract class BasePortBuilder<TBuilder, TValue> : IPortBuilder<TValue> where TBuilder : BasePortBuilder<TBuilder, TValue> {
+public abstract class BasePortBuilder<TBuilder, TValue> : IPortBuilderConfig<TValue> where TBuilder : BasePortBuilder<TBuilder, TValue> {
     public bool IsRequired { get; private set; } = true;
     public bool IsNullable { get; private set; } = false;
     public TValue? DefaultValue { get; private set; } = default;
@@ -34,4 +34,6 @@ public abstract class BasePortBuilder<TBuilder, TValue> : IPortBuilder<TValue> w
     }
     protected abstract IInputPort<TValue> CreateInput();
     protected abstract IOutputPort<TValue> CreateOutput();
+
+    public abstract IPortValidator<TValue> CreateValidator();
 }

@@ -29,5 +29,6 @@ public record EdgeDto(
     string SourceNodeId,
     string SourcePortName,
     string DestinationNodeId,
-    string DestinationPortName
+    string DestinationPortName,
+    int? DestIndex = null
 );

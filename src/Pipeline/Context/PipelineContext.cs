@@ -4,10 +4,6 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Context;
 
-/// <summary>
-/// Thread-safe <see cref="IPipelineContext"/> backed by a <see cref="ConcurrentDictionary{TKey,TValue}"/>.
-/// Suitable for parallel node execution.
-/// </summary>
 public class PipelineContext : IPipelineContext {
     internal readonly ConcurrentBucketStore<Guid> Store = new();
 
@@ -37,5 +33,17 @@ public class PipelineContext : IPipelineContext {
     }
     public bool HasAny(Guid id) {
         return Store.HasAny(id);
+    }
+
+    public void WriteGroup<T>(PipelineBuilder.NodeInstance node, IPort group, int index, T? value) {
+        Store.Set(node.GroupMappings[group][index], value);
+    }
+    public T? ReadGroup<T>(PipelineBuilder.NodeInstance node, IPort group, int index) {
+        var guid = node.GroupMappings[group][index];
+        return Store.Get<T>(guid) ?? Store.GetAs<T>(guid) ?? default;
+    }
+    public bool HasGroup<T>(PipelineBuilder.NodeInstance node, IPort group, int index) {
+        var guid = node.GroupMappings[group][index];
+        return Store.Has<T>(guid) || Store.CanCast<T>(guid);
     }
 }

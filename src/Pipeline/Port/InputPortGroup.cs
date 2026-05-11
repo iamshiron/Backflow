@@ -36,6 +36,10 @@ public class InputPortGroup<T>(
         return context.HasGroup<T>(this, index);
     }
 
+    public int Count(INodeContext context) {
+        return context.GetGroupCount(this);
+    }
+
     private void FailFast(T? value) {
         var error = validator.Validate(value);
         if (error is not null) {

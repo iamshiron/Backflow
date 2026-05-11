@@ -6,4 +6,5 @@ public interface IInputPortGroup<T> : IPortGroup {
     T? Read(INodeContext context, int index);
     IReadOnlyList<T?> ReadAll(INodeContext context);
     bool HasValue(INodeContext context, int index);
+    int Count(INodeContext context);
 }

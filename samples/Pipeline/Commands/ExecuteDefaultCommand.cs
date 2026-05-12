@@ -65,6 +65,13 @@ public class ExecuteDefaultCommand : AsyncCommand {
             var intAverageInstance = builder.AddNode(registry.IntAverage, new Dictionary<string, int> { ["Values"] = 5 });
             var printIntAverageInstance = builder.AddNode(registry.Print);
 
+            // Implicit Cast Demo: int → double (lossless)
+            var doubleMultiplierInstance = builder.AddNode(registry.DoubleMultiplier);
+            var printDoubleResultInstance = builder.AddNode(registry.Print);
+            // Implicit Cast Demo: double → int (lossy)
+            var addFromDoubleInstance = builder.AddNode(registry.Add);
+            var printLossyCastInstance = builder.AddNode(registry.Print);
+
             var genericAddRef = builder.AddNode(registry.GenericAdd);
             var genericPrintAdd = builder.AddNode(registry.Print);
 
@@ -267,6 +274,28 @@ public class ExecuteDefaultCommand : AsyncCommand {
                 printIntAverageInstance, registry.Print.Message
             );
 
+            // Implicit Cast Demo
+            // Lossless: AddNode.Sum (int) → DoubleMultiplierNode.Value (double)
+            builder.AddConnection(
+                addInstance, registry.Add.Sum,
+                doubleMultiplierInstance, registry.DoubleMultiplier.Value
+            );
+            // Lossless: DoubleMultiplierNode.Result (double) → PrintNode.Message (object)
+            builder.AddConnection(
+                doubleMultiplierInstance, registry.DoubleMultiplier.Result,
+                printDoubleResultInstance, registry.Print.Message
+            );
+            // Lossy: DoubleMultiplierNode.Result (double) → AddNode.Number1 (int)
+            builder.AddConnection(
+                doubleMultiplierInstance, registry.DoubleMultiplier.Result,
+                addFromDoubleInstance, registry.Add.Number1
+            );
+            // Lossy result → PrintNode
+            builder.AddConnection(
+                addFromDoubleInstance, registry.Add.Sum,
+                printLossyCastInstance, registry.Print.Message
+            );
+
             var context = new PipelineContext();
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
@@ -340,6 +369,12 @@ public class ExecuteDefaultCommand : AsyncCommand {
 
             context.Write<int[]>(intAverageInstance, (IPort) registry.IntAverage.Values, [10, 20, 30, 40, 50]);
             context.Write<string>(printIntAverageInstance, registry.Print.Prefix, "Average: ");
+
+            // Implicit Cast Demo inputs
+            context.Write<double>(doubleMultiplierInstance, registry.DoubleMultiplier.Factor, 1.5);
+            context.Write<string>(printDoubleResultInstance, registry.Print.Prefix, "Double Multiplier (int→double, lossless): ");
+            context.Write<int>(addFromDoubleInstance, registry.Add.Number2, 100);
+            context.Write<string>(printLossyCastInstance, registry.Print.Prefix, "Lossy Cast (double→int, truncated): ");
 
             Console.WriteLine($"Port 1: {context.Read<int>(addInstance, registry.Add.Number1)}");
             Console.WriteLine($"Port 2: {context.Read<int>(addInstance, registry.Add.Number2)}");

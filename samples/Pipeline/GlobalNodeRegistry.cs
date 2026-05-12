@@ -36,6 +36,7 @@ public class GlobalNodeRegistry {
     public IntArrayElementAtNode IntArrayElementAt { get; }
     public IntArrayLengthNode IntArrayLength { get; }
     public IntAverageNode IntAverage { get; }
+    public DoubleMultiplierNode DoubleMultiplier { get; }
 
     public NodeBlueprint GenericAdd { get; }
 
@@ -67,6 +68,7 @@ public class GlobalNodeRegistry {
         IntArrayElementAt = Registry.Register<IntArrayElementAtNode>();
         IntArrayLength = Registry.Register<IntArrayLengthNode>();
         IntAverage = Registry.Register<IntAverageNode>();
+        DoubleMultiplier = Registry.Register<DoubleMultiplierNode>();
 
         GenericAdd = Registry.RegisterGeneric(typeof(GenericAddNode<>));
     }

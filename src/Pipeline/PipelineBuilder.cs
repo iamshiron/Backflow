@@ -1,4 +1,5 @@
 using Shiron.Lib.Collections;
+using Shiron.Lib.Pipeline.Casting;
 using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Pipeline.Node;
@@ -6,7 +7,7 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline;
 
-public class PipelineBuilder(NodeRegistry registry) {
+public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry = null) {
     public record class NodeInstance(
         string ID,
         AbstractNode Node,
@@ -27,6 +28,7 @@ public class PipelineBuilder(NodeRegistry registry) {
         int? DestIndex = null
     );
 
+    private readonly CastRegistry _castRegistry = castRegistry ?? CastRegistry.Default;
     private readonly DirectedAcyclicGraph<NodeInstance> _graph = new();
     private readonly List<EdgeInstance> _edges = [];
     private readonly Dictionary<string, int> _nodeTypeCounts = [];
@@ -100,6 +102,8 @@ public class PipelineBuilder(NodeRegistry registry) {
 
         if (!destination.Node.Ports.Contains(destinationPort))
             throw new InvalidPortException(destinationPort, destination.Node.GetType());
+
+        ValidateTypeCompatibility(sourcePort, destinationPort);
 
         CheckCycle(source.ID, destination.ID);
 
@@ -204,6 +208,8 @@ public class PipelineBuilder(NodeRegistry registry) {
             var srcPort = ResolvePort(srcInstance, pending.SourcePort);
             var dstPort = ResolvePort(dstInstance, pending.DestPort);
 
+            ValidateTypeCompatibility(srcPort, dstPort);
+
             graph.AddEdge(srcInstance, dstInstance);
             dstInstance.Mappings[dstPort] = srcInstance.Mappings[srcPort];
             allEdges.Add(new EdgeInstance(srcInstance, srcPort, dstInstance, dstPort));
@@ -307,6 +313,16 @@ public class PipelineBuilder(NodeRegistry registry) {
                 names.Add(genericRef.Blueprint.TypeParameters[i].Name);
         }
         return string.Join(", ", names);
+    }
+
+    private void ValidateTypeCompatibility(IPort sourcePort, IPort targetPort) {
+        var sourceType = sourcePort.PortType;
+        var targetType = targetPort.PortType;
+
+        if (sourceType == targetType) return;
+        if (sourceType.IsAssignableTo(targetType)) return;
+        if (_castRegistry.CanCast(sourceType, targetType)) return;
+        throw new TypeIncompatibilityException(sourcePort.Name, sourceType, targetPort.Name, targetType);
     }
 
     private readonly record struct PendingEdge(

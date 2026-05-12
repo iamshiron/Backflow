@@ -1,5 +1,6 @@
 using Shiron.Lib.Collections;
 using Shiron.Lib.Pipeline.Casting;
+using Shiron.Lib.Pipeline.Config;
 using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Pipeline.Node;
@@ -8,6 +9,7 @@ using Shiron.Lib.Pipeline.Port;
 namespace Shiron.Lib.Pipeline;
 
 public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry = null) {
+    public PipelineBuilderConfig Config { get; set; } = new();
     public record class NodeInstance(
         string ID,
         AbstractNode Node,
@@ -321,7 +323,13 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
 
         if (sourceType == targetType) return;
         if (sourceType.IsAssignableTo(targetType)) return;
-        if (_castRegistry.CanCast(sourceType, targetType)) return;
+
+        if (_castRegistry.TryGetCast(sourceType, targetType, out var rule)) {
+            if (Config.StrictTypeCasting && rule!.CastType == TypeCast.Lossy)
+                throw new TypeIncompatibilityException(sourcePort.Name, sourceType, targetPort.Name, targetType);
+            return;
+        }
+
         throw new TypeIncompatibilityException(sourcePort.Name, sourceType, targetPort.Name, targetType);
     }
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Shiron.Lib.Pipeline;
+using Shiron.Lib.Pipeline.Config;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Serialization;
@@ -10,12 +11,19 @@ using Spectre.Console.Cli;
 
 namespace Shiron.Lib.Samples.Pipeline.Commands;
 
-public class ExecuteDefaultCommand : AsyncCommand {
-    protected async override Task<int> ExecuteAsync(CommandContext cmdContext, CancellationToken cancellationToken) {
+public class ExecuteDefaultSettings : CommandSettings {
+    [CommandOption("--strict-type-casting")]
+    public bool StrictTypeCasting { get; init; }
+}
+
+public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
+    protected async override Task<int> ExecuteAsync(CommandContext cmdContext, ExecuteDefaultSettings settings, CancellationToken cancellationToken) {
         try {
             var registry = new GlobalNodeRegistry();
 
-            var builder = new PipelineBuilder(registry.Registry);
+            var builder = new PipelineBuilder(registry.Registry) {
+                Config = new PipelineBuilderConfig { StrictTypeCasting = settings.StrictTypeCasting },
+            };
             var addInstance = builder.AddNode(registry.Add);
             var subtractInstance = builder.AddNode(registry.Subtract);
             var printInstance = builder.AddNode(registry.Print);

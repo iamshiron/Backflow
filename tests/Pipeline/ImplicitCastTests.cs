@@ -1,5 +1,6 @@
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Casting;
+using Shiron.Lib.Pipeline.Config;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Node;
@@ -307,5 +308,30 @@ public class ImplicitCastTests {
         var result = ctx.Read<int>(dest, destNode.In);
 
         Assert.Equal(9, result);
+    }
+
+    [Fact]
+    public void AddConnection_StrictTypeCasting_LossyCast_Throws() {
+        var builder = new PipelineBuilder(_registry) {
+            Config = new PipelineBuilderConfig { StrictTypeCasting = true },
+        };
+        var src = builder.AddNode(new DoubleSourceNode());
+        var dest = builder.AddNode(new IntDestNode());
+
+        Assert.Throws<TypeIncompatibilityException>(() =>
+            builder.AddConnection(src, src.Node.Ports[0], dest, dest.Node.Ports[0]));
+    }
+
+    [Fact]
+    public void AddConnection_StrictTypeCasting_LosslessCast_Succeeds() {
+        var builder = new PipelineBuilder(_registry) {
+            Config = new PipelineBuilderConfig { StrictTypeCasting = true },
+        };
+        var src = builder.AddNode(new IntSourceNode());
+        var dest = builder.AddNode(new DoubleDestNode());
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(src, src.Node.Ports[0], dest, dest.Node.Ports[0]));
+        Assert.Null(ex);
     }
 }

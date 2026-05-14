@@ -1,9 +1,9 @@
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Base;
 using Shiron.Lib.Pipeline.Port.Validator;
-using Shiron.Lib.Samples.Pipeline.Types;
+using Shiron.Lib.Pipeline.Types;
 
-namespace Shiron.Lib.Samples.Pipeline.Port.Builder;
+namespace Shiron.Lib.Pipeline.Port.Builder;
 
 public class BlobPortBuilder<TValue>(string name) : BasePortBuilder<BlobPortBuilder<TValue>, TValue> where TValue : class, IBlob {
     public override IPortValidator<TValue> CreateValidator() => new PassAllPortValidator<TValue>();

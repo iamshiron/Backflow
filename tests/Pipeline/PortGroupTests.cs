@@ -343,7 +343,7 @@ public class ArrayOutputPortTests {
         ctx.Write(guid, new int[] { 1, 2, 3 });
 
         var result = ctx.Read<int[]>(guid);
-        Assert.Equal([1, 2, 3], result);
+        Assert.Equal([1, 2, 3], result!);
     }
 
     [Fact]

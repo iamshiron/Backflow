@@ -45,7 +45,7 @@ public class GenericNodeTests {
         }
 
         protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
-            Out.Write(context, In.Read(context));
+            Out.Write(context, In.Read(context)!);
             return ValueTask.FromResult(true);
         }
     }
@@ -60,7 +60,7 @@ public class GenericNodeTests {
         }
 
         protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
-            Out.Write(context, In.Read(context));
+            Out.Write(context, In.Read(context)!);
             return ValueTask.FromResult(true);
         }
     }
@@ -75,7 +75,7 @@ public class GenericNodeTests {
         }
 
         protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
-            Out.Write(context, In.Read(context));
+            Out.Write(context, In.Read(context)!);
             return ValueTask.FromResult(true);
         }
     }
@@ -90,7 +90,7 @@ public class GenericNodeTests {
         }
 
         protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
-            Out.Write(context, In.Read(context));
+            Out.Write(context, In.Read(context)!);
             return ValueTask.FromResult(true);
         }
     }

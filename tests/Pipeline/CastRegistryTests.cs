@@ -61,12 +61,41 @@ public class CastRegistryTests {
 
     [Theory]
     [InlineData(typeof(string), typeof(int))]
-    [InlineData(typeof(int), typeof(string))]
     [InlineData(typeof(bool), typeof(int))]
     [InlineData(typeof(string), typeof(double))]
     public void Incompatible_Types_CannotCast(Type source, Type target) {
         var registry = CastRegistry.CreateDefault();
         Assert.False(registry.CanCast(source, target));
+    }
+
+    [Theory]
+    [InlineData(typeof(int), typeof(string))]
+    [InlineData(typeof(bool), typeof(string))]
+    [InlineData(typeof(double), typeof(string))]
+    public void AnyType_CanCast_ToString(Type source, Type target) {
+        var registry = CastRegistry.CreateDefault();
+        Assert.True(registry.CanCast(source, target));
+        Assert.Equal(TypeCast.Lossless, registry.GetCastType(source, target));
+    }
+
+    [Fact]
+    public void ToString_Cast_ConvertsCorrectly() {
+        var registry = CastRegistry.CreateDefault();
+        Assert.True(registry.TryGetCast(typeof(int), typeof(string), out var rule));
+        Assert.Equal("42", rule!.Cast(42));
+    }
+
+    [Fact]
+    public void ToString_Cast_Null_ReturnsNull() {
+        var registry = CastRegistry.CreateDefault();
+        Assert.True(registry.TryGetCast(typeof(object), typeof(string), out var rule));
+        Assert.Null(rule!.Cast(null));
+    }
+
+    [Fact]
+    public void ToString_Cast_StringToString_NotFound() {
+        var registry = CastRegistry.CreateDefault();
+        Assert.False(registry.TryGetCast(typeof(string), typeof(string), out _));
     }
 
     [Fact]
@@ -79,21 +108,21 @@ public class CastRegistryTests {
     public void Converter_IntToDouble_ReturnsCorrectValue() {
         var registry = CastRegistry.CreateDefault();
         Assert.True(registry.TryGetCast(typeof(int), typeof(double), out var rule));
-        Assert.Equal(42.0, rule!.Converter(42));
+        Assert.Equal(42.0, rule!.Cast(42));
     }
 
     [Fact]
     public void Converter_DoubleToInt_Truncates() {
         var registry = CastRegistry.CreateDefault();
         Assert.True(registry.TryGetCast(typeof(double), typeof(int), out var rule));
-        Assert.Equal(3, rule!.Converter(3.14));
+        Assert.Equal(3, rule!.Cast(3.14));
     }
 
     [Fact]
     public void Converter_LongToDouble_WorksForLargeValue() {
         var registry = CastRegistry.CreateDefault();
         Assert.True(registry.TryGetCast(typeof(long), typeof(double), out var rule));
-        Assert.Equal(1e18, rule!.Converter((long) 1e18));
+        Assert.Equal(1e18, rule!.Cast((long) 1e18));
     }
 
     [Fact]
@@ -111,7 +140,7 @@ public class CastRegistryTests {
         registry.Register<string, int>(TypeCast.Lossy, s => int.Parse(s));
 
         registry.TryGetCast(typeof(string), typeof(int), out var rule);
-        Assert.Equal(42, rule!.Converter("42"));
+        Assert.Equal(42, rule!.Cast("42"));
     }
 
     [Fact]

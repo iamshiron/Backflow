@@ -16,6 +16,85 @@ public class GenericNodeTests {
         public string? Validate(T? value) => null;
     }
 
+    private interface ITestInterface;
+
+    private class TestClassImplementingInterface : ITestInterface;
+
+    private class TestGenericStructNode<T> : AbstractGenericNode where T : struct {
+        public IInputPort<T> In { get; }
+        public IOutputPort<T> Out { get; }
+
+        public TestGenericStructNode() {
+            In = Input(new InputPort<T>(nameof(In), default, new PassValidator<T>()));
+            Out = Output(new OutputPort<T>(nameof(Out)));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            Out.Write(context, In.Read(context));
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    private class TestGenericClassNode<T> : AbstractGenericNode where T : class {
+        public IInputPort<T> In { get; }
+        public IOutputPort<T> Out { get; }
+
+        public TestGenericClassNode() {
+            In = Input(new InputPort<T>(nameof(In), default, new PassValidator<T>()));
+            Out = Output(new OutputPort<T>(nameof(Out)));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            Out.Write(context, In.Read(context));
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    private class TestGenericInterfaceNode<T> : AbstractGenericNode where T : ITestInterface {
+        public IInputPort<T> In { get; }
+        public IOutputPort<T> Out { get; }
+
+        public TestGenericInterfaceNode() {
+            In = Input(new InputPort<T>(nameof(In), default, new PassValidator<T>()));
+            Out = Output(new OutputPort<T>(nameof(Out)));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            Out.Write(context, In.Read(context));
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    private class TestGenericNewNode<T> : AbstractGenericNode where T : new() {
+        public IInputPort<T> In { get; }
+        public IOutputPort<T> Out { get; }
+
+        public TestGenericNewNode() {
+            In = Input(new InputPort<T>(nameof(In), default, new PassValidator<T>()));
+            Out = Output(new OutputPort<T>(nameof(Out)));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            Out.Write(context, In.Read(context));
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    private class TestGenericSelfReferencingNode<T> : AbstractGenericNode where T : IComparable<T> {
+        public IInputPort<T> In { get; }
+        public IOutputPort<T> Out { get; }
+
+        public TestGenericSelfReferencingNode() {
+            In = Input(new InputPort<T>(nameof(In), default, new PassValidator<T>()));
+            Out = Output(new OutputPort<T>(nameof(Out)));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            Out.Write(context, In.Read(context));
+            return ValueTask.FromResult(true);
+        }
+    }
+
     private class IntSourceNode : AbstractNode {
         public IOutputPort<int> Out { get; }
         public IntSourceNode() {
@@ -615,5 +694,175 @@ public class GenericNodeTests {
 
         var resultPort = addInst.Node.Ports.First(p => p.Name == "Sum");
         Assert.Equal(42, context.Read<int>(addInst, resultPort));
+    }
+
+    [Fact]
+    public void Constraint_Struct_PassesForValueType() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericStructNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new IntSourceNode();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("In")));
+        Assert.Null(ex);
+        Assert.True(genericRef.IsResolved);
+        Assert.Equal(typeof(int), genericRef.TypeArgs[0]);
+    }
+
+    [Fact]
+    public void Constraint_Struct_RejectsReferenceType() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericStructNode<>));
+        var builder = new PipelineBuilder(registry);
+
+        var classNode = new TestGenericClassNode<string>();
+        var source = builder.AddNode(classNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        Assert.Throws<GenericConstraintException>(() =>
+            builder.AddConnection(source, classNode.Out, genericRef, genericRef.Port("In")));
+    }
+
+    [Fact]
+    public void Constraint_Class_PassesForReferenceType() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericClassNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new TestGenericClassNode<string>();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("In")));
+        Assert.Null(ex);
+        Assert.Equal(typeof(string), genericRef.TypeArgs[0]);
+    }
+
+    [Fact]
+    public void Constraint_Class_RejectsValueType() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericClassNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new IntSourceNode();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        Assert.Throws<GenericConstraintException>(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("In")));
+    }
+
+    [Fact]
+    public void Constraint_Interface_PassesForImplementingType() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericInterfaceNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new TestGenericInterfaceNode<TestClassImplementingInterface>();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("In")));
+        Assert.Null(ex);
+        Assert.Equal(typeof(TestClassImplementingInterface), genericRef.TypeArgs[0]);
+    }
+
+    [Fact]
+    public void Constraint_Interface_RejectsNonImplementingType() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericInterfaceNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new IntSourceNode();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        Assert.Throws<GenericConstraintException>(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("In")));
+    }
+
+    [Fact]
+    public void Constraint_INumber_PassesForInt() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericAddNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new IntSourceNode();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("A")));
+        Assert.Null(ex);
+        Assert.Equal(typeof(int), genericRef.TypeArgs[0]);
+    }
+
+    [Fact]
+    public void Constraint_INumber_RejectsString() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericAddNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new TestGenericClassNode<string>();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        Assert.Throws<GenericConstraintException>(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("A")));
+    }
+
+    [Fact]
+    public void Constraint_New_PassesForTypeWithParameterlessCtor() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericNewNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new TestGenericNewNode<TestClassImplementingInterface>();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("In")));
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void Constraint_SelfReferencing_IComparable_PassesForInt() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericSelfReferencingNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new IntSourceNode();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("In")));
+        Assert.Null(ex);
+        Assert.Equal(typeof(int), genericRef.TypeArgs[0]);
+    }
+
+    [Fact]
+    public void Constraint_Exception_ContainsHelpfulDetails() {
+        var registry = new NodeRegistry();
+        var blueprint = registry.RegisterGeneric(typeof(TestGenericStructNode<>));
+        var builder = new PipelineBuilder(registry);
+        var srcNode = new TestGenericClassNode<string>();
+
+        var source = builder.AddNode(srcNode);
+        var genericRef = builder.AddNode(blueprint);
+
+        var ex = Assert.Throws<GenericConstraintException>(() =>
+            builder.AddConnection(source, srcNode.Out, genericRef, genericRef.Port("In")));
+
+        Assert.Contains("struct", ex.Reason);
+        Assert.Equal(typeof(string), ex.InferredType);
+        Assert.Equal("T", ex.TypeParameterName);
     }
 }

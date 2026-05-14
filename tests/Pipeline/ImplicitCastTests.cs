@@ -186,7 +186,7 @@ public class ImplicitCastTests {
         ctx.Write(guid, 42);
         Assert.True(ctx.Has<double>(guid));
         Assert.True(ctx.Has<int>(guid));
-        Assert.False(ctx.Has<string>(guid));
+        Assert.True(ctx.Has<string>(guid));
     }
 
     [Fact]
@@ -333,5 +333,77 @@ public class ImplicitCastTests {
         var ex = Record.Exception(() =>
             builder.AddConnection(src, src.Node.Ports[0], dest, dest.Node.Ports[0]));
         Assert.Null(ex);
+    }
+
+    [Fact]
+    public void PipelineBuilder_RegisterCast_CustomDomainCast() {
+        var builder = new PipelineBuilder(_registry)
+            .RegisterCast<string, int>(TypeCast.Lossy, s => int.Parse(s));
+
+        var src = builder.AddNode(new StringSourceNode());
+        var dest = builder.AddNode(new IntDestNode());
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(src, src.Node.Ports[0], dest, dest.Node.Ports[0]));
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void PipelineBuilder_RegisterCast_FluentChaining() {
+        var builder = new PipelineBuilder(_registry)
+            .RegisterCast<string, int>(TypeCast.Lossy, s => int.Parse(s))
+            .RegisterCast<int, string>(TypeCast.Lossless, v => v.ToString()!);
+
+        var src = builder.AddNode(new StringSourceNode());
+        var dest = builder.AddNode(new IntDestNode());
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(src, src.Node.Ports[0], dest, dest.Node.Ports[0]));
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void PipelineBuilder_CreateContext_SharesCastRegistry() {
+        var builder = new PipelineBuilder(_registry)
+            .RegisterCast<string, int>(TypeCast.Lossy, s => int.Parse(s));
+
+        var ctx = builder.CreateContext();
+        var guid = Guid.NewGuid();
+
+        ctx.Write(guid, "123");
+        Assert.Equal(123, ctx.Read<int>(guid));
+    }
+
+    [Fact]
+    public void PipelineBuilder_RegisterCast_DoesNotAffectOtherBuilders() {
+        var builder1 = new PipelineBuilder(_registry)
+            .RegisterCast<string, int>(TypeCast.Lossy, s => int.Parse(s));
+        var builder2 = new PipelineBuilder(_registry);
+
+        var src = builder2.AddNode(new StringSourceNode());
+        var dest = builder2.AddNode(new IntDestNode());
+
+        Assert.Throws<TypeIncompatibilityException>(() =>
+            builder2.AddConnection(src, src.Node.Ports[0], dest, dest.Node.Ports[0]));
+    }
+
+    [Fact]
+    public void PipelineBuilder_RegisterCast_AppliesAtBuildAndRuntime() {
+        var builder = new PipelineBuilder(_registry)
+            .RegisterCast<string, int>(TypeCast.Lossy, s => int.Parse(s));
+
+        var srcNode = new StringSourceNode();
+        var destNode = new IntDestNode();
+        var src = builder.AddNode(srcNode);
+        var dest = builder.AddNode(destNode);
+        builder.AddConnection(src, srcNode.Out, dest, destNode.In);
+
+        var pipeline = builder.Build();
+        var ctx = builder.CreateContext();
+
+        ctx.Write(src, srcNode.Out, "99");
+        var result = ctx.Read<int>(dest, destNode.In);
+
+        Assert.Equal(99, result);
     }
 }

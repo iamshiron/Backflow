@@ -37,7 +37,7 @@ public class PipelineContext : IPipelineContext {
         var storedType = Store.TypeOf(id);
         if (storedType is not null && _castRegistry.TryGetCast(storedType, typeof(T), out var rule)) {
             var raw = Store.GetAny(id);
-            return raw is not null ? (T?) rule!.Converter(raw) : default;
+            return raw is not null ? (T?) rule!.Cast(raw) : default;
         }
 
         return default;

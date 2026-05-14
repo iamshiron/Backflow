@@ -1,6 +1,8 @@
+using System.Reflection;
 using Shiron.Lib.Collections;
 using Shiron.Lib.Pipeline.Casting;
 using Shiron.Lib.Pipeline.Config;
+using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Pipeline.Node;
@@ -10,6 +12,18 @@ namespace Shiron.Lib.Pipeline;
 
 public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry = null) {
     public PipelineBuilderConfig Config { get; set; } = new();
+
+    private readonly CastRegistry _castRegistry = castRegistry ?? CastRegistry.CreateDefault();
+
+    public PipelineBuilder RegisterCast<TSrc, TDst>(TypeCast castType, Func<TSrc, TDst> converter) {
+        _castRegistry.Register(castType, converter);
+        return this;
+    }
+
+    public PipelineContext CreateContext() {
+        return new PipelineContext(_castRegistry);
+    }
+
     public record class NodeInstance(
         string ID,
         AbstractNode Node,
@@ -30,7 +44,6 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         int? DestIndex = null
     );
 
-    private readonly CastRegistry _castRegistry = castRegistry ?? CastRegistry.Default;
     private readonly DirectedAcyclicGraph<NodeInstance> _graph = new();
     private readonly List<EdgeInstance> _edges = [];
     private readonly Dictionary<string, int> _nodeTypeCounts = [];
@@ -253,10 +266,59 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             throw new InvalidOperationException(
                 $"Type conflict for '{node.ID}': type param '{node.Blueprint.TypeParameters[typeParamIndex].Name}' " +
                 $"already resolved to '{current}' but connection requires '{type}'.");
+
+        ValidateConstraints(node, typeParamIndex, type);
+
         current = type;
 
         if (node.IsResolved)
             node.Materialize();
+    }
+
+    private static void ValidateConstraints(GenericNodeRef node, int typeParamIndex, Type type) {
+        var param = node.Blueprint.TypeParameters[typeParamIndex];
+        var nodeId = node.ID;
+
+        if ((param.Attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0) {
+            if (!type.IsValueType)
+                throw new GenericConstraintException(nodeId, param, type, "must be a non-nullable value type (struct constraint)");
+        }
+
+        if ((param.Attributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0) {
+            if (type.IsValueType)
+                throw new GenericConstraintException(nodeId, param, type, "must be a reference type (class constraint)");
+        }
+
+        foreach (var rawConstraint in param.Constraints) {
+            var constraint = SubstituteConstraint(rawConstraint, node.TypeArgs, typeParamIndex, type);
+            if (!type.IsAssignableTo(constraint))
+                throw new GenericConstraintException(nodeId, param, type, $"must implement or derive from '{constraint.Name}'");
+        }
+
+        if ((param.Attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0) {
+            if (!type.IsValueType && type.GetConstructor([]) == null)
+                throw new GenericConstraintException(nodeId, param, type, "must have a public parameterless constructor (new() constraint)");
+        }
+    }
+
+    private static Type SubstituteConstraint(Type constraint, Type?[] typeArgs, int resolvingIndex, Type resolvingType) {
+        if (!constraint.IsGenericType) return constraint;
+
+        var args = constraint.GetGenericArguments();
+        var substituted = false;
+        for (var i = 0; i < args.Length; i++) {
+            if (!args[i].IsGenericParameter) continue;
+            var pos = args[i].GenericParameterPosition;
+            if (pos >= typeArgs.Length) continue;
+
+            var resolved = typeArgs[pos] ?? (pos == resolvingIndex ? resolvingType : null);
+            if (resolved is not null) {
+                args[i] = resolved;
+                substituted = true;
+            }
+        }
+
+        return substituted ? constraint.GetGenericTypeDefinition().MakeGenericType(args) : constraint;
     }
 
     private static Type GetResolvedPortType(GenericNodeRef node, IPort port) {

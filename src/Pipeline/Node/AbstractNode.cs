@@ -61,4 +61,8 @@ public abstract class AbstractNode {
         Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
+    public IArrayOutputPort<T> Output<T>(IArrayOutputPort<T> port) {
+        Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
+        return port;
+    }
 }

@@ -289,3 +289,97 @@ public class ArrayInputPortTests {
         Assert.Throws<InvalidOperationException>(() => node.Values.SetCount(5));
     }
 }
+
+public class ArrayOutputPortTests {
+    private class ArrayProducerNode : AbstractNode {
+        public readonly IArrayOutputPort<int> Out;
+
+        public ArrayProducerNode() {
+            Out = Output(new ArrayPortBuilder<int>(nameof(Out)).Output());
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            Out.Write(context, [10, 20, 30]);
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    private class ArrayConsumerNode : AbstractNode {
+        public readonly IArrayInputPort<int> Values;
+        public readonly IOutputPort<int> Sum;
+
+        public ArrayConsumerNode() {
+            Values = Input(
+                new ArrayPortBuilder<int>(nameof(Values))
+                    .Using(new NumericPortBuilder<int>(""))
+                    .MinCount(1)
+                    .Input()
+            );
+            Sum = Output(new OutputPort<int>(nameof(Sum)));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            var values = Values.Read(context);
+            Sum.Write(context, values?.Sum() ?? 0);
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    private readonly NodeRegistry _registry = new();
+
+    [Fact]
+    public void ArrayOutputPort_HasCorrectTypes() {
+        var port = new ArrayPortBuilder<int>("test").Output();
+        Assert.Equal(typeof(int[]), port.PortType);
+        Assert.Equal(typeof(int), port.ElementType);
+    }
+
+    [Fact]
+    public void ArrayOutputPort_Write_WritesArrayToContext() {
+        var ctx = new PipelineContext();
+        var guid = Guid.NewGuid();
+
+        var port = new ArrayOutputPort<int>("out");
+        ctx.Write(guid, new int[] { 1, 2, 3 });
+
+        var result = ctx.Read<int[]>(guid);
+        Assert.Equal([1, 2, 3], result);
+    }
+
+    [Fact]
+    public void Build_ArrayOutputToArrayInput_Succeeds() {
+        var builder = new PipelineBuilder(_registry);
+        var producer = new ArrayProducerNode();
+        var consumer = new ArrayConsumerNode();
+
+        var prodInst = builder.AddNode(producer);
+        var consInst = builder.AddNode(consumer, new Dictionary<string, int> { ["Values"] = 3 });
+
+        var ex = Record.Exception(() =>
+            builder.AddConnection(prodInst, (IPort) producer.Out, consInst, (IPort) consumer.Values));
+        Assert.Null(ex);
+
+        var pipeline = builder.Build();
+        Assert.Single(pipeline.Edges);
+    }
+
+    [Fact]
+    public async Task EndToEnd_ArrayProducerToConsumer() {
+        var builder = new PipelineBuilder(_registry);
+        var producer = new ArrayProducerNode();
+        var consumer = new ArrayConsumerNode();
+
+        var prodInst = builder.AddNode(producer);
+        var consInst = builder.AddNode(consumer, new Dictionary<string, int> { ["Values"] = 3 });
+
+        builder.AddConnection(prodInst, (IPort) producer.Out, consInst, (IPort) consumer.Values);
+
+        var pipeline = builder.Build();
+        var ctx = new PipelineContext();
+        var executor = new PipelineExecutor(pipeline);
+
+        await executor.ExecuteAsync(ctx);
+
+        Assert.Equal(60, ctx.Read<int>(consInst, consumer.Sum));
+    }
+}

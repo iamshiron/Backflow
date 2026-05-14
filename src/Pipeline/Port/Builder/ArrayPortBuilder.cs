@@ -61,7 +61,11 @@ public class ArrayPortBuilder<T>(string name) : BasePortBuilder<ArrayPortBuilder
         return new ArrayInputPort<T>(name, default, elementValidator, arrValidator, MinCountValue, MaxCountValue);
     }
 
+    public new IArrayOutputPort<T> Output() {
+        return (IArrayOutputPort<T>) CreateOutput();
+    }
+
     protected override IOutputPort<T[]> CreateOutput() {
-        return new OutputPort<T[]>(name);
+        return new ArrayOutputPort<T>(name);
     }
 }

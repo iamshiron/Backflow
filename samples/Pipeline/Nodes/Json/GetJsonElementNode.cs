@@ -24,6 +24,8 @@ public class GetJsonElementNode : AbstractNode {
             new JsonElementPortBuilder(nameof(Element))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

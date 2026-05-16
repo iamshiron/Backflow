@@ -18,6 +18,8 @@ public class IntRangeArrayNode : AbstractNode {
             new ArrayPortBuilder<int>(nameof(Out))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

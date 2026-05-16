@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Shiron.Lib.Pipeline;
+using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Config;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Port;
@@ -14,6 +15,8 @@ namespace Shiron.Lib.Samples.Pipeline.Commands;
 public class ExecuteDefaultSettings : CommandSettings {
     [CommandOption("--strict-type-casting")]
     public bool StrictTypeCasting { get; init; }
+
+    [CommandOption("--cache")] public bool EnableCaching { get; init; }
 }
 
 public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
@@ -22,7 +25,7 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             var registry = new GlobalNodeRegistry();
 
             var builder = new PipelineBuilder(registry.Registry) {
-                Config = new PipelineBuilderConfig { StrictTypeCasting = settings.StrictTypeCasting },
+                Config = new PipelineBuilderConfig { StrictTypeCasting = settings.StrictTypeCasting }
             };
             var addInstance = builder.AddNode(registry.Add);
             var subtractInstance = builder.AddNode(registry.Subtract);
@@ -391,7 +394,8 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             Console.WriteLine($"Port 5: {context.Read<string>(concatInstance, registry.Concat.String2)}");
 
             var pipeline = builder.Build();
-            var executor = new PipelineExecutor(pipeline);
+            using var cache = settings.EnableCaching ? new JsonFileCache(".output/cache.json") : null;
+            var executor = new PipelineExecutor(pipeline, cache);
 
             Console.WriteLine($"Executing {executor.Layers.Length} layers");
             for (var i = 0; i < executor.Layers.Length; ++i) {

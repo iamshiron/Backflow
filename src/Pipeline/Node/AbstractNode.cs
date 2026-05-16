@@ -47,7 +47,7 @@ public abstract class AbstractNode {
     public List<Port.Port> Inputs { get; } = [];
     public List<Port.Port> Outputs { get; } = [];
 
-    public bool UseCache { get; protected set; } = true;
+    public bool UseCache { get; protected set; }
 
     public IInputPort<T> Input<T>(IInputPort<T> port) {
         Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));

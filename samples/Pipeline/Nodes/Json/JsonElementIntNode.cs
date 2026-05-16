@@ -19,6 +19,8 @@ public class JsonElementIntNode : AbstractNode {
             new NumericPortBuilder<int>(nameof(Out))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

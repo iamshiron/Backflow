@@ -24,7 +24,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         return new PipelineContext(_castRegistry);
     }
 
-    public record class NodeInstance(
+    public record NodeInstance(
         string ID,
         AbstractNode Node,
         Dictionary<IPort, Guid> Mappings

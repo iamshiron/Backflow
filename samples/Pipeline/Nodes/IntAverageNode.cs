@@ -17,6 +17,8 @@ public class IntAverageNode : AbstractNode {
                 .Input()
         );
         Average = Output(new OutputPort<double>(nameof(Average)));
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

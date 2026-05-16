@@ -33,6 +33,8 @@ public class WebFetchNode : AbstractNode {
             new NumericPortBuilder<int>("ResponseCode")
                 .Output()
         );
+
+        UseCache = false;
     }
 
     protected async override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

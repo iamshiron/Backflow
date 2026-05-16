@@ -23,6 +23,8 @@ public class DoubleMultiplierNode : AbstractNode {
             new NumericPortBuilder<double>(nameof(Result))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

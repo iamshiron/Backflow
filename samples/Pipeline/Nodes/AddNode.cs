@@ -30,6 +30,8 @@ public class AddNode : AbstractNode {
             new NumericPortBuilder<int>(nameof(Sum))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

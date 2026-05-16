@@ -29,6 +29,8 @@ public class ComparisonNode : AbstractNode {
             new BoolPortBuilder(nameof(Result))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

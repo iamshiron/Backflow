@@ -24,6 +24,8 @@ public class SubtractNode : AbstractNode {
             new NumericPortBuilder<int>(nameof(Diff))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

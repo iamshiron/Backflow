@@ -18,6 +18,8 @@ public class IntArrayLengthNode : AbstractNode {
             new NumericPortBuilder<int>(nameof(Length))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

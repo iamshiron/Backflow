@@ -24,6 +24,8 @@ public class GenericAddNode<T> : AbstractGenericNode where T : struct, INumber<T
             new NumericPortBuilder<T>(nameof(Sum))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

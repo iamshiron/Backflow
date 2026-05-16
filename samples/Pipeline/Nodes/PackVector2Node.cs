@@ -26,6 +26,8 @@ public class PackVector2Node : AbstractNode {
             new Vector2PortBuilder<int>(nameof(Out))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

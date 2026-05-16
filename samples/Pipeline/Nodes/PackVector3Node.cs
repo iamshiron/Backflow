@@ -31,6 +31,8 @@ public class PackVector3Node : AbstractNode {
             new Vector3PortBuilder<int>(nameof(Out))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

@@ -31,6 +31,8 @@ public class UnpackVector3Node : AbstractNode {
             new NumericPortBuilder<int>(nameof(Z))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

@@ -36,6 +36,8 @@ public class UnpackVector4Node : AbstractNode {
             new NumericPortBuilder<int>(nameof(W))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

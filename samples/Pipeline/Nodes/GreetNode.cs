@@ -19,6 +19,8 @@ public class GreetNode : AbstractNode {
             new StringPortBuilder(nameof(Greeting))
                 .Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

@@ -26,6 +26,8 @@ public class ConcatNode : AbstractNode {
         Concatenated = Output(
             new StringPortBuilder(nameof(Concatenated)).Output()
         );
+
+        UseCache = true;
     }
 
     protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {

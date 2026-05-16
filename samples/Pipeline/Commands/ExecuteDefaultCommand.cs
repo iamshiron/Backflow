@@ -7,6 +7,7 @@ using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 using Shiron.Lib.Samples.Pipeline.Types;
+using Silk.NET.Maths;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -394,8 +395,17 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             Console.WriteLine($"Port 5: {context.Read<string>(concatInstance, registry.Concat.String2)}");
 
             var pipeline = builder.Build();
-            using var cache = settings.EnableCaching ? new JsonFileCache(".output/cache.json") : null;
-            var executor = new PipelineExecutor(pipeline, cache);
+
+            CacheTypeAdapterRegistry? adapters = null;
+            if (settings.EnableCaching) {
+                adapters = new CacheTypeAdapterRegistry();
+                adapters.Register<Vector2D<int>, (int X, int Y)>(v => (v.X, v.Y), dto => new Vector2D<int>(dto.X, dto.Y));
+                adapters.Register<Vector3D<int>, (int X, int Y, int Z)>(v => (v.X, v.Y, v.Z), dto => new Vector3D<int>(dto.X, dto.Y, dto.Z));
+                adapters.Register<Vector4D<int>, (int X, int Y, int Z, int W)>(v => (v.X, v.Y, v.Z, v.W), dto => new Vector4D<int>(dto.X, dto.Y, dto.Z, dto.W));
+            }
+
+            using var cache = settings.EnableCaching ? new JsonFileCache(".output/cache.json", adapters) : null;
+            var executor = new PipelineExecutor(pipeline, cache, typeAdapters: adapters);
 
             Console.WriteLine($"Executing {executor.Layers.Length} layers");
             for (var i = 0; i < executor.Layers.Length; ++i) {
@@ -410,6 +420,7 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             await File.WriteAllTextAsync(".output/graph.json", pipeline.SerializeDefinition(jsonOptions), cancellationToken);
             await File.WriteAllTextAsync(".output/inputs.json", pipeline.SerializeInputs(context, jsonOptions), cancellationToken);
             var stats = await executor.ExecuteAsync(context);
+            if (cache is not null) await cache.FlushAsync();
             Console.WriteLine(stats);
             return 0;
         } catch (Exception e) {

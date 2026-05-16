@@ -7,8 +7,9 @@ public sealed class JsonFileCache : ICache {
     private readonly string _filePath;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly Dictionary<string, CacheEntryDto> _pending = [];
 
-    public JsonFileCache(string filePath) {
+    public JsonFileCache(string filePath, CacheTypeAdapterRegistry? typeAdapters = null) {
         _filePath = filePath;
         var dir = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
@@ -19,11 +20,17 @@ public sealed class JsonFileCache : ICache {
             IncludeFields = true,
             Converters = { new CachePortValueJsonConverter() }
         };
+
+        typeAdapters?.ApplyTo(_jsonOptions);
     }
 
     public async ValueTask<(bool Found, ICacheEntry? Entry)> TryGetAsync(ICacheKey key) {
         await _lock.WaitAsync();
         try {
+            if (_pending.TryGetValue(key.CombinedHash, out var pendingDto)) {
+                return (true, DtoToEntry(pendingDto));
+            }
+
             var store = await ReadStoreAsync();
             if (!store.Entries.TryGetValue(key.CombinedHash, out var dto)) {
                 return (false, null);
@@ -37,9 +44,7 @@ public sealed class JsonFileCache : ICache {
     public async ValueTask SetAsync(ICacheKey key, ICacheEntry entry) {
         await _lock.WaitAsync();
         try {
-            var store = await ReadStoreAsync();
-            store.Entries[key.CombinedHash] = EntryToDto(entry, key);
-            await WriteStoreAsync(store);
+            _pending[key.CombinedHash] = EntryToDto(entry, key);
         } finally {
             _lock.Release();
         }
@@ -48,6 +53,7 @@ public sealed class JsonFileCache : ICache {
     public async ValueTask<bool> RemoveAsync(ICacheKey key) {
         await _lock.WaitAsync();
         try {
+            _pending.Remove(key.CombinedHash);
             var store = await ReadStoreAsync();
             if (!store.Entries.Remove(key.CombinedHash)) {
                 return false;
@@ -62,12 +68,33 @@ public sealed class JsonFileCache : ICache {
     public async ValueTask ClearAsync() {
         await _lock.WaitAsync();
         try {
+            _pending.Clear();
             if (File.Exists(_filePath)) {
                 File.Delete(_filePath);
             }
         } finally {
             _lock.Release();
         }
+    }
+
+    public async Task FlushAsync() {
+        await _lock.WaitAsync();
+        try {
+            if (_pending.Count == 0) return;
+
+            var store = await ReadStoreAsync();
+            foreach (var kvp in _pending) {
+                store.Entries[kvp.Key] = kvp.Value;
+            }
+            _pending.Clear();
+            await WriteStoreAsync(store);
+        } finally {
+            _lock.Release();
+        }
+    }
+
+    public void Flush() {
+        FlushAsync().GetAwaiter().GetResult();
     }
 
     public void Dispose() {
@@ -164,8 +191,10 @@ public sealed class JsonFileCache : ICache {
                     try {
                         value = valueEl.Value.Deserialize(type, options);
                     } catch {
-                        value = null;
+                        value = valueEl.Value;
                     }
+                } else {
+                    value = valueEl.Value;
                 }
             }
 

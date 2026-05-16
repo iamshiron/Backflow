@@ -8,6 +8,17 @@ using Shiron.Lib.Pipeline.Port;
 namespace Shiron.Lib.Pipeline.Caching;
 
 public class CacheKeyFactory : ICacheKeyFactory {
+    private readonly JsonSerializerOptions _jsonOptions;
+
+    public CacheKeyFactory() {
+        _jsonOptions = new JsonSerializerOptions();
+    }
+
+    public CacheKeyFactory(CacheTypeAdapterRegistry? typeAdapters) {
+        _jsonOptions = new JsonSerializerOptions();
+        typeAdapters?.ApplyTo(_jsonOptions);
+    }
+
     public ICacheKey CreateKey(PipelineBuilder.NodeInstance node, IPipelineContext context) {
         var nodeType = node.Node.GetType();
         var typeName = ResolveTypeName(nodeType);
@@ -26,7 +37,7 @@ public class CacheKeyFactory : ICacheKeyFactory {
         return type.FullName ?? type.Name;
     }
 
-    private static string ComputeInputHash(PipelineBuilder.NodeInstance node, IPipelineContext context) {
+    private string ComputeInputHash(PipelineBuilder.NodeInstance node, IPipelineContext context) {
         var sortedInputs = node.Node.Inputs
             .OrderBy(p => p.Name)
             .ToList();
@@ -35,7 +46,7 @@ public class CacheKeyFactory : ICacheKeyFactory {
         foreach (var port in sortedInputs) {
             var guid = node.Mappings[port];
             var value = context.ReadAny(guid);
-            var serialized = JsonSerializer.Serialize(value);
+            var serialized = JsonSerializer.Serialize(value, _jsonOptions);
             parts.Add($"{port.Name}={serialized}");
         }
 

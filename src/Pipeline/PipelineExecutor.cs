@@ -8,10 +8,10 @@ using Shiron.Lib.Pipeline.Types;
 
 namespace Shiron.Lib.Pipeline;
 
-public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKeyFactory? keyFactory = null) {
+public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKeyFactory? keyFactory = null, CacheTypeAdapterRegistry? typeAdapters = null) {
     public PipelineBuilder.NodeInstance[][] Layers { get; } = pipeline.Topology.ToLayers();
 
-    private readonly ICacheKeyFactory _keyFactory = keyFactory ?? new CacheKeyFactory();
+    private readonly ICacheKeyFactory _keyFactory = keyFactory ?? new CacheKeyFactory(typeAdapters);
     private readonly Dictionary<string, List<PipelineBuilder.EdgeInstance>> _incomingEdges = BuildIncomingEdges(pipeline.Edges);
 
     private static Dictionary<string, List<PipelineBuilder.EdgeInstance>> BuildIncomingEdges(PipelineBuilder.EdgeInstance[] edges) {
@@ -243,7 +243,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         };
     }
 
-    private static void RestoreOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, ICacheEntry entry) {
+    private void RestoreOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, ICacheEntry entry) {
         var typedStore = global as PipelineContext;
 
         foreach (var port in node.Node.Outputs) {

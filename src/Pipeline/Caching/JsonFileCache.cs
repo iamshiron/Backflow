@@ -53,13 +53,16 @@ public sealed class JsonFileCache : ICache {
     public async ValueTask<bool> RemoveAsync(ICacheKey key) {
         await _lock.WaitAsync();
         try {
-            _pending.Remove(key.CombinedHash);
+            var removedFromPending = _pending.Remove(key.CombinedHash);
             var store = await ReadStoreAsync();
-            if (!store.Entries.Remove(key.CombinedHash)) {
-                return false;
+            var removedFromStore = store.Entries.Remove(key.CombinedHash);
+            if (removedFromPending || removedFromStore) {
+                if (removedFromStore) {
+                    await WriteStoreAsync(store);
+                }
+                return true;
             }
-            await WriteStoreAsync(store);
-            return true;
+            return false;
         } finally {
             _lock.Release();
         }

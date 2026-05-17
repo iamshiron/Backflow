@@ -183,7 +183,7 @@ public class CacheExecutionTests {
 
         protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
             ExecutionCount++;
-            Out.Write(context, In.Read(context).ToUpperInvariant());
+            Out.Write(context, In.Read(context)!.ToUpperInvariant());
             return ValueTask.FromResult(true);
         }
     }

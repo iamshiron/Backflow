@@ -1,5 +1,6 @@
 namespace Shiron.Lib.Pipeline.Exceptions;
 
+/// <summary>Thrown when two ports cannot be connected due to incompatible types and no cast rule.</summary>
 public class TypeIncompatibilityException(
     string sourcePortName,
     Type sourceType,

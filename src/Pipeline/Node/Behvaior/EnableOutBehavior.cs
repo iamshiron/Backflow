@@ -4,7 +4,12 @@ using Shiron.Lib.Pipeline.Port.Builder;
 
 namespace Shiron.Lib.Pipeline.Node.Behvaior;
 
+/// <summary>
+/// Behavior that adds an <c>EnableOut</c> boolean output port. After execution,
+/// writes <c>true</c> on success or <c>false</c> on failure.
+/// </summary>
 public class EnableOutBehavior : INodeBehavior {
+    /// <summary>The enable-out status port. Defaults to <c>false</c>.</summary>
     public IOutputPort<bool> EnableOut { get; private set; } = null!;
 
     public void AttachPorts(AbstractNode node) {

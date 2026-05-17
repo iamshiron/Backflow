@@ -10,8 +10,16 @@ public abstract class AbstractNode {
     private readonly List<INodeBehavior> _behaviors = [];
     private INodeBehavior[] _behaviorSnapshot = [];
 
+    /// <summary>
+    /// Implement the node's core logic. Return <c>true</c> on success, <c>false</c> on failure.
+    /// Read from input ports and write to output ports via <paramref name="context"/>.
+    /// </summary>
     protected abstract ValueTask<bool> ExecuteNodeAsync(INodeContext context);
 
+    /// <summary>
+    /// Run the full execution lifecycle: pre-execute behaviors, core logic, post-execute behaviors.
+    /// Returns the resulting <see cref="NodeState"/>.
+    /// </summary>
     public async ValueTask<NodeState> ExecuteAsync(INodeContext context) {
         var executeNode = true;
         for (var i = 0; i < _behaviorSnapshot.Length; ++i) {
@@ -37,30 +45,39 @@ public abstract class AbstractNode {
         };
     }
 
+    /// <summary>Attach a lifecycle behavior. <see cref="INodeBehavior.AttachPorts"/> is called immediately.</summary>
     protected void AddBehavior(INodeBehavior behavior) {
         _behaviors.Add(behavior);
         behavior.AttachPorts(this);
         _behaviorSnapshot = _behaviors.ToArray();
     }
 
+    /// <summary>All ports (inputs + outputs) on this node.</summary>
     public List<Port.Port> Ports => Inputs.Concat(Outputs).ToList();
+    /// <summary>Input ports on this node.</summary>
     public List<Port.Port> Inputs { get; } = [];
+    /// <summary>Output ports on this node.</summary>
     public List<Port.Port> Outputs { get; } = [];
 
+    /// <summary>When <c>true</c>, the <see cref="PipelineExecutor"/> will cache this node's outputs.</summary>
     public bool UseCache { get; protected set; }
 
+    /// <summary>Register and return a typed input port on this node.</summary>
     public IInputPort<T> Input<T>(IInputPort<T> port) {
         Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
+    /// <summary>Register and return a typed array input port on this node.</summary>
     public IArrayInputPort<T> Input<T>(IArrayInputPort<T> port) {
         Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
+    /// <summary>Register and return a typed output port on this node.</summary>
     public IOutputPort<T> Output<T>(IOutputPort<T> port) {
         Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
+    /// <summary>Register and return a typed array output port on this node.</summary>
     public IArrayOutputPort<T> Output<T>(IArrayOutputPort<T> port) {
         Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;

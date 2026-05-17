@@ -2,6 +2,10 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Context;
 
+/// <summary>
+/// Default <see cref="INodeContext"/> implementation. Delegates reads/writes to the
+/// global <see cref="IPipelineContext"/> via the node's port-to-GUID mapping.
+/// </summary>
 public class NodeContext(
     IPipelineContext context,
     IReadOnlyDictionary<IPort, Guid> mappings,
@@ -30,6 +34,7 @@ public class NodeContext(
         return context.HasAny(mappings[port]);
     }
 
+    /// <summary>Initialize an array port from its indexed connections (count inferred from max index).</summary>
     public void InitializeArray<T>(IArrayInputPort<T> port) {
         var targetGuid = mappings[(IPort) port];
 

@@ -2,7 +2,11 @@ using System.Numerics;
 
 namespace Shiron.Lib.Pipeline.Casting;
 
+/// <summary>
+/// Registers all standard widening and narrowing numeric casts into a <see cref="CastRegistry"/>.
+/// </summary>
 public static class BuiltinNumericCasts {
+    /// <summary>Register both widening and narrowing casts.</summary>
     public static void RegisterAll(CastRegistry registry) {
         RegisterWidening(registry);
         RegisterNarrowing(registry);

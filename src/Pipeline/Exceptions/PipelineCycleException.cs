@@ -1,5 +1,6 @@
 namespace Shiron.Lib.Pipeline.Exceptions;
 
+/// <summary>Thrown when a connection would introduce a cycle in the DAG.</summary>
 public class PipelineCycleException : Exception {
     public PipelineBuilder.NodeInstance? SourceNode { get; }
     public PipelineBuilder.NodeInstance? DestinationNode { get; }

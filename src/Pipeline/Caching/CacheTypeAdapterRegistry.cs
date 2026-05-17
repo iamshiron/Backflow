@@ -4,13 +4,19 @@ using System.Text.Json.Serialization;
 
 namespace Shiron.Lib.Pipeline.Caching;
 
+/// <summary>
+/// Registry for custom <see cref="JsonConverter"/>s applied to the cache's <see cref="JsonSerializerOptions"/>.
+/// Supports both direct converter instances and open-generic converter types.
+/// </summary>
 public sealed class CacheTypeAdapterRegistry {
     private readonly List<JsonConverter> _converters = [];
 
+    /// <summary>Register a concrete <see cref="JsonConverter"/> instance.</summary>
     public void Register(JsonConverter converter) {
         _converters.Add(converter);
     }
 
+    /// <summary>Register an open generic <see cref="JsonConverter{T}"/> type. Closed types are created on demand.</summary>
     public void Register(Type openGenericConverterType) {
         _converters.Add(new OpenGenericJsonConverterFactory(openGenericConverterType));
     }

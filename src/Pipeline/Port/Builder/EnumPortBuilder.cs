@@ -3,6 +3,7 @@ using Shiron.Lib.Pipeline.Port.Validator;
 
 namespace Shiron.Lib.Pipeline.Port.Builder;
 
+/// <summary>Fluent builder for enum ports. Validates that values are defined members of <typeparamref name="T"/>.</summary>
 public class EnumPortBuilder<T>(string name) : BasePortBuilder<EnumPortBuilder<T>, T> where T : struct, Enum {
     public override IPortValidator<T> CreateValidator() => new EnumPortValidator<T>(this);
 

@@ -4,6 +4,7 @@ using Shiron.Lib.Pipeline.Port.Validator;
 
 namespace Shiron.Lib.Pipeline.Port.Builder;
 
+/// <summary>Fluent builder for <see cref="JsonElement"/> ports.</summary>
 public class JsonElementPortBuilder(string name) : BasePortBuilder<JsonElementPortBuilder, JsonElement> {
     public override IPortValidator<JsonElement> CreateValidator() => new PassAllPortValidator<JsonElement>();
 

@@ -3,6 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace Shiron.Lib.Pipeline.Caching;
 
+/// <summary>
+/// <see cref="ICache"/> implementation backed by a JSON file. Writes are buffered in memory
+/// and flushed via <see cref="FlushAsync"/> or <see cref="Flush"/>.
+/// </summary>
 public sealed class JsonFileCache : ICache {
     private readonly string _filePath;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -80,6 +84,9 @@ public sealed class JsonFileCache : ICache {
         }
     }
 
+    /// <summary>
+    /// Flush all pending writes to the backing JSON file asynchronously.
+    /// </summary>
     public async Task FlushAsync() {
         await _lock.WaitAsync();
         try {
@@ -96,6 +103,7 @@ public sealed class JsonFileCache : ICache {
         }
     }
 
+    /// <summary>Flush pending writes synchronously.</summary>
     public void Flush() {
         FlushAsync().GetAwaiter().GetResult();
     }

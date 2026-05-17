@@ -3,6 +3,10 @@ using Shiron.Lib.Pipeline.Exceptions;
 
 namespace Shiron.Lib.Pipeline.Port;
 
+/// <summary>
+/// Concrete <see cref="IArrayInputPort{T}"/> implementation with frozen-count assembly.
+/// Elements are assembled from indexed connections during pipeline execution.
+/// </summary>
 public class ArrayInputPort<T>(
     string name,
     T? elementDefault,

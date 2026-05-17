@@ -5,6 +5,10 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Context;
 
+/// <summary>
+/// Default <see cref="IPipelineContext"/> implementation backed by a <see cref="ConcurrentBucketStore{Guid}"/>.
+/// Applies registered <see cref="CastRegistry"/> rules on read to support implicit type conversion.
+/// </summary>
 public class PipelineContext : IPipelineContext {
     internal readonly ConcurrentBucketStore<Guid> Store = new();
     private readonly CastRegistry _castRegistry;

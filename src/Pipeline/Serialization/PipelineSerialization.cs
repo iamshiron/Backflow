@@ -7,7 +7,11 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Serialization;
 
+/// <summary>
+/// Static API for serializing and deserializing <see cref="Pipeline"/> topologies and input snapshots to/from JSON.
+/// </summary>
 public static class PipelineSerialization {
+    /// <summary>Convert a pipeline topology to a serializable DTO.</summary>
     public static PipelineDefinitionDto ToDefinitionDto(this Pipeline pipeline) {
         var nodes = pipeline.Topology.Nodes.Select(n => {
             var nodeType = n.Node.GetType();
@@ -40,6 +44,7 @@ public static class PipelineSerialization {
         return new PipelineDefinitionDto(nodes, edges);
     }
 
+    /// <summary>Capture current input values from the context as a serializable DTO.</summary>
     public static PipelineInputsDto ToInputsDto(this Pipeline pipeline, PipelineContext context) {
         var inputs = new Dictionary<string, Dictionary<string, InputDto>>();
 
@@ -64,6 +69,7 @@ public static class PipelineSerialization {
         return new PipelineInputsDto(inputs);
     }
 
+    /// <summary>Reconstruct a <see cref="Pipeline"/> from a definition DTO using the given registry to resolve node types.</summary>
     public static Pipeline FromDefinitionDto(this PipelineDefinitionDto dto, NodeRegistry registry) {
         var arrayCounts = BuildArrayCounts(dto.Edges);
 
@@ -130,6 +136,7 @@ public static class PipelineSerialization {
         return new Pipeline(graph, edges);
     }
 
+    /// <summary>Restore input values from a DTO into a new <see cref="PipelineContext"/>.</summary>
     public static PipelineContext FromInputs(this PipelineInputsDto dto, Pipeline pipeline) {
         var context = new PipelineContext();
         var nodeLookup = pipeline.Topology.Nodes.ToDictionary(n => n.ID);
@@ -155,14 +162,17 @@ public static class PipelineSerialization {
         return context;
     }
 
+    /// <summary>Serialize the pipeline topology to a JSON string.</summary>
     public static string SerializeDefinition(this Pipeline pipeline, JsonSerializerOptions? options = null) {
         return JsonSerializer.Serialize(pipeline.ToDefinitionDto(), options);
     }
 
+    /// <summary>Serialize the current input values to a JSON string.</summary>
     public static string SerializeInputs(this Pipeline pipeline, PipelineContext context, JsonSerializerOptions? options = null) {
         return JsonSerializer.Serialize(pipeline.ToInputsDto(context), options);
     }
 
+    /// <summary>Deserialize a pipeline topology from JSON, resolving node types via <paramref name="registry"/>.</summary>
     public static Pipeline DeserializeDefinition(string json, NodeRegistry registry, JsonSerializerOptions? options = null) {
         var dto = JsonSerializer.Deserialize<PipelineDefinitionDto>(json, options)
             ?? throw new InvalidOperationException("Failed to deserialize pipeline definition JSON.");
@@ -170,6 +180,7 @@ public static class PipelineSerialization {
         return dto.FromDefinitionDto(registry);
     }
 
+    /// <summary>Deserialize input values from JSON into a <see cref="PipelineContext"/> bound to <paramref name="pipeline"/>.</summary>
     public static PipelineContext DeserializeInputs(string json, Pipeline pipeline, JsonSerializerOptions? options = null) {
         var dto = JsonSerializer.Deserialize<PipelineInputsDto>(json, options)
             ?? throw new InvalidOperationException("Failed to deserialize pipeline inputs JSON.");

@@ -3,6 +3,10 @@ using Shiron.Lib.Pipeline.Exceptions;
 
 namespace Shiron.Lib.Pipeline.Port;
 
+/// <summary>
+/// Concrete <see cref="IInputPort{T}"/> implementation. Reads values from the context,
+/// falls back to <paramref name="defaultValue"/>, and runs <paramref name="validator"/> on every read.
+/// </summary>
 public class InputPort<T>(string name, T? defaultValue, IPortValidator<T> validator) : Port(name), IInputPort<T> {
     public override Type PortType { get; protected set; } = typeof(T);
     public T? Read(INodeContext context) {

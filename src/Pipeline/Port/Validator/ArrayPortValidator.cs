@@ -3,6 +3,7 @@ using Shiron.Lib.Pipeline.Port.Builder;
 
 namespace Shiron.Lib.Pipeline.Port.Validator;
 
+/// <summary>Validates array length/count constraints from <see cref="ArrayPortBuilder{T}"/>.</summary>
 public class ArrayPortValidator<T>(ArrayPortBuilder<T> builder) : BasePortValidator<ArrayPortBuilder<T>, T[]>(builder) {
     protected override string? ValidateValue(T[] value) {
         if (builder.MinLengthValue.HasValue && value.Length < builder.MinLengthValue) {

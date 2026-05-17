@@ -3,6 +3,10 @@ using System.Text;
 
 namespace Shiron.Lib.Pipeline.Caching;
 
+/// <summary>
+/// Default <see cref="ICacheKey"/> implementation. Computes a <see cref="CombinedHash"/> via SHA-256
+/// over the concatenation of <see cref="NodeType"/>, <see cref="AssemblyVersion"/>, and <see cref="InputHash"/>.
+/// </summary>
 public sealed class CacheKey : ICacheKey {
     public string NodeType { get; }
     public string AssemblyVersion { get; }

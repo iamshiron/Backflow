@@ -3,7 +3,12 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Generic;
 
+/// <summary>
+/// Creates <see cref="NodeBlueprint"/> instances from open generic types via reflection.
+/// Extracts port metadata from public properties typed as <see cref="IInputPort{T}"/> or <see cref="IOutputPort{T}"/>.
+/// </summary>
 public static class BlueprintFactory {
+    /// <summary>Build a blueprint by reflecting over the open generic type's ports and type parameters.</summary>
     public static NodeBlueprint FromOpenType(Type openType) {
         if (!openType.IsGenericTypeDefinition)
             throw new ArgumentException($"Type {openType} is not an open generic type definition.", nameof(openType));

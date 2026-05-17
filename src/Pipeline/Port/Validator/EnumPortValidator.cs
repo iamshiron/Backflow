@@ -3,6 +3,7 @@ using Shiron.Lib.Pipeline.Port.Builder;
 
 namespace Shiron.Lib.Pipeline.Port.Validator;
 
+/// <summary>Validates that enum values are defined members of <typeparamref name="T"/>.</summary>
 public class EnumPortValidator<T>(EnumPortBuilder<T> builder)
     : BasePortValidator<EnumPortBuilder<T>, T>(builder) where T : struct, Enum {
     private static readonly HashSet<T> DefinedValues = [.. Enum.GetValues<T>()];

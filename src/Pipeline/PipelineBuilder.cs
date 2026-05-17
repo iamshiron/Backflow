@@ -10,20 +10,34 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline;
 
+/// <summary>
+/// Constructs a <see cref="Pipeline"/> DAG by registering nodes, wiring connections, and resolving generic type parameters.
+/// </summary>
 public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry = null) {
+    /// <summary>Configuration that controls type-casting strictness and other build-time behavior.</summary>
     public PipelineBuilderConfig Config { get; set; } = new();
 
     private readonly CastRegistry _castRegistry = castRegistry ?? CastRegistry.CreateDefault();
 
+    /// <summary>
+    /// Register a custom type cast from <typeparamref name="TSrc"/> to <typeparamref name="TDst"/>.
+    /// </summary>
+    /// <param name="castType">Whether the conversion is <see cref="TypeCast.Lossless"/> or <see cref="TypeCast.Lossy"/>.</param>
+    /// <param name="converter">Function that performs the conversion.</param>
     public PipelineBuilder RegisterCast<TSrc, TDst>(TypeCast castType, Func<TSrc, TDst> converter) {
         _castRegistry.Register(castType, converter);
         return this;
     }
 
+    /// <summary>Create a <see cref="PipelineContext"/> that shares this builder's cast registry.</summary>
     public PipelineContext CreateContext() {
         return new PipelineContext(_castRegistry);
     }
 
+    /// <summary>
+    /// A concrete node within a pipeline graph, carrying its runtime ID, the <see cref="AbstractNode"/> instance,
+    /// and the port-to-channel GUID mappings used for shared-memory communication.
+    /// </summary>
     public record NodeInstance(
         string ID,
         AbstractNode Node,
@@ -38,6 +52,10 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         }
     }
 
+    /// <summary>
+    /// A directed edge between two node ports. <see cref="DestIndex"/> is set when the target is an indexed
+    /// slot of an <see cref="IArrayInputPortMarker"/>.
+    /// </summary>
     public readonly record struct EdgeInstance(
         NodeInstance SourceNode, IPort SourcePort,
         NodeInstance DestinationNode, IPort DestinationPort,
@@ -57,10 +75,16 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         return $"{fullName}-{count}";
     }
 
+    /// <summary>Add a concrete node to the graph and return its <see cref="NodeInstance"/> handle.</summary>
     public NodeInstance AddNode(AbstractNode node) {
         return AddNode(node, []);
     }
 
+    /// <summary>
+    /// Add a concrete node with explicit array port counts.
+    /// </summary>
+    /// <param name="node">The node to add.</param>
+    /// <param name="arrayCounts">Maps array port names to their fixed element count.</param>
     public NodeInstance AddNode(AbstractNode node, Dictionary<string, int> arrayCounts) {
         var fullName = node.GetType().FullName!;
         var id = NextId(fullName);
@@ -92,11 +116,13 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         return instance;
     }
 
+    /// <summary>Materialize a generic blueprint with the given type arguments and add it as a concrete node.</summary>
     public NodeInstance AddNode(NodeBlueprint blueprint, Type[] typeArgs) {
         var node = registry.GetOrCreateConcrete(blueprint.OpenType, typeArgs);
         return AddNode(node);
     }
 
+    /// <summary>Add an unresolved generic node. Type arguments are inferred from connections during <see cref="Build"/>.</summary>
     public GenericNodeRef AddNode(NodeBlueprint blueprint) {
         var fullName = blueprint.OpenType.FullName!;
         var id = NextId(fullName);
@@ -111,6 +137,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         return genericRef;
     }
 
+    /// <summary>Connect an output port to an input port between two concrete nodes.</summary>
     public void AddConnection(NodeInstance source, IPort sourcePort, NodeInstance destination, IPort destinationPort) {
         if (!source.Node.Ports.Contains(sourcePort))
             throw new InvalidPortException(sourcePort, source.Node.GetType());
@@ -126,6 +153,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         destination.Mappings[destinationPort] = source.Mappings[sourcePort];
     }
 
+    /// <summary>Connect an output port to a specific index of an array input port.</summary>
     public void AddConnection(NodeInstance source, IPort sourcePort, NodeInstance dest, IPort destPort, int destIndex) {
         if (!dest.Node.Ports.Contains(destPort))
             throw new InvalidPortException(destPort, dest.Node.GetType());
@@ -144,6 +172,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         _edges.Add(new EdgeInstance(source, sourcePort, dest, destPort, destIndex));
     }
 
+    /// <summary>Connect a concrete node output to a generic node input.</summary>
     public void AddConnection(NodeInstance source, IPort sourcePort, GenericNodeRef destination, IPort destinationPort) {
         CheckCycle(source.ID, destination.ID);
         _pendingEdges.Add(new PendingEdge(source.ID, sourcePort, destination.ID, destinationPort));
@@ -155,6 +184,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         }
     }
 
+    /// <summary>Connect a generic node output to a concrete node input.</summary>
     public void AddConnection(GenericNodeRef source, IPort sourcePort, NodeInstance destination, IPort destinationPort) {
         CheckCycle(source.ID, destination.ID);
         _pendingEdges.Add(new PendingEdge(source.ID, sourcePort, destination.ID, destinationPort));
@@ -166,6 +196,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         }
     }
 
+    /// <summary>Connect two generic nodes. Type inference propagates bidirectionally.</summary>
     public void AddConnection(GenericNodeRef source, IPort sourcePort, GenericNodeRef destination, IPort destinationPort) {
         CheckCycle(source.ID, destination.ID);
         _pendingEdges.Add(new PendingEdge(source.ID, sourcePort, destination.ID, destinationPort));
@@ -181,6 +212,10 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         }
     }
 
+    /// <summary>
+    /// Resolve all generic type parameters, validate type compatibility on every edge, check for cycles,
+    /// and return the immutable <see cref="Pipeline"/> topology.
+    /// </summary>
     public Pipeline Build() {
         ResolveAllTypeArgs();
 

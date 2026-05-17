@@ -2,6 +2,7 @@ using Shiron.Lib.Pipeline.Generic;
 
 namespace Shiron.Lib.Pipeline.Exceptions;
 
+/// <summary>Thrown when a resolved type argument violates the generic constraint on the type parameter.</summary>
 public class GenericConstraintException(
     string nodeId,
     TypeParameterInfo typeParam,

@@ -5,6 +5,7 @@ using Shiron.Lib.Pipeline.Types;
 
 namespace Shiron.Lib.Pipeline.Port.Builder;
 
+/// <summary>Fluent builder for blob ports (<see cref="IBlob"/> subtypes).</summary>
 public class BlobPortBuilder<TValue>(string name) : BasePortBuilder<BlobPortBuilder<TValue>, TValue> where TValue : class, IBlob {
     public override IPortValidator<TValue> CreateValidator() => new PassAllPortValidator<TValue>();
 

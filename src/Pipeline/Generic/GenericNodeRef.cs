@@ -3,6 +3,11 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Generic;
 
+/// <summary>
+/// Handle to an unresolved generic node in a pipeline graph. Type arguments are inferred
+/// from connections and the node is materialized into a concrete <see cref="AbstractNode"/>
+/// during <see cref="PipelineBuilder.Build"/>.
+/// </summary>
 public sealed class GenericNodeRef {
     internal string ID { get; }
     internal NodeBlueprint Blueprint { get; }
@@ -31,6 +36,10 @@ public sealed class GenericNodeRef {
         _registry = registry;
     }
 
+    /// <summary>
+    /// Get a port reference by name. Returns a <see cref="BlueprintPort"/> if the node is not yet resolved,
+    /// or the concrete port from the materialized node if it is.
+    /// </summary>
     public IPort Port(string name) {
         if (MaterializedNode != null) {
             var realPort = MaterializedNode.Ports.FirstOrDefault(p => p.Name == name);

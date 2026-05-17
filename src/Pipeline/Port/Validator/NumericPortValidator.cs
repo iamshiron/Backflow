@@ -4,6 +4,7 @@ using Shiron.Lib.Pipeline.Port.Builder;
 
 namespace Shiron.Lib.Pipeline.Port.Validator;
 
+/// <summary>Validates numeric values against min/max bounds from <see cref="NumericPortBuilder{T}"/>.</summary>
 public class NumericPortValidator<T>(NumericPortBuilder<T> builder)
     : BasePortValidator<NumericPortBuilder<T>, T>(builder) where T : struct, INumber<T> {
     protected override string? ValidateValue(T value) {

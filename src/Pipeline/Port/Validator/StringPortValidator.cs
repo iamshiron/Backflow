@@ -4,6 +4,7 @@ using Shiron.Lib.Pipeline.Port.Builder;
 
 namespace Shiron.Lib.Pipeline.Port.Validator;
 
+/// <summary>Validates string values against length and multiline constraints from <see cref="StringPortBuilder"/>.</summary>
 public class StringPortValidator(StringPortBuilder builder) : BasePortValidator<StringPortBuilder, string>(builder) {
     protected override string? ValidateValue(string value) {
         if (builder.MaxLengthValue.HasValue && value.Length > builder.MaxLengthValue.Value) {

@@ -4,7 +4,12 @@ using Shiron.Lib.Pipeline.Port.Builder;
 
 namespace Shiron.Lib.Pipeline.Node.Behvaior;
 
+/// <summary>
+/// Behavior that adds a <c>ChipEnable</c> boolean input port. When <c>false</c>, the node's
+/// core logic is skipped and the node reports <see cref="NodeState.Skipped"/>.
+/// </summary>
 public class ChipEnableBehavior : INodeBehavior {
+    /// <summary>The chip-enable control port. Defaults to <c>true</c>.</summary>
     public IInputPort<bool> ChipEnable { get; private set; } = null!;
 
     public void AttachPorts(AbstractNode node) {

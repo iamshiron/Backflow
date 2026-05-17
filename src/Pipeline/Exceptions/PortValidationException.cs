@@ -2,6 +2,7 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Exceptions;
 
+/// <summary>Thrown when a port value fails its <see cref="IPortValidator{T}"/> check.</summary>
 public class PortValidationException(string portName, object? value, string error)
     : Exception($"Port '{portName}' failed validation: {error} (value: {value})") {
     public string PortName { get; } = portName;

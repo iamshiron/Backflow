@@ -7,6 +7,10 @@ using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Caching;
 
+/// <summary>
+/// Default <see cref="ICacheKeyFactory"/>. Serializes input port values to JSON, hashes them with SHA-256,
+/// and combines with node type name and assembly version.
+/// </summary>
 public class CacheKeyFactory : ICacheKeyFactory {
     private readonly JsonSerializerOptions _jsonOptions;
 

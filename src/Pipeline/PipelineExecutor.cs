@@ -8,7 +8,12 @@ using Shiron.Lib.Pipeline.Types;
 
 namespace Shiron.Lib.Pipeline;
 
+/// <summary>
+/// Executes a <see cref="Pipeline"/> topology layer-by-layer (topological order).
+/// Supports optional per-node caching via <see cref="ICache"/>.
+/// </summary>
 public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKeyFactory? keyFactory = null, CacheTypeAdapterRegistry? typeAdapters = null) {
+    /// <summary>The execution layers, each layer contains nodes that can run in parallel.</summary>
     public PipelineBuilder.NodeInstance[][] Layers { get; } = pipeline.Topology.ToLayers();
 
     private readonly ICacheKeyFactory _keyFactory = keyFactory ?? new CacheKeyFactory(typeAdapters);
@@ -28,6 +33,11 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
 
     private int TotalNodeCount => Layers.Sum(l => l.Length);
 
+    /// <summary>
+    /// Execute the pipeline synchronously, layer by layer. Nodes within a layer run sequentially.
+    /// </summary>
+    /// <param name="global">The shared context for reading/writing port values.</param>
+    /// <returns>Execution statistics including cache hit/miss counts and timing.</returns>
     public ExecutionStats Execute(IPipelineContext global) {
         var sw = Stopwatch.StartNew();
         int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;
@@ -61,6 +71,11 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         return new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, sw.Elapsed);
     }
 
+    /// <summary>
+    /// Execute the pipeline asynchronously, with nodes within each layer running in parallel via <see cref="Task.Run"/>.
+    /// </summary>
+    /// <param name="global">The shared context for reading/writing port values.</param>
+    /// <returns>Execution statistics including cache hit/miss counts and timing.</returns>
     public async Task<ExecutionStats> ExecuteAsync(IPipelineContext global) {
         var sw = Stopwatch.StartNew();
         int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;

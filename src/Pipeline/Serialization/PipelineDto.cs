@@ -11,6 +11,7 @@ public record PipelineInputsDto(
     IDictionary<string, Dictionary<string, InputDto>> Inputs
 );
 
+/// <summary>Serializable representation of an input port value with its runtime type.</summary>
 public record InputDto(
     object? Value,
     string Type

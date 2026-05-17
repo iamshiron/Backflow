@@ -107,6 +107,10 @@ public sealed class JsonFileCache : ICache {
         }
 
         var json = await File.ReadAllTextAsync(_filePath);
+        if (string.IsNullOrWhiteSpace(json)) {
+            return new CacheStoreDto();
+        }
+
         var store = JsonSerializer.Deserialize<CacheStoreDto>(json, _jsonOptions);
         return store ?? new CacheStoreDto();
     }

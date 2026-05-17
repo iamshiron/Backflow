@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -10,8 +11,8 @@ public sealed class CacheTypeAdapterRegistry {
         _converters.Add(converter);
     }
 
-    public void Register<T, TDto>(Func<T, TDto> toDto, Func<TDto, T> fromDto) where TDto : notnull {
-        _converters.Add(new DelegateJsonConverter<T, TDto>(toDto, fromDto));
+    public void Register(Type openGenericConverterType) {
+        _converters.Add(new OpenGenericJsonConverterFactory(openGenericConverterType));
     }
 
     internal void ApplyTo(JsonSerializerOptions options) {
@@ -19,31 +20,54 @@ public sealed class CacheTypeAdapterRegistry {
             options.Converters.Add(converter);
     }
 
-    internal JsonSerializerOptions CreateJsonOptions(JsonSerializerOptions? baseOptions = null) {
-        var options = new JsonSerializerOptions {
-            WriteIndented = baseOptions?.WriteIndented ?? true,
-            DefaultIgnoreCondition = baseOptions?.DefaultIgnoreCondition ?? JsonIgnoreCondition.Never,
-            IncludeFields = baseOptions?.IncludeFields ?? true,
-        };
-        if (baseOptions is not null) {
-            foreach (var converter in baseOptions.Converters)
-                options.Converters.Add(converter);
-        }
-        ApplyTo(options);
-        return options;
-    }
+    private sealed class OpenGenericJsonConverterFactory : JsonConverterFactory {
+        private readonly Type _openGenericType;
+        private readonly ConcurrentDictionary<Type, JsonConverter?> _cache = new();
 
-    private sealed class DelegateJsonConverter<T, TDto>(
-        Func<T, TDto> toDto,
-        Func<TDto, T> fromDto
-    ) : JsonConverter<T> where TDto : notnull {
-        public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
-            var dto = JsonSerializer.Deserialize<TDto>(ref reader, options);
-            return fromDto(dto!);
+        public OpenGenericJsonConverterFactory(Type openGenericType) {
+            if (openGenericType == null) throw new ArgumentNullException(nameof(openGenericType));
+            if (!openGenericType.IsGenericTypeDefinition)
+                throw new ArgumentException($"Type {openGenericType} is not an open generic type definition.", nameof(openGenericType));
+            _openGenericType = openGenericType;
         }
 
-        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) {
-            JsonSerializer.Serialize(writer, toDto(value), options);
+        public override bool CanConvert(Type typeToConvert) {
+            return CreateConverter(typeToConvert, null) != null;
+        }
+
+        public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions? options) {
+            return _cache.GetOrAdd(typeToConvert, static (type, self) => self.CreateConverterCore(type), this);
+        }
+
+        private JsonConverter? CreateConverterCore(Type typeToConvert) {
+            if (!typeToConvert.IsConstructedGenericType) return null;
+
+            try {
+                var typeArgs = typeToConvert.GetGenericArguments();
+                var concreteType = _openGenericType.MakeGenericType(typeArgs);
+
+                if (!typeof(JsonConverter).IsAssignableFrom(concreteType)) return null;
+
+                var converterBase = FindJsonConverterGenericBase(concreteType);
+                if (converterBase is null) return null;
+
+                var targetType = converterBase.GetGenericArguments()[0];
+                if (targetType != typeToConvert) return null;
+
+                return (JsonConverter?) Activator.CreateInstance(concreteType);
+            } catch {
+                return null;
+            }
+        }
+
+        private static Type? FindJsonConverterGenericBase(Type type) {
+            var current = type;
+            while (current != null) {
+                if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(JsonConverter<>))
+                    return current;
+                current = current.BaseType;
+            }
+            return null;
         }
     }
 }

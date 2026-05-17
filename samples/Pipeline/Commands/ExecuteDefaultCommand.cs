@@ -6,8 +6,8 @@ using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Nodes;
+using Shiron.Lib.Samples.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Types;
-using Silk.NET.Maths;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -399,9 +399,9 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             CacheTypeAdapterRegistry? adapters = null;
             if (settings.EnableCaching) {
                 adapters = new CacheTypeAdapterRegistry();
-                adapters.Register<Vector2D<int>, (int X, int Y)>(v => (v.X, v.Y), dto => new Vector2D<int>(dto.X, dto.Y));
-                adapters.Register<Vector3D<int>, (int X, int Y, int Z)>(v => (v.X, v.Y, v.Z), dto => new Vector3D<int>(dto.X, dto.Y, dto.Z));
-                adapters.Register<Vector4D<int>, (int X, int Y, int Z, int W)>(v => (v.X, v.Y, v.Z, v.W), dto => new Vector4D<int>(dto.X, dto.Y, dto.Z, dto.W));
+                adapters.Register(typeof(Vector2DJsonConverter<>));
+                adapters.Register(typeof(Vector3DJsonConverter<>));
+                adapters.Register(typeof(Vector4DJsonConverter<>));
             }
 
             using var cache = settings.EnableCaching ? new JsonFileCache(".output/cache.json", adapters) : null;

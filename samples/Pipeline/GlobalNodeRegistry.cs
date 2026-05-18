@@ -1,5 +1,5 @@
-using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Generic;
+using Shiron.Lib.Pipeline.Registry;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 using Shiron.Lib.Samples.Pipeline.Nodes.Generic;
 using Shiron.Lib.Samples.Pipeline.Nodes.Json;

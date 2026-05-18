@@ -1,7 +1,7 @@
 using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Pipeline.Node;
 
-namespace Shiron.Lib.Pipeline;
+namespace Shiron.Lib.Pipeline.Registry;
 
 public class NodeRegistry {
     private readonly Dictionary<Type, AbstractNode> _nodes = [];

@@ -7,6 +7,7 @@ using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
+using Shiron.Lib.Pipeline.Registry;
 
 namespace Shiron.Lib.Pipeline;
 

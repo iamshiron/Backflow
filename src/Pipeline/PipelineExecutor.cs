@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Shiron.Lib.Pipeline.BlobStorage;
 using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Exceptions;
@@ -10,9 +11,9 @@ namespace Shiron.Lib.Pipeline;
 
 /// <summary>
 /// Executes a <see cref="Pipeline"/> topology layer-by-layer (topological order).
-/// Supports optional per-node caching via <see cref="ICache"/>.
+/// Supports optional per-node caching via <see cref="ICache"/> and blob storage via <see cref="IBlobStorageResolver"/>.
 /// </summary>
-public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKeyFactory? keyFactory = null, CacheTypeAdapterRegistry? typeAdapters = null) {
+public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKeyFactory? keyFactory = null, CacheTypeAdapterRegistry? typeAdapters = null, IBlobStorageResolver? blobResolver = null) {
     /// <summary>The execution layers, each layer contains nodes that can run in parallel.</summary>
     public PipelineBuilder.NodeInstance[][] Layers { get; } = pipeline.Topology.ToLayers();
 
@@ -188,14 +189,16 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
     private bool IsNodeCacheable(PipelineBuilder.NodeInstance node) {
         if (cache is null || !node.Node.UseCache) return false;
 
-        foreach (var port in node.Node.Ports) {
-            var portType = port.PortType;
-            if (portType is null) continue;
+        if (blobResolver is null) {
+            foreach (var port in node.Node.Ports) {
+                var portType = port.PortType;
+                if (portType is null) continue;
 
-            if (typeof(IStreamData).IsAssignableFrom(portType) ||
-                typeof(IBlob).IsAssignableFrom(portType) ||
-                typeof(IBufferData).IsAssignableFrom(portType)) {
-                return false;
+                if (typeof(IStreamData).IsAssignableFrom(portType) ||
+                    typeof(IBlob).IsAssignableFrom(portType) ||
+                    typeof(IBufferData).IsAssignableFrom(portType)) {
+                    return false;
+                }
             }
         }
 
@@ -238,6 +241,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
             if (!global.HasAny(guid)) continue;
 
             var value = global.ReadAny(guid);
+            value = TryStoreBlob(value);
             var typeName = value?.GetType().AssemblyQualifiedName ?? "null";
             inputs[port.Name] = new CachePortValue(value, typeName);
         }
@@ -247,6 +251,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
             if (!global.HasAny(guid)) continue;
 
             var value = global.ReadAny(guid);
+            value = TryStoreBlob(value);
             var typeName = value?.GetType().AssemblyQualifiedName ?? "null";
             outputs[port.Name] = new CachePortValue(value, typeName);
         }
@@ -258,6 +263,41 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         };
     }
 
+    private object? TryStoreBlob(object? value) {
+        if (blobResolver is null || value is null) return value;
+
+        return value switch {
+            IBufferData bufferData => StoreBlobFromBuffer(bufferData),
+            IStreamData streamData => StoreBlobFromStream(streamData),
+            IBlob blob => StoreBlobFromBlob(blob),
+            _ => value
+        };
+    }
+
+    private BlobReference StoreBlobFromBuffer(IBufferData bufferData) {
+        var data = bufferData.Data;
+        var metadata = new BlobMetadata { ContentLength = data.Length };
+        var storage = blobResolver!.Resolve(metadata);
+        var blobId = storage.StoreAsync(new MemoryStream(data.ToArray()), metadata).GetAwaiter().GetResult();
+        return new BlobReference(storage.Name, blobId);
+    }
+
+    private BlobReference StoreBlobFromStream(IStreamData streamData) {
+        var stream = streamData.OpenRead();
+        var storage = blobResolver!.Resolve(null);
+        var blobId = storage.StoreAsync(stream).GetAwaiter().GetResult();
+        stream.Dispose();
+        return new BlobReference(storage.Name, blobId);
+    }
+
+    private BlobReference StoreBlobFromBlob(IBlob blob) {
+        var stream = blob.Storage.OpenRead();
+        var storage = blobResolver!.Resolve(null);
+        var blobId = storage.StoreAsync(stream).GetAwaiter().GetResult();
+        stream.Dispose();
+        return new BlobReference(storage.Name, blobId);
+    }
+
     private void RestoreOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, ICacheEntry entry) {
         var typedStore = global as PipelineContext;
 
@@ -266,11 +306,22 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
 
             var guid = node.Mappings[port];
             var type = Type.GetType(cached.TypeName);
+            var value = cached.Value;
+
+            if (value is BlobReference blobRef) {
+                var restored = new CachedStreamData(blobRef, blobResolver!);
+                if (type is not null && typedStore is not null) {
+                    typedStore.Store.Set(guid, restored, type);
+                } else {
+                    global.Write(guid, restored);
+                }
+                continue;
+            }
 
             if (type is not null && typedStore is not null) {
-                typedStore.Store.Set(guid, cached.Value, type);
+                typedStore.Store.Set(guid, value, type);
             } else {
-                global.Write(guid, cached.Value);
+                global.Write(guid, value);
             }
         }
     }

@@ -5,9 +5,9 @@ namespace Shiron.Lib.Pipeline.BlobStorage;
 public class BlobStorageRegistry : IBlobStorageResolver {
     private readonly ConcurrentDictionary<string, IBlobStorage> _storages = new();
     private readonly List<IBlobStorage> _registrationOrder = [];
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
-    public void Register(IBlobStorage storage) {
+    protected void Register(IBlobStorage storage) {
         ArgumentNullException.ThrowIfNull(storage);
         if (string.IsNullOrWhiteSpace(storage.Name))
             throw new ArgumentException("Storage must have a non-empty Name.", nameof(storage));

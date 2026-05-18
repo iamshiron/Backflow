@@ -405,7 +405,9 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             }
 
             using var cache = settings.EnableCaching ? new JsonFileCache(".output/cache.json", adapters) : null;
-            var executor = new PipelineExecutor(pipeline, cache, typeAdapters: adapters);
+            var blobStorage = settings.EnableCaching ? new GlobalStorageRegistry(".output") : null;
+
+            var executor = new PipelineExecutor(pipeline, cache, typeAdapters: adapters, blobResolver: blobStorage);
 
             Console.WriteLine($"Executing {executor.Layers.Length} layers");
             for (var i = 0; i < executor.Layers.Length; ++i) {

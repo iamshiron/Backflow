@@ -4,6 +4,12 @@ using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline;
 
+file class TestBlobStorageRegistry : BlobStorageRegistry {
+    public TestBlobStorageRegistry(params IBlobStorage[] storages) {
+        foreach (var s in storages) Register(s);
+    }
+}
+
 public class CachedStreamDataOpenReadTests {
     private static FileSystemBlobStorage MakeStorage(string name) {
         var dir = Path.Combine(Path.GetTempPath(), $"blob-csd-{Guid.NewGuid():N}");
@@ -13,8 +19,7 @@ public class CachedStreamDataOpenReadTests {
     [Fact]
     public async Task OpenRead_ReturnsStoredContent() {
         using var storage = MakeStorage("test");
-        var registry = new BlobStorageRegistry();
-        registry.Register(storage);
+        var registry = new TestBlobStorageRegistry(storage);
 
         var original = new byte[] { 7, 8, 9 };
         var blobId = await storage.StoreAsync(new MemoryStream(original));
@@ -31,8 +36,7 @@ public class CachedStreamDataOpenReadTests {
     [Fact]
     public async Task OpenRead_CanBeCalledMultipleTimes() {
         using var storage = MakeStorage("test");
-        var registry = new BlobStorageRegistry();
-        registry.Register(storage);
+        var registry = new TestBlobStorageRegistry(storage);
 
         var original = new byte[] { 1, 2, 3 };
         var blobId = await storage.StoreAsync(new MemoryStream(original));

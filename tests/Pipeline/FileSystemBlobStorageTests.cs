@@ -17,26 +17,37 @@ public class FileSystemBlobStorageStoreTests {
     }
 
     [Fact]
-    public async Task StoreAsync_CreatesFileOnDisk() {
+    public async Task StoreAsync_CreatesFileInPrefixedFolder() {
         var dir = TempDir();
         using var storage = new FileSystemBlobStorage("test", dir);
         var data = new MemoryStream([1, 2, 3]);
 
         var blobId = await storage.StoreAsync(data);
 
-        Assert.True(File.Exists(Path.Combine(dir, blobId)));
+        var prefix = blobId[..2];
+        Assert.True(File.Exists(Path.Combine(dir, prefix, blobId)));
     }
 
     [Fact]
-    public async Task StoreAsync_WithMetadata_CreatesMetaFile() {
+    public async Task StoreAsync_CreatesRegistryJson() {
         var dir = TempDir();
         using var storage = new FileSystemBlobStorage("test", dir);
-        var data = new MemoryStream([1, 2, 3]);
+        await storage.StoreAsync(new MemoryStream([1, 2, 3]));
+
+        Assert.True(File.Exists(Path.Combine(dir, "registry.json")));
+    }
+
+    [Fact]
+    public async Task StoreAsync_WithMetadata_WritesMetadataToRegistry() {
+        var dir = TempDir();
+        using var storage = new FileSystemBlobStorage("test", dir);
         var meta = new BlobMetadata { ContentType = "text/plain" };
 
-        var blobId = await storage.StoreAsync(data, meta);
+        var blobId = await storage.StoreAsync(new MemoryStream([1, 2, 3]), meta);
+        var storedMeta = await storage.GetMetadataAsync(blobId);
 
-        Assert.True(File.Exists(Path.Combine(dir, $"{blobId}.meta.json")));
+        Assert.NotNull(storedMeta);
+        Assert.Equal("text/plain", storedMeta!.ContentType);
     }
 
     [Fact]
@@ -44,10 +55,9 @@ public class FileSystemBlobStorageStoreTests {
         var dir = TempDir();
         using var storage = new FileSystemBlobStorage("test", dir);
         var bytes = new byte[] { 1, 2, 3, 4, 5 };
-        var data = new MemoryStream(bytes);
         var meta = new BlobMetadata { ContentType = "application/octet-stream" };
 
-        var blobId = await storage.StoreAsync(data, meta);
+        var blobId = await storage.StoreAsync(new MemoryStream(bytes), meta);
         var storedMeta = await storage.GetMetadataAsync(blobId);
 
         Assert.Equal(bytes.Length, storedMeta!.ContentLength);
@@ -57,13 +67,84 @@ public class FileSystemBlobStorageStoreTests {
     public async Task StoreAsync_WithMetadata_PreservesExplicitContentLength() {
         var dir = TempDir();
         using var storage = new FileSystemBlobStorage("test", dir);
-        var data = new MemoryStream([1, 2, 3]);
         var meta = new BlobMetadata { ContentLength = 999 };
 
-        var blobId = await storage.StoreAsync(data, meta);
+        var blobId = await storage.StoreAsync(new MemoryStream([1, 2, 3]), meta);
         var storedMeta = await storage.GetMetadataAsync(blobId);
 
         Assert.Equal(999, storedMeta!.ContentLength);
+    }
+
+    [Fact]
+    public async Task StoreAsync_WithoutMetadata_StillWritesContentLengthToRegistry() {
+        var dir = TempDir();
+        using var storage = new FileSystemBlobStorage("test", dir);
+        var bytes = new byte[] { 10, 20, 30 };
+
+        var blobId = await storage.StoreAsync(new MemoryStream(bytes));
+        var storedMeta = await storage.GetMetadataAsync(blobId);
+
+        Assert.NotNull(storedMeta);
+        Assert.Equal(bytes.Length, storedMeta!.ContentLength);
+    }
+
+    [Fact]
+    public async Task StoreAsync_WithTags_PersistsTagsInRegistry() {
+        var dir = TempDir();
+        using var storage = new FileSystemBlobStorage("test", dir);
+        var meta = new BlobMetadata {
+            ContentType = "image/png",
+            Tags = new Dictionary<string, string> {
+                ["width"] = "3840",
+                ["height"] = "2160"
+            }
+        };
+
+        var blobId = await storage.StoreAsync(new MemoryStream([1, 2, 3]), meta);
+        var result = await storage.GetMetadataAsync(blobId);
+
+        Assert.Equal(2, result!.Tags.Count);
+        Assert.Equal("3840", result.Tags["width"]);
+        Assert.Equal("2160", result.Tags["height"]);
+    }
+
+    [Fact]
+    public async Task StoreAsync_MetadataPersistsAcrossStorageInstances() {
+        var dir = TempDir();
+        string blobId;
+
+        using (var storage = new FileSystemBlobStorage("test", dir)) {
+            var meta = new BlobMetadata {
+                ContentType = "image/jpeg",
+                Tags = new Dictionary<string, string> { ["source"] = "camera" }
+            };
+            blobId = await storage.StoreAsync(new MemoryStream([4, 5, 6]), meta);
+        }
+
+        using (var storage2 = new FileSystemBlobStorage("test", dir)) {
+            var result = await storage2.GetMetadataAsync(blobId);
+
+            Assert.NotNull(result);
+            Assert.Equal("image/jpeg", result!.ContentType);
+            Assert.Equal(3, result.ContentLength);
+            Assert.Equal("camera", result.Tags["source"]);
+        }
+    }
+
+    [Fact]
+    public async Task StoreAsync_RegistryJsonContainsValidStructure() {
+        var dir = TempDir();
+        using var storage = new FileSystemBlobStorage("test", dir);
+        var meta = new BlobMetadata { ContentType = "text/plain" };
+        var blobId = await storage.StoreAsync(new MemoryStream([1, 2, 3]), meta);
+
+        var json = await File.ReadAllTextAsync(Path.Combine(dir, "registry.json"));
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+        Assert.True(doc.RootElement.TryGetProperty(blobId, out var entry));
+        Assert.True(entry.TryGetProperty("Metadata", out var metadata));
+        Assert.True(metadata.TryGetProperty("ContentType", out var ct));
+        Assert.Equal("text/plain", ct.GetString());
     }
 }
 
@@ -116,14 +197,15 @@ public class FileSystemBlobStorageGetMetadataTests {
     }
 
     [Fact]
-    public async Task GetMetadataAsync_WithoutMetadata_ReturnsNull() {
+    public async Task GetMetadataAsync_WithoutMetadata_ReturnsAutoGeneratedMetadata() {
         var dir = TempDir();
         using var storage = new FileSystemBlobStorage("test", dir);
         var blobId = await storage.StoreAsync(new MemoryStream([1, 2, 3]));
 
         var result = await storage.GetMetadataAsync(blobId);
 
-        Assert.Null(result);
+        Assert.NotNull(result);
+        Assert.Equal(3, result!.ContentLength);
     }
 }
 
@@ -172,15 +254,27 @@ public class FileSystemBlobStorageRemoveTests {
     }
 
     [Fact]
-    public async Task RemoveAsync_AlsoDeletesMetaFile() {
+    public async Task RemoveAsync_RemovesFromRegistry() {
         var dir = TempDir();
         using var storage = new FileSystemBlobStorage("test", dir);
-        var meta = new BlobMetadata { ContentType = "text/plain" };
-        var blobId = await storage.StoreAsync(new MemoryStream([1, 2, 3]), meta);
+        var blobId = await storage.StoreAsync(new MemoryStream([1, 2, 3]));
 
-        Assert.True(File.Exists(Path.Combine(dir, $"{blobId}.meta.json")));
         await storage.RemoveAsync(blobId);
-        Assert.False(File.Exists(Path.Combine(dir, $"{blobId}.meta.json")));
+        var meta = await storage.GetMetadataAsync(blobId);
+
+        Assert.Null(meta);
+    }
+
+    [Fact]
+    public async Task RemoveAsync_CleansUpEmptyPrefixFolder() {
+        var dir = TempDir();
+        using var storage = new FileSystemBlobStorage("test", dir);
+        var blobId = await storage.StoreAsync(new MemoryStream([1, 2, 3]));
+        var prefix = blobId[..2];
+
+        await storage.RemoveAsync(blobId);
+
+        Assert.False(Directory.Exists(Path.Combine(dir, prefix)));
     }
 }
 
@@ -188,7 +282,7 @@ public class FileSystemBlobStorageClearTests {
     private static string TempDir() => Path.Combine(Path.GetTempPath(), $"blob-test-{Guid.NewGuid():N}");
 
     [Fact]
-    public async Task ClearAsync_DeletesAllBlobs() {
+    public async Task ClearAsync_DeletesAllBlobsAndRegistry() {
         var dir = TempDir();
         using var storage = new FileSystemBlobStorage("test", dir);
         await storage.StoreAsync(new MemoryStream([1]));
@@ -197,7 +291,8 @@ public class FileSystemBlobStorageClearTests {
 
         await storage.ClearAsync();
 
-        Assert.Empty(Directory.GetFiles(dir));
+        Assert.Empty(Directory.GetDirectories(dir));
+        Assert.False(File.Exists(Path.Combine(dir, "registry.json")));
     }
 
     [Fact]
@@ -207,7 +302,7 @@ public class FileSystemBlobStorageClearTests {
 
         await storage.ClearAsync();
 
-        Assert.Empty(Directory.GetFiles(dir));
+        Assert.Empty(Directory.GetDirectories(dir));
     }
 }
 

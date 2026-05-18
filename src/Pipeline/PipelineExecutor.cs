@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Reflection;
+using System.Text.Json;
 using Shiron.Lib.Pipeline.BlobStorage;
 using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Context;
@@ -274,28 +276,46 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         };
     }
 
-    private BlobReference StoreBlobFromBuffer(IBufferData bufferData) {
+    private BlobCacheEntry StoreBlobFromBuffer(IBufferData bufferData) {
         var data = bufferData.Data;
         var metadata = new BlobMetadata { ContentLength = data.Length };
         var storage = blobResolver!.Resolve(metadata);
         var blobId = storage.StoreAsync(new MemoryStream(data.ToArray()), metadata).GetAwaiter().GetResult();
-        return new BlobReference(storage.Name, blobId);
+        return new BlobCacheEntry { ReferenceUri = new BlobReference(storage.Name, blobId).Uri.ToString() };
     }
 
-    private BlobReference StoreBlobFromStream(IStreamData streamData) {
+    private BlobCacheEntry StoreBlobFromStream(IStreamData streamData) {
         var stream = streamData.OpenRead();
         var storage = blobResolver!.Resolve(null);
         var blobId = storage.StoreAsync(stream).GetAwaiter().GetResult();
         stream.Dispose();
-        return new BlobReference(storage.Name, blobId);
+        return new BlobCacheEntry { ReferenceUri = new BlobReference(storage.Name, blobId).Uri.ToString() };
     }
 
-    private BlobReference StoreBlobFromBlob(IBlob blob) {
+    private BlobCacheEntry StoreBlobFromBlob(IBlob blob) {
         var stream = blob.Storage.OpenRead();
         var storage = blobResolver!.Resolve(null);
         var blobId = storage.StoreAsync(stream).GetAwaiter().GetResult();
         stream.Dispose();
-        return new BlobReference(storage.Name, blobId);
+
+        var reference = new BlobReference(storage.Name, blobId);
+
+        string? metaJson = null;
+        string? metaTypeName = null;
+
+        var typedInterface = blob.GetType().GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IBlob<,>));
+
+        if (typedInterface is not null) {
+            var args = typedInterface.GetGenericArguments();
+            var metaProp = typedInterface.GetProperty("Meta");
+            if (metaProp?.GetValue(blob) is { } meta) {
+                metaJson = JsonSerializer.Serialize(meta, args[0]);
+                metaTypeName = args[0].AssemblyQualifiedName;
+            }
+        }
+
+        return new BlobCacheEntry { ReferenceUri = reference.Uri.ToString(), MetaJson = metaJson, MetaTypeName = metaTypeName };
     }
 
     private void RestoreOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, ICacheEntry entry) {
@@ -308,10 +328,32 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
             var type = Type.GetType(cached.TypeName);
             var value = cached.Value;
 
+            if (value is BlobCacheEntry blobEntry) {
+                var restored = RestoreBlobEntry(blobEntry, port.PortType!);
+                var storageType = ResolveStorageType(restored, port.PortType!);
+                if (typedStore is not null) {
+                    typedStore.Store.Set(guid, restored, storageType);
+                } else {
+                    global.Write(guid, restored);
+                }
+                continue;
+            }
+
             if (value is BlobReference blobRef) {
-                var restored = new CachedStreamData(blobRef, blobResolver!);
-                if (type is not null && typedStore is not null) {
-                    typedStore.Store.Set(guid, restored, type);
+                var cachedStream = new CachedStreamData(blobRef, blobResolver!);
+                object restored;
+                Type storageType;
+
+                if (typeof(IBlob).IsAssignableFrom(port.PortType)) {
+                    restored = new CachedBlob(cachedStream);
+                    storageType = typeof(IBlob);
+                } else {
+                    restored = cachedStream;
+                    storageType = typeof(IStreamData);
+                }
+
+                if (typedStore is not null) {
+                    typedStore.Store.Set(guid, restored, storageType);
                 } else {
                     global.Write(guid, restored);
                 }
@@ -324,6 +366,41 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
                 global.Write(guid, value);
             }
         }
+    }
+
+    private object RestoreBlobEntry(BlobCacheEntry entry, Type portType) {
+        var cachedStream = new CachedStreamData(entry.Reference, blobResolver!);
+
+        if (entry.HasMeta) {
+            var metaType = Type.GetType(entry.MetaTypeName!);
+            if (metaType is not null && JsonSerializer.Deserialize(entry.MetaJson!, metaType) is { } meta) {
+                using var stream = cachedStream.OpenRead();
+                using var ms = new MemoryStream();
+                stream.CopyTo(ms);
+                var bufferData = new BufferData(ms.ToArray());
+
+                var blobType = typeof(Blob<,>).MakeGenericType(metaType, typeof(BufferData));
+                return Activator.CreateInstance(blobType, meta, bufferData)!;
+            }
+        }
+
+        if (typeof(IBlob).IsAssignableFrom(portType)) {
+            return new CachedBlob(cachedStream);
+        }
+
+        return cachedStream;
+    }
+
+    private static Type ResolveStorageType(object restored, Type portType) {
+        if (portType.IsInstanceOfType(restored)) {
+            return portType;
+        }
+
+        if (restored is CachedBlob) {
+            return typeof(IBlob);
+        }
+
+        return typeof(IStreamData);
     }
 }
 

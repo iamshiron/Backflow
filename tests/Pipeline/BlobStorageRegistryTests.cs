@@ -3,6 +3,14 @@ using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline;
 
+file class TestBlobStorageRegistry : BlobStorageRegistry {
+    public TestBlobStorageRegistry() { }
+
+    public TestBlobStorageRegistry(params IBlobStorage[] storages) {
+        foreach (var s in storages) Register(s);
+    }
+}
+
 public class BlobStorageRegistryRegisterTests {
     private static FileSystemBlobStorage MakeStorage(string name) {
         var dir = Path.Combine(Path.GetTempPath(), $"blob-reg-{Guid.NewGuid():N}");
@@ -11,20 +19,22 @@ public class BlobStorageRegistryRegisterTests {
 
     [Fact]
     public void Register_NullStorage_Throws() {
-        var registry = new BlobStorageRegistry();
-        Assert.Throws<ArgumentNullException>(() => registry.Register(null!));
+        Assert.Throws<ArgumentNullException>(() => new NullRegisteringRegistry());
     }
 
     [Fact]
     public void ResolveByName_RegisteredStorage_ReturnsStorage() {
         using var storage = MakeStorage("disk");
-        var registry = new BlobStorageRegistry();
-        registry.Register(storage);
+        var registry = new TestBlobStorageRegistry(storage);
 
         var result = registry.ResolveByName("disk");
 
         Assert.Same(storage, result);
     }
+}
+
+file class NullRegisteringRegistry : BlobStorageRegistry {
+    public NullRegisteringRegistry() => Register(null!);
 }
 
 public class BlobStorageRegistryResolveTests {
@@ -35,7 +45,7 @@ public class BlobStorageRegistryResolveTests {
 
     [Fact]
     public void Resolve_NoStorages_Throws() {
-        var registry = new BlobStorageRegistry();
+        var registry = new TestBlobStorageRegistry();
         Assert.Throws<InvalidOperationException>(() => registry.Resolve(null));
     }
 
@@ -43,9 +53,7 @@ public class BlobStorageRegistryResolveTests {
     public void Resolve_Default_ReturnsFirstRegistered() {
         using var s1 = MakeStorage("first");
         using var s2 = MakeStorage("second");
-        var registry = new BlobStorageRegistry();
-        registry.Register(s1);
-        registry.Register(s2);
+        var registry = new TestBlobStorageRegistry(s1, s2);
 
         var result = registry.Resolve(null);
 
@@ -55,8 +63,7 @@ public class BlobStorageRegistryResolveTests {
     [Fact]
     public void Resolve_SingleStorage_ReturnsIt() {
         using var storage = MakeStorage("only");
-        var registry = new BlobStorageRegistry();
-        registry.Register(storage);
+        var registry = new TestBlobStorageRegistry(storage);
 
         Assert.Same(storage, registry.Resolve(null));
     }
@@ -70,7 +77,7 @@ public class BlobStorageRegistryResolveByNameTests {
 
     [Fact]
     public void ResolveByName_MissingName_Throws() {
-        var registry = new BlobStorageRegistry();
+        var registry = new TestBlobStorageRegistry();
         Assert.Throws<KeyNotFoundException>(() => registry.ResolveByName("missing"));
     }
 
@@ -78,9 +85,7 @@ public class BlobStorageRegistryResolveByNameTests {
     public void ResolveByName_MultipleStorages_ReturnsCorrectOne() {
         using var s1 = MakeStorage("a");
         using var s2 = MakeStorage("b");
-        var registry = new BlobStorageRegistry();
-        registry.Register(s1);
-        registry.Register(s2);
+        var registry = new TestBlobStorageRegistry(s1, s2);
 
         Assert.Same(s2, registry.ResolveByName("b"));
         Assert.Same(s1, registry.ResolveByName("a"));
@@ -91,8 +96,7 @@ public class BlobStorageRegistryDisposeTests {
     [Fact]
     public void Dispose_ClearsStorages() {
         var dir = Path.Combine(Path.GetTempPath(), $"blob-reg-{Guid.NewGuid():N}");
-        var registry = new BlobStorageRegistry();
-        registry.Register(new FileSystemBlobStorage("test", dir));
+        var registry = new TestBlobStorageRegistry(new FileSystemBlobStorage("test", dir));
 
         registry.Dispose();
 
@@ -102,18 +106,20 @@ public class BlobStorageRegistryDisposeTests {
 
 public class BlobStorageRegistryOverrideTests {
     private class RoutingRegistry : BlobStorageRegistry {
-        private IBlobStorage? _small;
-        private IBlobStorage? _large;
+        private readonly IBlobStorage _small;
+        private readonly IBlobStorage _large;
 
-        public void SetTargets(IBlobStorage small, IBlobStorage large) {
+        public RoutingRegistry(IBlobStorage small, IBlobStorage large) {
+            Register(small);
+            Register(large);
             _small = small;
             _large = large;
         }
 
         public override IBlobStorage Resolve(BlobMetadata? metadata) {
-            if (metadata is { ContentLength: < 100 } && _small is not null)
+            if (metadata is { ContentLength: < 100 })
                 return _small;
-            return _large!;
+            return _large;
         }
     }
 
@@ -127,10 +133,7 @@ public class BlobStorageRegistryOverrideTests {
         using var small = MakeStorage("small");
         using var large = MakeStorage("large");
 
-        var registry = new RoutingRegistry();
-        registry.Register(small);
-        registry.Register(large);
-        registry.SetTargets(small, large);
+        var registry = new RoutingRegistry(small, large);
 
         var smallId = await registry.Resolve(new BlobMetadata { ContentLength = 50 })
             .StoreAsync(new MemoryStream([1, 2, 3]));

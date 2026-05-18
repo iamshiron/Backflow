@@ -18,6 +18,8 @@ public class BlurNode : AbstractNode {
     public IOutputPort<IBlob<ImageMeta, IBufferData>> Out { get; }
 
     public BlurNode() {
+        UseCache = true;
+
         In = Input(
             new BlobPortBuilder<IBlob<ImageMeta, IBufferData>>(nameof(In))
                 .Input()

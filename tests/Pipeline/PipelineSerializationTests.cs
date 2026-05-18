@@ -3,6 +3,7 @@ using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
+using Shiron.Lib.Pipeline.Registry;
 using Shiron.Lib.Pipeline.Serialization;
 using Xunit;
 

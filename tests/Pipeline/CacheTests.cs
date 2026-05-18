@@ -5,6 +5,7 @@ using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Shiron.Lib.Pipeline.Registry;
 using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline;

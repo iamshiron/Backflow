@@ -9,19 +9,22 @@ public class NodeRegistry {
     private readonly HashSet<Type> _nodeTypes = [];
     private readonly Dictionary<string, NodeBlueprint> _blueprints = [];
     private readonly Dictionary<Type, AbstractNode> _concreteGenericCache = [];
+    private readonly Dictionary<Type, string[]> _nodeCategories = [];
 
-    public void Register(AbstractNode node) {
-        _nodes.Add(node.GetType(), node);
-        _nodesByFullName[node.GetType().FullName!] = node;
+    public void Register(AbstractNode node, params string[]? categories) {
+        var type = node.GetType();
+        _nodes.Add(type, node);
+        _nodesByFullName[type.FullName!] = node;
+        _nodeCategories[type] = categories ?? [];
     }
 
-    public T Register<T>() where T : AbstractNode {
+    public T Register<T>(params string[]? categories) where T : AbstractNode {
         var node = Activator.CreateInstance<T>();
-        Register(node);
+        Register(node, categories);
         return node;
     }
 
-    public NodeBlueprint RegisterGeneric(Type type) {
+    public NodeBlueprint RegisterGeneric(Type type, params string[]? categories) {
         if (!type.IsAssignableTo(typeof(AbstractGenericNode)))
             throw new ArgumentException($"Type must be assignable to {nameof(AbstractGenericNode)}.", nameof(type));
 
@@ -30,6 +33,7 @@ public class NodeRegistry {
 
         var blueprint = BlueprintFactory.FromOpenType(type);
         _blueprints[blueprint.OpenType.FullName!] = blueprint;
+        _nodeCategories[type] = categories ?? [];
         return blueprint;
     }
 
@@ -52,6 +56,10 @@ public class NodeRegistry {
     public NodeBlueprint? GetBlueprint(Type openType) {
         var fullName = openType.FullName;
         return fullName is not null ? _blueprints.GetValueOrDefault(fullName) : null;
+    }
+
+    public string[]? GetNodeCategories(Type nodeType) {
+        return _nodeCategories.GetValueOrDefault(nodeType);
     }
 
     public IEnumerable<NodeBlueprint> GetAllBlueprints() {

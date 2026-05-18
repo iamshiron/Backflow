@@ -1,5 +1,5 @@
-using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Generic;
+using Shiron.Lib.Pipeline.Registry;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 using Shiron.Lib.Samples.Pipeline.Nodes.Generic;
 using Shiron.Lib.Samples.Pipeline.Nodes.Json;
@@ -41,35 +41,35 @@ public class GlobalNodeRegistry {
     public NodeBlueprint GenericAdd { get; }
 
     public GlobalNodeRegistry() {
-        Print = Registry.Register<PrintNode>();
-        Add = Registry.Register<AddNode>();
-        Subtract = Registry.Register<SubtractNode>();
-        Concat = Registry.Register<ConcatNode>();
-        AddSub = Registry.Register<AddSubNode>();
-        Blur = Registry.Register<BlurNode>();
-        SaveFile = Registry.Register<SaveFileNode>();
-        ReadFile = Registry.Register<ReadFileNode>();
-        Bufferize = Registry.Register<BufferizeNode>();
-        DecodeImage = Registry.Register<DecodeImageNode>();
-        ImageInfo = Registry.Register<ImageInfoNode>();
-        GrayScale = Registry.Register<GrayScaleNode>();
-        PackVector2 = Registry.Register<PackVector2Node>();
-        UnpackVector2 = Registry.Register<UnpackVector2Node>();
-        PackVector3 = Registry.Register<PackVector3Node>();
-        UnpackVector3 = Registry.Register<UnpackVector3Node>();
-        PackVector4 = Registry.Register<PackVector4Node>();
-        UnpackVector4 = Registry.Register<UnpackVector4Node>();
-        Greet = Registry.Register<GreetNode>();
-        WebFetch = Registry.Register<WebFetchNode>();
-        GetJsonElement = Registry.Register<GetJsonElementNode>();
-        JsonElementInt = Registry.Register<JsonElementIntNode>();
-        Comparison = Registry.Register<ComparisonNode>();
-        IntRangeArray = Registry.Register<IntRangeArrayNode>();
-        IntArrayElementAt = Registry.Register<IntArrayElementAtNode>();
-        IntArrayLength = Registry.Register<IntArrayLengthNode>();
-        IntAverage = Registry.Register<IntAverageNode>();
-        DoubleMultiplier = Registry.Register<DoubleMultiplierNode>();
+        Print = Registry.Register<PrintNode>("I/O");
+        Add = Registry.Register<AddNode>("Math");
+        Subtract = Registry.Register<SubtractNode>("Math");
+        Concat = Registry.Register<ConcatNode>("String");
+        AddSub = Registry.Register<AddSubNode>("Math");
+        Blur = Registry.Register<BlurNode>("Image");
+        SaveFile = Registry.Register<SaveFileNode>("I/O");
+        ReadFile = Registry.Register<ReadFileNode>("I/O");
+        Bufferize = Registry.Register<BufferizeNode>("Blobs");
+        DecodeImage = Registry.Register<DecodeImageNode>("Image");
+        ImageInfo = Registry.Register<ImageInfoNode>("Image");
+        GrayScale = Registry.Register<GrayScaleNode>("Image");
+        PackVector2 = Registry.Register<PackVector2Node>("Vector");
+        UnpackVector2 = Registry.Register<UnpackVector2Node>("Vector");
+        PackVector3 = Registry.Register<PackVector3Node>("Vector");
+        UnpackVector3 = Registry.Register<UnpackVector3Node>("Vector");
+        PackVector4 = Registry.Register<PackVector4Node>("Vector");
+        UnpackVector4 = Registry.Register<UnpackVector4Node>("Vector");
+        Greet = Registry.Register<GreetNode>("Misc");
+        WebFetch = Registry.Register<WebFetchNode>("I/O");
+        GetJsonElement = Registry.Register<GetJsonElementNode>("JSON");
+        JsonElementInt = Registry.Register<JsonElementIntNode>("JSON");
+        Comparison = Registry.Register<ComparisonNode>("Math");
+        IntRangeArray = Registry.Register<IntRangeArrayNode>("Array");
+        IntArrayElementAt = Registry.Register<IntArrayElementAtNode>("Array");
+        IntArrayLength = Registry.Register<IntArrayLengthNode>("Array");
+        IntAverage = Registry.Register<IntAverageNode>("Math");
+        DoubleMultiplier = Registry.Register<DoubleMultiplierNode>("Math");
 
-        GenericAdd = Registry.RegisterGeneric(typeof(GenericAddNode<>));
+        GenericAdd = Registry.RegisterGeneric(typeof(GenericAddNode<>), "Math");
     }
 }

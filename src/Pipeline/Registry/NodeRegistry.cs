@@ -1,29 +1,28 @@
 using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Pipeline.Node;
 
-namespace Shiron.Lib.Pipeline;
+namespace Shiron.Lib.Pipeline.Registry;
 
-/// <summary>
-/// Central registry for node types and generic blueprints. Used by <see cref="PipelineBuilder"/>
-/// to look up and materialize nodes.
-/// </summary>
 public class NodeRegistry {
     private readonly Dictionary<Type, AbstractNode> _nodes = [];
     private readonly Dictionary<string, AbstractNode> _nodesByFullName = [];
     private readonly HashSet<Type> _nodeTypes = [];
     private readonly Dictionary<string, NodeBlueprint> _blueprints = [];
     private readonly Dictionary<Type, AbstractNode> _concreteGenericCache = [];
+    private readonly Dictionary<Type, string[]> _nodeCategories = [];
 
     /// <summary>Register an already-instantiated node by its runtime type.</summary>
-    public void Register(AbstractNode node) {
-        _nodes.Add(node.GetType(), node);
-        _nodesByFullName[node.GetType().FullName!] = node;
+    public void Register(AbstractNode node, params string[]? categories) {
+        var type = node.GetType();
+        _nodes.Add(type, node);
+        _nodesByFullName[type.FullName!] = node;
+        _nodeCategories[type] = categories ?? [];
     }
 
     /// <summary>Create, register, and return a node of type <typeparamref name="T"/>.</summary>
-    public T Register<T>() where T : AbstractNode {
+    public T Register<T>(params string[]? categories) where T : AbstractNode {
         var node = Activator.CreateInstance<T>();
-        Register(node);
+        Register(node, categories);
         return node;
     }
 
@@ -31,7 +30,7 @@ public class NodeRegistry {
     /// Register an open generic node type and return its <see cref="NodeBlueprint"/>.
     /// The type must derive from <see cref="AbstractGenericNode"/>.
     /// </summary>
-    public NodeBlueprint RegisterGeneric(Type type) {
+    public NodeBlueprint RegisterGeneric(Type type, params string[]? categories) {
         if (!type.IsAssignableTo(typeof(AbstractGenericNode)))
             throw new ArgumentException($"Type must be assignable to {nameof(AbstractGenericNode)}.", nameof(type));
 
@@ -40,33 +39,33 @@ public class NodeRegistry {
 
         var blueprint = BlueprintFactory.FromOpenType(type);
         _blueprints[blueprint.OpenType.FullName!] = blueprint;
+        _nodeCategories[type] = categories ?? [];
         return blueprint;
     }
 
-    /// <summary>Look up a registered node by its runtime type.</summary>
     public AbstractNode? Get(Type type) {
         return _nodes.GetValueOrDefault(type);
     }
 
-    /// <summary>Look up a registered node by its runtime type.</summary>
     public T? Get<T>() where T : AbstractNode {
         return (T?) Get(typeof(T));
     }
 
-    /// <summary>Look up a registered node by its fully-qualified type name.</summary>
     public AbstractNode? GetByFullName(string fullName) {
         return _nodesByFullName.GetValueOrDefault(fullName);
     }
 
-    /// <summary>Look up a generic blueprint by the open type's fully-qualified name.</summary>
     public NodeBlueprint? GetBlueprint(string fullName) {
         return _blueprints.GetValueOrDefault(fullName);
     }
 
-    /// <summary>Look up a generic blueprint by the open type.</summary>
     public NodeBlueprint? GetBlueprint(Type openType) {
         var fullName = openType.FullName;
         return fullName is not null ? _blueprints.GetValueOrDefault(fullName) : null;
+    }
+
+    public string[]? GetNodeCategories(Type nodeType) {
+        return _nodeCategories.GetValueOrDefault(nodeType);
     }
 
     /// <summary>Return all registered generic blueprints.</summary>

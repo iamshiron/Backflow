@@ -1,5 +1,6 @@
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
+using Shiron.Lib.Pipeline.Registry;
 
 namespace Shiron.Lib.Pipeline.Generic;
 

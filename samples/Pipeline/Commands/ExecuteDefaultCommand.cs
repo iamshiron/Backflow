@@ -28,10 +28,11 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
         try {
             var services = new ServiceCollection();
             services.AddPipelineEngine();
+            services.AddGlobalNodeRegistry<GlobalNodeRegistry>();
             services.AddSingleton<IPrintService, PrintService>();
 
             var provider = services.BuildServiceProvider();
-            var registry = new GlobalNodeRegistry(new DINodeActivator(provider));
+            var registry = provider.GetRequiredService<GlobalNodeRegistry>();
             var builder = new PipelineBuilder(registry.Registry) {
                 Config = new PipelineBuilderConfig { StrictTypeCasting = settings.StrictTypeCasting }
             };
@@ -315,7 +316,8 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
                 printLossyCastInstance, registry.Print.Message
             );
 
-            var context = new PipelineContext();
+            await using var scopedContext = provider.CreateScopedContext();
+            var context = scopedContext.Context;
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
             context.Write<int>(subtractInstance, registry.Subtract.Number1, 100);

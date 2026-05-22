@@ -40,8 +40,8 @@ public class GlobalNodeRegistry {
 
     public NodeBlueprint GenericAdd { get; }
 
-    public GlobalNodeRegistry(INodeActivator? provider = null) {
-        Registry = new NodeRegistry(provider);
+    public GlobalNodeRegistry(INodeActivator? activator = null) {
+        Registry = new NodeRegistry(activator);
 
         Print = Registry.Register<PrintNode>("I/O");
         Add = Registry.Register<AddNode>("Math");

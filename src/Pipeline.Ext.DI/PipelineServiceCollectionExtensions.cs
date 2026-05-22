@@ -8,4 +8,9 @@ public static class PipelineServiceCollectionExtensions {
         services.AddSingleton<INodeActivator, DINodeActivator>();
         return services;
     }
+
+    public static IServiceCollection AddGlobalNodeRegistry<TRegistry>(this IServiceCollection services) where TRegistry : class {
+        services.AddSingleton<TRegistry>();
+        return services;
+    }
 }

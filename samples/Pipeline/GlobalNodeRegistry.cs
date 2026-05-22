@@ -7,7 +7,7 @@ using Shiron.Lib.Samples.Pipeline.Nodes.Json;
 namespace Shiron.Lib.Samples.Pipeline;
 
 public class GlobalNodeRegistry {
-    public NodeRegistry Registry { get; } = new();
+    public NodeRegistry Registry { get; }
 
     public PrintNode Print { get; }
     public AddNode Add { get; }
@@ -40,7 +40,9 @@ public class GlobalNodeRegistry {
 
     public NodeBlueprint GenericAdd { get; }
 
-    public GlobalNodeRegistry() {
+    public GlobalNodeRegistry(INodeActivator? provider = null) {
+        Registry = new NodeRegistry(provider);
+
         Print = Registry.Register<PrintNode>("I/O");
         Add = Registry.Register<AddNode>("Math");
         Subtract = Registry.Register<SubtractNode>("Math");

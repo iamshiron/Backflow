@@ -1,12 +1,15 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Config;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Ext.DI;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Nodes;
 using Shiron.Lib.Samples.Pipeline.Serialization;
+using Shiron.Lib.Samples.Pipeline.Services;
 using Shiron.Lib.Samples.Pipeline.Types;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -23,8 +26,12 @@ public class ExecuteDefaultSettings : CommandSettings {
 public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
     protected async override Task<int> ExecuteAsync(CommandContext cmdContext, ExecuteDefaultSettings settings, CancellationToken cancellationToken) {
         try {
-            var registry = new GlobalNodeRegistry();
+            var services = new ServiceCollection();
+            services.AddPipelineEngine();
+            services.AddSingleton<IPrintService, PrintService>();
 
+            var provider = services.BuildServiceProvider();
+            var registry = new GlobalNodeRegistry(new DINodeActivator(provider));
             var builder = new PipelineBuilder(registry.Registry) {
                 Config = new PipelineBuilderConfig { StrictTypeCasting = settings.StrictTypeCasting }
             };

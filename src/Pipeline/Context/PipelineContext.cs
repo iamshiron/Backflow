@@ -9,14 +9,11 @@ namespace Shiron.Lib.Pipeline.Context;
 /// Default <see cref="IPipelineContext"/> implementation backed by a <see cref="ConcurrentBucketStore{Guid}"/>.
 /// Applies registered <see cref="CastRegistry"/> rules on read to support implicit type conversion.
 /// </summary>
-public class PipelineContext : IPipelineContext {
+public class PipelineContext(CastRegistry castRegistry, IServiceProvider? serviceProvider = null) : IPipelineContext {
     internal readonly ConcurrentBucketStore<Guid> Store = new();
-    private readonly CastRegistry _castRegistry;
+    public IServiceProvider Services { get; } = serviceProvider ?? EmptyServiceProvider.Instance;
 
-    public PipelineContext() : this(CastRegistry.Default) { }
-
-    public PipelineContext(CastRegistry castRegistry) {
-        _castRegistry = castRegistry;
+    public PipelineContext(IServiceProvider? serviceProvider = null) : this(CastRegistry.Default, serviceProvider) {
     }
 
     public void Write<T>(PipelineBuilder.NodeInstance node, IPort port, T? value) {
@@ -39,7 +36,7 @@ public class PipelineContext : IPipelineContext {
             return Store.GetAs<T>(id);
 
         var storedType = Store.TypeOf(id);
-        if (storedType is not null && _castRegistry.TryGetCast(storedType, typeof(T), out var rule)) {
+        if (storedType is not null && castRegistry.TryGetCast(storedType, typeof(T), out var rule)) {
             var raw = Store.GetAny(id);
             return raw is not null ? (T?) rule!.Cast(raw) : default;
         }
@@ -55,7 +52,7 @@ public class PipelineContext : IPipelineContext {
     public bool Has<T>(Guid id) {
         if (Store.Has<T>(id) || Store.CanCast<T>(id)) return true;
         var storedType = Store.TypeOf(id);
-        return storedType is not null && _castRegistry.CanCast(storedType, typeof(T));
+        return storedType is not null && castRegistry.CanCast(storedType, typeof(T));
     }
     public bool HasAny(Guid id) {
         return Store.HasAny(id);
@@ -82,5 +79,12 @@ public class PipelineContext : IPipelineContext {
 
         array[index] = value!;
         Store.Set(guid, array);
+    }
+
+    public sealed class EmptyServiceProvider : IServiceProvider {
+        public static readonly EmptyServiceProvider Instance = new();
+        public object? GetService(Type serviceType) {
+            return null;
+        }
     }
 }

@@ -57,4 +57,6 @@ public interface IPipelineContext {
     /// sets the element at <paramref name="index"/> to <paramref name="value"/>, and writes it back.
     /// </summary>
     void WriteAt<T>(PipelineBuilder.NodeInstance node, IArrayInputPortMarker port, int index, T? value);
+
+    IServiceProvider Services { get; }
 }

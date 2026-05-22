@@ -3,7 +3,12 @@ using Shiron.Lib.Pipeline.Node;
 
 namespace Shiron.Lib.Pipeline.Registry;
 
-public class NodeRegistry {
+/// <summary>
+/// Registry of pipeline nodes.
+/// </summary>
+/// <param name="activator">The activator used to create nodes.</param>
+public class NodeRegistry(INodeActivator? activator = null) {
+    private readonly INodeActivator _activator = activator ?? new DefaultNodeActivator();
     private readonly Dictionary<Type, AbstractNode> _nodes = [];
     private readonly Dictionary<string, AbstractNode> _nodesByFullName = [];
     private readonly HashSet<Type> _nodeTypes = [];
@@ -21,7 +26,7 @@ public class NodeRegistry {
 
     /// <summary>Create, register, and return a node of type <typeparamref name="T"/>.</summary>
     public T Register<T>(params string[]? categories) where T : AbstractNode {
-        var node = Activator.CreateInstance<T>();
+        var node = _activator.CreateNode<T>();
         Register(node, categories);
         return node;
     }

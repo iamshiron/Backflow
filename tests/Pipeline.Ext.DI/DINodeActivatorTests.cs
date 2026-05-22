@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Ext.DI;
 using Shiron.Lib.Pipeline.Node;
+using Shiron.Lib.Pipeline.Port;
+using Shiron.Lib.Pipeline.Port.Builder;
 using Shiron.Lib.Pipeline.Registry;
 using Xunit;
 
@@ -18,6 +20,29 @@ public class DINodeActivatorTests {
     private sealed class DependentNode(IService service) : AbstractNode {
         public IService Service { get; } = service;
         protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) => new(true);
+    }
+
+    private interface IGenericService { string Label { get; } }
+    private sealed class GenericService : IGenericService {
+        public string Label => "injected";
+    }
+
+    private sealed class DependentGenericNode<T> : AbstractGenericNode {
+        public IGenericService Service { get; }
+        public IInputPort<T> In { get; }
+        public IOutputPort<T> Out { get; }
+
+        public DependentGenericNode(IGenericService service) {
+            Service = service;
+            In = Input(new InputPort<T>("in", default, new PassValidator<T>()));
+            Out = Output(new OutputPort<T>("out"));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) => new(true);
+    }
+
+    private class PassValidator<T> : IPortValidator<T> {
+        public string? Validate(T? value) => null;
     }
 
     [Fact]
@@ -104,5 +129,53 @@ public class DINodeActivatorTests {
         var node2 = activator.CreateNode<TestNode>();
 
         Assert.NotSame(node1, node2);
+    }
+
+    [Fact]
+    public void CreateNode_Generic_WithClosedGenericType_InjectsService() {
+        var services = new ServiceCollection();
+        services.AddSingleton<IGenericService, GenericService>();
+        var provider = services.BuildServiceProvider();
+        var activator = new DINodeActivator(provider);
+
+        var node = activator.CreateNode(typeof(DependentGenericNode<int>));
+
+        Assert.NotNull(node);
+        var typed = Assert.IsType<DependentGenericNode<int>>(node);
+        Assert.NotNull(typed.Service);
+        Assert.IsType<GenericService>(typed.Service);
+        Assert.Equal("injected", typed.Service.Label);
+    }
+
+    [Fact]
+    public void GetOrCreateConcrete_WithDIActivator_InjectsDependencies() {
+        var services = new ServiceCollection();
+        services.AddSingleton<IGenericService, GenericService>();
+        var provider = services.BuildServiceProvider();
+        var activator = new DINodeActivator(provider);
+
+        var registry = new NodeRegistry(activator);
+
+        var node = registry.GetOrCreateConcrete(typeof(DependentGenericNode<>), [typeof(double)]);
+
+        Assert.NotNull(node);
+        var typed = Assert.IsType<DependentGenericNode<double>>(node);
+        Assert.NotNull(typed.Service);
+        Assert.Equal("injected", typed.Service.Label);
+    }
+
+    [Fact]
+    public void GetOrCreateConcrete_WithDIActivator_CachesInstance() {
+        var services = new ServiceCollection();
+        services.AddSingleton<IGenericService, GenericService>();
+        var provider = services.BuildServiceProvider();
+        var activator = new DINodeActivator(provider);
+
+        var registry = new NodeRegistry(activator);
+
+        var node1 = registry.GetOrCreateConcrete(typeof(DependentGenericNode<>), [typeof(int)]);
+        var node2 = registry.GetOrCreateConcrete(typeof(DependentGenericNode<>), [typeof(int)]);
+
+        Assert.Same(node1, node2);
     }
 }

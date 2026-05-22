@@ -90,7 +90,7 @@ public class NodeRegistry(INodeActivator? activator = null) {
         if (_nodes.TryGetValue(closedType, out var existing))
             return existing;
 
-        var node = (AbstractNode) Activator.CreateInstance(closedType)!;
+        var node = _activator.CreateNode(closedType);
         _concreteGenericCache[closedType] = node;
         return node;
     }

@@ -1,11 +1,45 @@
 using Microsoft.Extensions.DependencyInjection;
+using Shiron.Lib.Pipeline;
+using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Ext.DI;
+using Shiron.Lib.Pipeline.Node;
+using Shiron.Lib.Pipeline.Port;
+using Shiron.Lib.Pipeline.Port.Builder;
+using Shiron.Lib.Pipeline.Registry;
 using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline.Ext.DI;
 
 public class PipelineContextExtensionsTests {
     private class ScopedService { }
+
+    private interface IRuntimeService { string GetValue(); }
+    private sealed class RuntimeService : IRuntimeService {
+        public string GetValue() => "from-di";
+    }
+
+    private class PassValidator<T> : IPortValidator<T> {
+        public string? Validate(T? value) => null;
+    }
+
+    private sealed class ServiceResolvingNode : AbstractNode {
+        public IInputPort<string> In { get; }
+        public IOutputPort<string> Out { get; }
+        public string? ResolvedValue { get; private set; }
+
+        public ServiceResolvingNode() {
+            In = Input(new InputPort<string>("in", default, new PassValidator<string>()));
+            Out = Output(new OutputPort<string>("out"));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            var svc = context.Services.GetRequiredService<IRuntimeService>();
+            ResolvedValue = svc.GetValue();
+            var input = In.Read(context);
+            Out.Write(context, $"{input}-{ResolvedValue}");
+            return ValueTask.FromResult(true);
+        }
+    }
 
     [Fact]
     public async Task CreateScopedContext_ReturnsNonNullContext() {
@@ -74,5 +108,29 @@ public class PipelineContextExtensionsTests {
         var scoped = provider.CreateScopedContext();
         await scoped.DisposeAsync();
         await scoped.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task NodeContext_Services_ResolvesScopedServiceDuringExecution() {
+        var services = new ServiceCollection();
+        services.AddSingleton<IRuntimeService, RuntimeService>();
+        services.AddPipelineEngine();
+        var provider = services.BuildServiceProvider();
+
+        await using var scoped = provider.CreateScopedContext();
+        var context = scoped.Context;
+
+        var registry = new NodeRegistry(provider.GetRequiredService<INodeActivator>());
+        var node = registry.Register<ServiceResolvingNode>();
+        var builder = new PipelineBuilder(registry);
+        var instance = builder.AddNode(node);
+
+        context.Write(instance, node.In, "test");
+        var pipeline = builder.Build();
+        var executor = new PipelineExecutor(pipeline);
+        await executor.ExecuteAsync(context);
+
+        Assert.Equal("from-di", node.ResolvedValue);
+        Assert.Equal("test-from-di", context.Read<string>(instance, node.Out));
     }
 }

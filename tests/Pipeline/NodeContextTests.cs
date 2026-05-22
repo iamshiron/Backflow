@@ -231,6 +231,27 @@ public class NodeContextTests {
         }
     }
 
+    [Fact]
+    public void Services_ReturnsInnerContextServices() {
+        var (_, _, pipelineCtx, nodeCtx) = CreateNodeWithMappings();
+
+        Assert.Same(pipelineCtx.Services, nodeCtx.Services);
+    }
+
+    [Fact]
+    public void Services_WithCustomServiceProvider_ReturnsProvider() {
+        var serviceProvider = new TestServiceProvider();
+        var pipelineCtx = new PipelineContext(serviceProvider);
+        var mappings = new Dictionary<IPort, Guid>();
+        var nodeCtx = new NodeContext(pipelineCtx, mappings);
+
+        Assert.Same(serviceProvider, nodeCtx.Services);
+    }
+
+    private class TestServiceProvider : IServiceProvider {
+        public object? GetService(Type serviceType) => null;
+    }
+
     private class PassAllArrayValidator : IPortValidator<int[]> {
         public string? Validate(int[]? value) => null;
     }

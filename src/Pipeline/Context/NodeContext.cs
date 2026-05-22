@@ -34,6 +34,8 @@ public class NodeContext(
         return context.HasAny(mappings[port]);
     }
 
+    public IServiceProvider Services => context.Services;
+
     /// <summary>Initialize an array port from its indexed connections (count inferred from max index).</summary>
     public void InitializeArray<T>(IArrayInputPort<T> port) {
         var targetGuid = mappings[(IPort) port];

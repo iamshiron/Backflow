@@ -1,7 +1,11 @@
 using System.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Ext.DI;
+using Shiron.Lib.Pipeline.Registry;
 using Shiron.Lib.Pipeline.Serialization;
+using Shiron.Lib.Samples.Pipeline.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -20,14 +24,19 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
 
     protected async override Task<int> ExecuteAsync(CommandContext cmdContext, Settings settings, CancellationToken cancellationToken) {
         try {
-            var registry = new GlobalNodeRegistry();
+            var services = new ServiceCollection();
+            services.AddPipelineEngine();
+            services.AddSingleton<IPrintService, PrintService>();
+            var provider = services.BuildServiceProvider();
+
+            var registry = new GlobalNodeRegistry(provider.GetRequiredService<INodeActivator>());
 
             var pipeline =
                 PipelineSerialization.DeserializeDefinition(await File.ReadAllTextAsync(settings.File, cancellationToken), registry.Registry);
 
             var context = settings.InputsFile is not null
-                ? PipelineSerialization.DeserializeInputs(await File.ReadAllTextAsync(settings.InputsFile, cancellationToken), pipeline)
-                : new PipelineContext();
+                ? PipelineSerialization.DeserializeInputs(await File.ReadAllTextAsync(settings.InputsFile, cancellationToken), pipeline, provider)
+                : new PipelineContext(provider);
 
             var executor = new PipelineExecutor(pipeline);
             var stats = await executor.ExecuteAsync(context);

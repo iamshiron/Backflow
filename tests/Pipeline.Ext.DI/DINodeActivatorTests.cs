@@ -178,4 +178,59 @@ public class DINodeActivatorTests {
 
         Assert.Same(node1, node2);
     }
+
+    private sealed class DisposableNode : AbstractNode, IDisposable {
+        public bool IsDisposed { get; private set; }
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) => new(true);
+        public void Dispose() => IsDisposed = true;
+    }
+
+    [Fact]
+    public void Dispose_DisposesTrackedDisposableNodes() {
+        var services = new ServiceCollection().BuildServiceProvider();
+        using var activator = new DINodeActivator(services);
+
+        var node = activator.CreateNode<DisposableNode>();
+        Assert.False(node.IsDisposed);
+
+        activator.Dispose();
+
+        Assert.True(node.IsDisposed);
+    }
+
+    [Fact]
+    public void Dispose_DisposesAllTrackedNodes() {
+        var services = new ServiceCollection().BuildServiceProvider();
+        using var activator = new DINodeActivator(services);
+
+        var node1 = activator.CreateNode<DisposableNode>();
+        var node2 = activator.CreateNode<DisposableNode>();
+        var node3 = activator.CreateNode<DisposableNode>();
+
+        activator.Dispose();
+
+        Assert.True(node1.IsDisposed);
+        Assert.True(node2.IsDisposed);
+        Assert.True(node3.IsDisposed);
+    }
+
+    [Fact]
+    public void Dispose_NonDisposableNodesAreUnaffected() {
+        var services = new ServiceCollection().BuildServiceProvider();
+        using var activator = new DINodeActivator(services);
+
+        var node = activator.CreateNode<TestNode>();
+
+        activator.Dispose();
+    }
+
+    [Fact]
+    public void Dispose_DoubleDisposeDoesNotThrow() {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var activator = new DINodeActivator(services);
+        activator.CreateNode<TestNode>();
+
+        activator.Dispose();
+        activator.Dispose();
+    }
 }

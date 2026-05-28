@@ -35,8 +35,8 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
                 PipelineSerialization.DeserializeDefinition(await File.ReadAllTextAsync(settings.File, cancellationToken), registry.Registry);
 
             var context = settings.InputsFile is not null
-                ? PipelineSerialization.DeserializeInputs(await File.ReadAllTextAsync(settings.InputsFile, cancellationToken), pipeline, provider)
-                : new PipelineContext(provider);
+                ? PipelineSerialization.DeserializeInputs(await File.ReadAllTextAsync(settings.InputsFile, cancellationToken), pipeline)
+                : new PipelineContext();
 
             var executor = new PipelineExecutor(pipeline);
             var stats = await executor.ExecuteAsync(context);

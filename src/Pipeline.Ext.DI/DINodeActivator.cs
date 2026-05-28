@@ -4,7 +4,7 @@ using Shiron.Lib.Pipeline.Registry;
 
 namespace Shiron.Lib.Pipeline.Ext.DI;
 
-public sealed class DINodeActivator(IServiceProvider services) : INodeActivator, IDisposable {
+public sealed class DINodeActivator(IServiceProvider services) : INodeActivator {
     private readonly List<AbstractNode> _createdNodes = [];
     private bool _disposed;
 

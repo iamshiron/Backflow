@@ -316,8 +316,7 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
                 printLossyCastInstance, registry.Print.Message
             );
 
-            await using var scopedContext = provider.CreateScopedContext();
-            var context = scopedContext.Context;
+            var context = builder.CreateContext();
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
             context.Write<int>(subtractInstance, registry.Subtract.Number1, 100);

@@ -20,9 +20,6 @@ public interface INodeContext {
     /// <summary>Whether any value exists for the port.</summary>
     bool HasAny(IPort port);
 
-    /// <summary>Service provider for resolving DI dependencies during node execution.</summary>
-    IServiceProvider Services { get; }
-
     /// <summary>Initialize an array input port from indexed connections with an explicit count.</summary>
     void InitializeArray<T>(IArrayInputPort<T> port, int count);
 }

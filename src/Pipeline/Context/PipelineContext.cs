@@ -9,11 +9,10 @@ namespace Shiron.Lib.Pipeline.Context;
 /// Default <see cref="IPipelineContext"/> implementation backed by a <see cref="ConcurrentBucketStore{Guid}"/>.
 /// Applies registered <see cref="CastRegistry"/> rules on read to support implicit type conversion.
 /// </summary>
-public class PipelineContext(CastRegistry castRegistry, IServiceProvider? serviceProvider = null) : IPipelineContext {
+public class PipelineContext(CastRegistry castRegistry) : IPipelineContext {
     internal readonly ConcurrentBucketStore<Guid> Store = new();
-    public IServiceProvider Services { get; } = serviceProvider ?? EmptyServiceProvider.Instance;
 
-    public PipelineContext(IServiceProvider? serviceProvider = null) : this(CastRegistry.Default, serviceProvider) {
+    public PipelineContext() : this(CastRegistry.Default) {
     }
 
     public void Write<T>(PipelineBuilder.NodeInstance node, IPort port, T? value) {
@@ -79,12 +78,5 @@ public class PipelineContext(CastRegistry castRegistry, IServiceProvider? servic
 
         array[index] = value!;
         Store.Set(guid, array);
-    }
-
-    public sealed class EmptyServiceProvider : IServiceProvider {
-        public static readonly EmptyServiceProvider Instance = new();
-        public object? GetService(Type serviceType) {
-            return null;
-        }
     }
 }

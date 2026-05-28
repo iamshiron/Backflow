@@ -138,8 +138,8 @@ public static class PipelineSerialization {
     }
 
     /// <summary>Restore input values from a DTO into a new <see cref="PipelineContext"/>.</summary>
-    public static PipelineContext FromInputs(this PipelineInputsDto dto, Pipeline pipeline, IServiceProvider? serviceProvider = null) {
-        var context = new PipelineContext(serviceProvider);
+    public static PipelineContext FromInputs(this PipelineInputsDto dto, Pipeline pipeline) {
+        var context = new PipelineContext();
         var nodeLookup = pipeline.Topology.Nodes.ToDictionary(n => n.ID);
 
         foreach (var (nodeId, portInputs) in dto.Inputs) {
@@ -182,11 +182,11 @@ public static class PipelineSerialization {
     }
 
     /// <summary>Deserialize input values from JSON into a <see cref="PipelineContext"/> bound to <paramref name="pipeline"/>.</summary>
-    public static PipelineContext DeserializeInputs(string json, Pipeline pipeline, IServiceProvider? serviceProvider = null, JsonSerializerOptions? options = null) {
+    public static PipelineContext DeserializeInputs(string json, Pipeline pipeline, JsonSerializerOptions? options = null) {
         var dto = JsonSerializer.Deserialize<PipelineInputsDto>(json, options)
             ?? throw new InvalidOperationException("Failed to deserialize pipeline inputs JSON.");
 
-        return dto.FromInputs(pipeline, serviceProvider);
+        return dto.FromInputs(pipeline);
     }
 
     private static Dictionary<string, Dictionary<string, int>> BuildArrayCounts(EdgeDto[] edges) {

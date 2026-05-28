@@ -281,29 +281,6 @@ public class PipelineSerializationTests {
         Assert.Equal(destInGuid, sourceOutGuid);
     }
 
-    [Fact]
-    public void DeserializeInputs_WithServiceProvider_PropagatesToContext() {
-        var builder = new PipelineBuilder(_registry);
-        var srcNode = new SourceNode();
-        var dstNode = new DestNode();
-        var source = builder.AddNode(srcNode);
-        var dest = builder.AddNode(dstNode);
-        builder.AddConnection(source, srcNode.Out, dest, dstNode.In);
-        var pipeline = builder.Build();
-
-        var ctx = new PipelineContext();
-        ctx.Write(source, srcNode.Out, 42);
-        var json = pipeline.SerializeInputs(ctx);
-
-        var sp = new TestServiceProvider();
-        var restored = PipelineSerialization.DeserializeInputs(json, pipeline, sp);
-
-        Assert.Same(sp, restored.Services);
-    }
-
-    private class TestServiceProvider : IServiceProvider {
-        public object? GetService(Type serviceType) => null;
-    }
 }
 
 public class PipelineSerializationArrayTests {

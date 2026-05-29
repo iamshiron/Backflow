@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Registry;
@@ -224,13 +225,29 @@ public class PipelineSerializationTests {
     }
 
     [Fact]
-    public void FromDefinitionDto_MissingNode_ThrowsInvalidOperationException() {
+    public void FromDefinitionDto_MissingNode_ThrowsNodeNotRegisteredException() {
         var dto = new PipelineDefinitionDto(
             [new NodeInstanceDto("n1", "NonExistent.Node", [])],
             []
         );
 
-        Assert.Throws<InvalidOperationException>(() => dto.FromDefinitionDto(_registry));
+        var ex = Assert.Throws<NodeNotRegisteredException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Equal("NonExistent.Node", ex.NodeTypeName);
+        Assert.Equal("n1", ex.NodeId);
+        Assert.False(ex.IsGeneric);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_MissingGenericBlueprint_ThrowsNodeNotRegisteredException() {
+        var dto = new PipelineDefinitionDto(
+            [new NodeInstanceDto("g1", "NonExistent.GenericNode`1", [], ["System.Int32"])],
+            []
+        );
+
+        var ex = Assert.Throws<NodeNotRegisteredException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Equal("NonExistent.GenericNode`1", ex.NodeTypeName);
+        Assert.Equal("g1", ex.NodeId);
+        Assert.True(ex.IsGeneric);
     }
 
     [Fact]

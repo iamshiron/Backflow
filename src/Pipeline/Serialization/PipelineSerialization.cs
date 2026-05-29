@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Shiron.Lib.Collections;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Generic;
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
@@ -81,7 +82,7 @@ public static class PipelineSerialization {
 
             if (nodeDto.GenericTypeArgs is { Length: > 0 }) {
                 var blueprint = registry.GetBlueprint(nodeDto.NodeTypeName)
-                    ?? throw new InvalidOperationException($"Generic node blueprint not registered: {nodeDto.NodeTypeName}");
+                    ?? throw new NodeNotRegisteredException(nodeDto.NodeTypeName, nodeDto.Id, isGeneric: true);
 
                 var typeArgs = new Type[nodeDto.GenericTypeArgs.Length];
                 for (var i = 0; i < nodeDto.GenericTypeArgs.Length; i++) {
@@ -92,7 +93,7 @@ public static class PipelineSerialization {
                 node = registry.GetOrCreateConcrete(blueprint.OpenType, typeArgs);
             } else {
                 node = registry.GetByFullName(nodeDto.NodeTypeName)
-                    ?? throw new InvalidOperationException($"Node type not registered in registry: {nodeDto.NodeTypeName}");
+                    ?? throw new NodeNotRegisteredException(nodeDto.NodeTypeName, nodeDto.Id);
             }
 
             var nodeArrayCounts = arrayCounts.GetValueOrDefault(nodeDto.Id, new Dictionary<string, int>());

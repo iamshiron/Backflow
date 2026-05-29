@@ -47,9 +47,9 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
             CacheTypeAdapterRegistry? adapters = null;
             if (settings.EnableCaching) {
                 adapters = new CacheTypeAdapterRegistry();
-                adapters.Register(typeof(Vector2DJsonConverter<>));
-                adapters.Register(typeof(Vector3DJsonConverter<>));
-                adapters.Register(typeof(Vector4DJsonConverter<>));
+                adapters.FromAttributes();
+
+                Console.WriteLine($"Registered Adapters: {string.Join(", ", adapters.Converters.Select(c => c.GetType().FullName!))}");
             }
 
             using var cache = settings.EnableCaching ? new JsonFileCache(".output/cache.json", adapters) : null;

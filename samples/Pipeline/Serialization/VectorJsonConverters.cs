@@ -1,9 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Shiron.Lib.Pipeline.Caching;
 using Silk.NET.Maths;
 
 namespace Shiron.Lib.Samples.Pipeline.Serialization;
 
+[CacheTypeAdapter]
 public class Vector2DJsonConverter<T> : JsonConverter<Vector2D<T>>
     where T : unmanaged, IFormattable, IEquatable<T>, IComparable<T> {
     public override Vector2D<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
@@ -25,6 +27,7 @@ public class Vector2DJsonConverter<T> : JsonConverter<Vector2D<T>>
     }
 }
 
+[CacheTypeAdapter]
 public class Vector3DJsonConverter<T> : JsonConverter<Vector3D<T>>
     where T : unmanaged, IFormattable, IEquatable<T>, IComparable<T> {
     public override Vector3D<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
@@ -49,6 +52,7 @@ public class Vector3DJsonConverter<T> : JsonConverter<Vector3D<T>>
     }
 }
 
+[CacheTypeAdapter]
 public class Vector4DJsonConverter<T> : JsonConverter<Vector4D<T>>
     where T : unmanaged, IFormattable, IEquatable<T>, IComparable<T> {
     public override Vector4D<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {

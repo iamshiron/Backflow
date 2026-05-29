@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -10,6 +11,7 @@ namespace Shiron.Lib.Pipeline.Caching;
 /// </summary>
 public sealed class CacheTypeAdapterRegistry {
     private readonly List<JsonConverter> _converters = [];
+    public IReadOnlyList<JsonConverter> Converters => _converters;
 
     /// <summary>Register a concrete <see cref="JsonConverter"/> instance.</summary>
     public void Register(JsonConverter converter) {
@@ -18,6 +20,8 @@ public sealed class CacheTypeAdapterRegistry {
 
     /// <summary>Register an open generic <see cref="JsonConverter{T}"/> type. Closed types are created on demand.</summary>
     public void Register(Type openGenericConverterType) {
+        Console.WriteLine($"Registering {openGenericConverterType.FullName} as cache type adapter.");
+
         _converters.Add(new OpenGenericJsonConverterFactory(openGenericConverterType));
     }
 
@@ -76,4 +80,45 @@ public sealed class CacheTypeAdapterRegistry {
             return null;
         }
     }
+
+    public void FromAttributes() {
+        var attributeAssembly = typeof(CacheTypeAdapterAttribute).Assembly;
+        var attributeAssemblyName = attributeAssembly.GetName();
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()) {
+            var isAttributeAssembly = assembly == attributeAssembly;
+            var referencesAttribute = assembly.GetReferencedAssemblies()
+                .Any(a => a.FullName == attributeAssemblyName.FullName);
+
+            if (!isAttributeAssembly && !referencesAttribute) continue;
+
+            try {
+                foreach (var type in assembly.GetTypes()) {
+                    if (!type.IsDefined(typeof(CacheTypeAdapterAttribute), false)) continue;
+                    if (!typeof(JsonConverter).IsAssignableFrom(type) && !type.IsGenericTypeDefinition)
+                        throw new InvalidOperationException($"Type {type.FullName} is not a JsonConverter.");
+
+                    if (type.IsGenericTypeDefinition) {
+                        Register(type);
+                    } else {
+                        try {
+                            var instance = (JsonConverter?) Activator.CreateInstance(type);
+                            if (instance is null) throw new InvalidOperationException($"Failed to create instance of {type.FullName}.");
+
+                            Register(instance);
+                        } catch (Exception ex) {
+                            throw new InvalidOperationException($"Failed to create instance of {type.FullName}.", ex);
+                        }
+                    }
+                }
+            } catch (ReflectionTypeLoadException e) {
+                var types = e.Types.Where(t => t != null).ToArray();
+                Console.WriteLine($"Failed to load types from assembly {assembly.FullName}: {string.Join(", ", types.Select(t => t.FullName))}");
+            }
+        }
+    }
+}
+
+[AttributeUsage(AttributeTargets.Class)]
+public class CacheTypeAdapterAttribute : Attribute {
 }

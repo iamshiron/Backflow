@@ -206,6 +206,24 @@ public class PipelineSerializationTests {
     }
 
     [Fact]
+    public void RoundTrip_SameNodeTypeConnected_PreservesTopology() {
+        var builder = new PipelineBuilder(_registry);
+        var relay1Node = new RelayNode();
+        var relay2Node = new RelayNode();
+        var relay1 = builder.AddNode(relay1Node);
+        var relay2 = builder.AddNode(relay2Node);
+        builder.AddConnection(relay1, relay1Node.Out, relay2, relay2Node.In);
+        var pipeline = builder.Build();
+
+        var json = pipeline.SerializeDefinition();
+        var restored = PipelineSerialization.DeserializeDefinition(json, _registry);
+
+        Assert.Equal(2, restored.Topology.Nodes.Count());
+        Assert.Single(restored.Edges);
+        Assert.NotEqual(restored.Edges[0].SourceNode.ID, restored.Edges[0].DestinationNode.ID);
+    }
+
+    [Fact]
     public void FromDefinitionDto_MissingNode_ThrowsInvalidOperationException() {
         var dto = new PipelineDefinitionDto(
             [new NodeInstanceDto("n1", "NonExistent.Node", [])],

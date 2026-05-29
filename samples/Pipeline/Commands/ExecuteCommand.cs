@@ -1,10 +1,12 @@
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using Shiron.Lib.Pipeline;
+using Shiron.Lib.Pipeline.Caching;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Ext.DI;
 using Shiron.Lib.Pipeline.Registry;
 using Shiron.Lib.Pipeline.Serialization;
+using Shiron.Lib.Samples.Pipeline.Serialization;
 using Shiron.Lib.Samples.Pipeline.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -20,6 +22,10 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
         [CommandOption("--inputs")]
         [Description("Optional pipeline inputs file")]
         public string? InputsFile { get; init; }
+
+        [CommandOption("--cache")]
+        [Description("Enable caching")]
+        public bool EnableCaching { get; init; }
     }
 
     protected async override Task<int> ExecuteAsync(CommandContext cmdContext, Settings settings, CancellationToken cancellationToken) {
@@ -38,8 +44,20 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
                 ? PipelineSerialization.DeserializeInputs(await File.ReadAllTextAsync(settings.InputsFile, cancellationToken), pipeline)
                 : new PipelineContext();
 
-            var executor = new PipelineExecutor(pipeline);
+            CacheTypeAdapterRegistry? adapters = null;
+            if (settings.EnableCaching) {
+                adapters = new CacheTypeAdapterRegistry();
+                adapters.Register(typeof(Vector2DJsonConverter<>));
+                adapters.Register(typeof(Vector3DJsonConverter<>));
+                adapters.Register(typeof(Vector4DJsonConverter<>));
+            }
+
+            using var cache = settings.EnableCaching ? new JsonFileCache(".output/cache.json", adapters) : null;
+            var blobStorage = settings.EnableCaching ? new GlobalStorageRegistry(".output") : null;
+
+            var executor = new PipelineExecutor(pipeline, cache, typeAdapters: adapters, blobResolver: blobStorage);
             var stats = await executor.ExecuteAsync(context);
+            if (cache is not null) await cache.FlushAsync();
             AnsiConsole.MarkupLine($"[green]{stats}[/]");
         } catch (Exception e) {
             AnsiConsole.WriteException(e);

@@ -57,8 +57,8 @@ public static class PipelineSerialization {
                 nodeInputs[port.Name] = new InputDto(
                     context.ReadAny(mappingGuid),
                     context.Store.TypeOf(mappingGuid)?.FullName ??
-                        context.Store.TypeOf(mappingGuid)?.Name ??
-                        throw new InvalidOperationException("Unable to determine type of input")
+                    context.Store.TypeOf(mappingGuid)?.Name ??
+                    throw new InvalidOperationException("Unable to determine type of input")
                 );
             }
 
@@ -85,7 +85,7 @@ public static class PipelineSerialization {
 
                 var typeArgs = new Type[nodeDto.GenericTypeArgs.Length];
                 for (var i = 0; i < nodeDto.GenericTypeArgs.Length; i++) {
-                    typeArgs[i] = Type.GetType(nodeDto.GenericTypeArgs[i])
+                    typeArgs[i] = ResolveType(nodeDto.GenericTypeArgs[i])
                         ?? throw new InvalidOperationException($"Cannot resolve type: {nodeDto.GenericTypeArgs[i]}");
                 }
 
@@ -97,15 +97,30 @@ public static class PipelineSerialization {
 
             var nodeArrayCounts = arrayCounts.GetValueOrDefault(nodeDto.Id, new Dictionary<string, int>());
 
-            var builder = new PipelineBuilder(registry);
-            var instance = builder.AddNode(node, nodeArrayCounts);
-
             foreach (var port in node.Ports) {
-                if (nodeDto.PortMappings.TryGetValue(port.Name, out var mappingGuid)) {
-                    instance.Mappings[port] = mappingGuid;
+                if (port is IArrayInputPortMarker arrayPort) {
+                    if (nodeArrayCounts.TryGetValue(port.Name, out var count)) {
+                        if (count < arrayPort.MinCount) {
+                            throw new ArgumentException(
+                                $"Array port '{port.Name}' requires at least {arrayPort.MinCount} elements, got {count}.");
+                        }
+                        if (arrayPort.MaxCount.HasValue && count > arrayPort.MaxCount.Value) {
+                            throw new ArgumentException(
+                                $"Array port '{port.Name}' supports at most {arrayPort.MaxCount.Value} elements, got {count}.");
+                        }
+                        arrayPort.SetCount(count);
+                    }
                 }
             }
 
+            var mappings = new Dictionary<IPort, Guid>();
+            foreach (var port in node.Ports) {
+                if (nodeDto.PortMappings.TryGetValue(port.Name, out var mappingGuid)) {
+                    mappings[port] = mappingGuid;
+                }
+            }
+
+            var instance = new PipelineBuilder.NodeInstance(nodeDto.Id, node, mappings);
             nodeInstances[nodeDto.Id] = instance;
         }
 
@@ -147,7 +162,7 @@ public static class PipelineSerialization {
                 throw new InvalidOperationException($"Node '{nodeId}' not found in pipeline.");
 
             foreach (var (portKey, inputDto) in portInputs) {
-                var type = Type.GetType(inputDto.Type)
+                var type = ResolveType(inputDto.Type)
                     ?? throw new InvalidOperationException($"Cannot resolve type: {inputDto.Type}");
 
                 var value = inputDto.Value is JsonElement je
@@ -187,6 +202,18 @@ public static class PipelineSerialization {
             ?? throw new InvalidOperationException("Failed to deserialize pipeline inputs JSON.");
 
         return dto.FromInputs(pipeline);
+    }
+
+    private static Type? ResolveType(string typeName) {
+        var type = Type.GetType(typeName);
+        if (type is not null) return type;
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()) {
+            type = assembly.GetType(typeName);
+            if (type is not null) return type;
+        }
+
+        return null;
     }
 
     private static Dictionary<string, Dictionary<string, int>> BuildArrayCounts(EdgeDto[] edges) {

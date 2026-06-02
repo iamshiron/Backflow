@@ -112,7 +112,7 @@ public sealed class CacheTypeAdapterRegistry {
                     }
                 }
             } catch (ReflectionTypeLoadException e) {
-                var types = e.Types.Where(t => t != null).ToArray();
+                var types = e.Types.OfType<Type>().ToArray();
                 Console.WriteLine($"Failed to load types from assembly {assembly.FullName}: {string.Join(", ", types.Select(t => t.FullName))}");
             }
         }

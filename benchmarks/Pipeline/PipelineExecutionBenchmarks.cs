@@ -19,20 +19,20 @@ public class PipelineExecutionBenchmarks {
     private PassThroughNode _passThrough = null!;
 
     private Pipe _serialPipeline;
-    private PipelineExecutor _serialExecutor;
-    private PipelineBuilder.NodeInstance _serialFirst;
+    private PipelineExecutor _serialExecutor = null!;
+    private PipelineBuilder.NodeInstance _serialFirst = null!;
 
     private Pipe _fanOutPipeline;
-    private PipelineExecutor _fanOutExecutor;
-    private PipelineBuilder.NodeInstance _fanOutSource;
+    private PipelineExecutor _fanOutExecutor = null!;
+    private PipelineBuilder.NodeInstance _fanOutSource = null!;
 
     private Pipe _fanOutSerialPipeline;
-    private PipelineExecutor _fanOutSerialExecutor;
-    private PipelineBuilder.NodeInstance _fanOutSerialSource;
+    private PipelineExecutor _fanOutSerialExecutor = null!;
+    private PipelineBuilder.NodeInstance _fanOutSerialSource = null!;
 
     private Pipe _binaryOutPipeline;
-    private PipelineExecutor _binaryOutExecutor;
-    private PipelineBuilder.NodeInstance _binaryOutRoot;
+    private PipelineExecutor _binaryOutExecutor = null!;
+    private PipelineBuilder.NodeInstance _binaryOutRoot = null!;
 
     [GlobalSetup]
     public void Setup() {

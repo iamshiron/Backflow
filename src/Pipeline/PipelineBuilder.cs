@@ -218,6 +218,14 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     /// and return the immutable <see cref="Pipeline"/> topology.
     /// </summary>
     public Pipeline Build() {
+        return Build(out _, out _);
+    }
+
+    /// <summary>
+    /// Resolve all generic type parameters, validate type compatibility on every edge, check for cycles,
+    /// and return the immutable <see cref="Pipeline"/> topology.
+    /// </summary>
+    public Pipeline Build(out Dictionary<Guid, (Type, int)> indices, out Dictionary<Type, int> typeCounts) {
         ResolveAllTypeArgs();
 
         var allInstances = new Dictionary<string, NodeInstance>();
@@ -268,19 +276,27 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
 
         // TODO: Use the created dictionary to allocate a pipeline context with the required port types
         // Create a dictionary of port types and counts
-        var portCounts = new Dictionary<Type, int>();
+        typeCounts = new Dictionary<Type, int>();
+        indices = new Dictionary<Guid, (Type, int)>();
+
         foreach (var instance in allInstances.Values) {
             foreach (var port in instance.Node.Ports) {
                 var type = port.PortType.IsValueType ? port.PortType : typeof(object);
+                var id = instance.Mappings[port];
 
-                portCounts.TryGetValue(type, out var count);
-                portCounts[type] = count + 1;
+                if (indices.ContainsKey(id)) continue;
+                typeCounts.TryGetValue(type, out var count);
+                indices[id] = (type, count);
+                typeCounts[type] = count + 1;
             }
         }
 
         // Temporarily print the port counts
-        foreach (var kvp in portCounts) {
+        foreach (var kvp in typeCounts) {
             Console.WriteLine($"Port type: {kvp.Key}, Count: {kvp.Value}");
+        }
+        foreach (var kvp in indices) {
+            Console.WriteLine($"Port ID: {kvp.Key}, Type: {kvp.Value.Item1} Index: {kvp.Value.Item2}");
         }
 
         return new Pipeline(graph, [.. allEdges]);

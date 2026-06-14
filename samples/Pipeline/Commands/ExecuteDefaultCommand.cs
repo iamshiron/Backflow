@@ -316,7 +316,10 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
                 printLossyCastInstance, registry.Print.Message
             );
 
-            var context = builder.CreateContext();
+            var pipeline = builder.Build(out var counts, out var indices);
+            // var context = builder.CreateContext();
+            var context = new ArrayPipelineContext(builder.CastRegistry, counts, indices);
+
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
             context.Write<int>(subtractInstance, registry.Subtract.Number1, 100);
@@ -402,8 +405,6 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             Console.WriteLine($"Port 4: {context.Read<string>(concatInstance, registry.Concat.String1)}");
             Console.WriteLine($"Port 5: {context.Read<string>(concatInstance, registry.Concat.String2)}");
 
-            var pipeline = builder.Build();
-
             CacheTypeAdapterRegistry? adapters = null;
             if (settings.EnableCaching) {
                 adapters = new CacheTypeAdapterRegistry();
@@ -426,7 +427,7 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             };
 
             await File.WriteAllTextAsync(".output/graph.json", pipeline.SerializeDefinition(jsonOptions), cancellationToken);
-            await File.WriteAllTextAsync(".output/inputs.json", pipeline.SerializeInputs(context, jsonOptions), cancellationToken);
+            // await File.WriteAllTextAsync(".output/inputs.json", pipeline.SerializeInputs(context, jsonOptions), cancellationToken);
             var stats = await executor.ExecuteAsync(context);
             if (cache is not null) await cache.FlushAsync();
             Console.WriteLine(stats);

@@ -18,7 +18,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     /// <summary>Configuration that controls type-casting strictness and other build-time behavior.</summary>
     public PipelineBuilderConfig Config { get; set; } = new();
 
-    private readonly CastRegistry _castRegistry = castRegistry ?? CastRegistry.CreateDefault();
+    public readonly CastRegistry CastRegistry = castRegistry ?? CastRegistry.CreateDefault();
 
     /// <summary>
     /// Register a custom type cast from <typeparamref name="TSrc"/> to <typeparamref name="TDst"/>.
@@ -26,13 +26,13 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     /// <param name="castType">Whether the conversion is <see cref="TypeCast.Lossless"/> or <see cref="TypeCast.Lossy"/>.</param>
     /// <param name="converter">Function that performs the conversion.</param>
     public PipelineBuilder RegisterCast<TSrc, TDst>(TypeCast castType, Func<TSrc, TDst> converter) {
-        _castRegistry.Register(castType, converter);
+        CastRegistry.Register(castType, converter);
         return this;
     }
 
     /// <summary>Create a <see cref="PipelineContext"/> that shares this builder's cast registry.</summary>
     public PipelineContext CreateContext() {
-        return new PipelineContext(_castRegistry);
+        return new PipelineContext(CastRegistry);
     }
 
     /// <summary>
@@ -225,7 +225,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     /// Resolve all generic type parameters, validate type compatibility on every edge, check for cycles,
     /// and return the immutable <see cref="Pipeline"/> topology.
     /// </summary>
-    public Pipeline Build(out Dictionary<Guid, (Type, int)> indices, out Dictionary<Type, int> typeCounts) {
+    public Pipeline Build(out Dictionary<Type, int> typeCounts, out Dictionary<Guid, int> indices) {
         ResolveAllTypeArgs();
 
         var allInstances = new Dictionary<string, NodeInstance>();
@@ -277,7 +277,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         // TODO: Use the created dictionary to allocate a pipeline context with the required port types
         // Create a dictionary of port types and counts
         typeCounts = new Dictionary<Type, int>();
-        indices = new Dictionary<Guid, (Type, int)>();
+        indices = new Dictionary<Guid, int>();
 
         foreach (var instance in allInstances.Values) {
             foreach (var port in instance.Node.Ports) {
@@ -286,7 +286,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
 
                 if (indices.ContainsKey(id)) continue;
                 typeCounts.TryGetValue(type, out var count);
-                indices[id] = (type, count);
+                indices[id] = count;
                 typeCounts[type] = count + 1;
             }
         }
@@ -296,7 +296,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             Console.WriteLine($"Port type: {kvp.Key}, Count: {kvp.Value}");
         }
         foreach (var kvp in indices) {
-            Console.WriteLine($"Port ID: {kvp.Key}, Type: {kvp.Value.Item1} Index: {kvp.Value.Item2}");
+            Console.WriteLine($"Port ID: {kvp.Key}, Index: {kvp.Value}");
         }
 
         return new Pipeline(graph, [.. allEdges]);
@@ -455,7 +455,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         if (sourceType == targetType) return;
         if (sourceType.IsAssignableTo(targetType)) return;
 
-        if (_castRegistry.TryGetCast(sourceType, targetType, out var rule)) {
+        if (CastRegistry.TryGetCast(sourceType, targetType, out var rule)) {
             if (Config.StrictTypeCasting && rule!.CastType == TypeCast.Lossy)
                 throw new TypeIncompatibilityException(sourcePort.Name, sourceType, targetPort.Name, targetType);
             return;

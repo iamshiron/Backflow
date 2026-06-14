@@ -82,7 +82,7 @@ public static class PipelineSerialization {
 
             if (nodeDto.GenericTypeArgs is { Length: > 0 }) {
                 var blueprint = registry.GetBlueprint(nodeDto.NodeTypeName)
-                    ?? throw new NodeNotRegisteredException(nodeDto.NodeTypeName, nodeDto.Id, isGeneric: true);
+                    ?? throw new NodeNotRegisteredException(nodeDto.NodeTypeName, nodeDto.Id, true);
 
                 var typeArgs = new Type[nodeDto.GenericTypeArgs.Length];
                 for (var i = 0; i < nodeDto.GenericTypeArgs.Length; i++) {

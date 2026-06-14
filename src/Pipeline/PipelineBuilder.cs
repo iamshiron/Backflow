@@ -266,6 +266,23 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             allEdges.Add(new EdgeInstance(srcInstance, srcPort, dstInstance, dstPort));
         }
 
+        // TODO: Use the created dictionary to allocate a pipeline context with the required port types
+        // Create a dictionary of port types and counts
+        var portCounts = new Dictionary<Type, int>();
+        foreach (var instance in allInstances.Values) {
+            foreach (var port in instance.Node.Ports) {
+                var type = port.PortType.IsValueType ? port.PortType : typeof(object);
+
+                portCounts.TryGetValue(type, out var count);
+                portCounts[type] = count + 1;
+            }
+        }
+
+        // Temporarily print the port counts
+        foreach (var kvp in portCounts) {
+            Console.WriteLine($"Port type: {kvp.Key}, Count: {kvp.Value}");
+        }
+
         return new Pipeline(graph, [.. allEdges]);
     }
 

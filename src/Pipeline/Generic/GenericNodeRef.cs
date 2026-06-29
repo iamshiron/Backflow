@@ -13,7 +13,7 @@ public sealed class GenericNodeRef {
     internal string ID { get; }
     internal NodeBlueprint Blueprint { get; }
     internal Type?[] TypeArgs { get; }
-    internal Dictionary<string, Guid> PortMappings { get; }
+    internal Dictionary<string, int> PortMappings { get; }
     internal AbstractNode? MaterializedNode { get; private set; }
 
     internal bool IsResolved {
@@ -29,7 +29,7 @@ public sealed class GenericNodeRef {
 
     private readonly NodeRegistry _registry;
 
-    internal GenericNodeRef(string id, NodeBlueprint blueprint, Dictionary<string, Guid> portMappings, NodeRegistry registry) {
+    internal GenericNodeRef(string id, NodeBlueprint blueprint, Dictionary<string, int> portMappings, NodeRegistry registry) {
         ID = id;
         Blueprint = blueprint;
         TypeArgs = new Type?[blueprint.TypeParameters.Length];
@@ -50,8 +50,8 @@ public sealed class GenericNodeRef {
         var meta = Blueprint.GetPort(name)
             ?? throw new ArgumentException($"Port '{name}' not found on blueprint '{Blueprint.DisplayName}'.", nameof(name));
 
-        var guid = PortMappings[name];
-        return new BlueprintPort(meta.Name, guid, meta.TypeParameterIndex ?? -1, meta.Direction);
+        var channel = PortMappings[name];
+        return new BlueprintPort(meta.Name, channel, meta.TypeParameterIndex ?? -1, meta.Direction);
     }
 
     internal void Materialize() {

@@ -35,7 +35,7 @@ public class AbstractNodeTests {
 
     private class FakeInputPort : IInputPort<int> {
         public string Name => "fake";
-        public Guid ID => Guid.NewGuid();
+        public int ID => 0;
         public Type PortType => typeof(int);
         public int Read(INodeContext context) {
             return 0;
@@ -54,7 +54,7 @@ public class AbstractNodeTests {
 
     private class FakeOutputPort : IOutputPort<int> {
         public string Name => "fake";
-        public Guid ID => Guid.NewGuid();
+        public int ID => 0;
         public Type PortType => typeof(int);
         public void Write(INodeContext context, int value) { }
     }

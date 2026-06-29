@@ -4,6 +4,7 @@ using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Registry;
 
 using PipelineBuilder = Shiron.Lib.Pipeline.PipelineBuilder;
+using Pipe = global::Shiron.Lib.Pipeline.Pipeline;
 
 namespace Shiron.Lib.Benchmarks.Pipeline;
 
@@ -15,8 +16,9 @@ public class PipelineContextBenchmarks {
     private NodeRegistry _registry = null!;
     private PassThroughNode _passThrough = null!;
     private PipelineBuilder.NodeInstance[] _instances = null!;
-    private PipelineContext _preloadedContext = null!;
-    private Guid[] _directGuids = null!;
+    private ArrayPipelineContext _preloadedContext = null!;
+    private int[] _directChannels = null!;
+    private Pipe _pipeline;
 
     [GlobalSetup]
     public void Setup() {
@@ -25,23 +27,23 @@ public class PipelineContextBenchmarks {
 
         var builder = new PipelineBuilder(_registry);
         _instances = new PipelineBuilder.NodeInstance[PortCount];
-        _directGuids = new Guid[PortCount];
+        _directChannels = new int[PortCount];
 
         for (var i = 0; i < PortCount; i++) {
             _instances[i] = builder.AddNode(_passThrough);
-            _directGuids[i] = _instances[i].Mappings[_passThrough.Input];
+            _directChannels[i] = _instances[i].Mappings[_passThrough.Input];
         }
 
-        _ = builder.Build();
+        _pipeline = builder.Build();
 
-        _preloadedContext = new PipelineContext();
+        _preloadedContext = ArrayPipelineContext.ForPipeline(_pipeline);
         for (var i = 0; i < PortCount; i++)
             _preloadedContext.Write(_instances[i], _passThrough.Input, i);
     }
 
     [Benchmark]
     public void Write_SingleInt() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         context.Write(_instances[0], _passThrough.Input, 42);
     }
 
@@ -52,26 +54,26 @@ public class PipelineContextBenchmarks {
 
     [Benchmark]
     public int Read_SingleIntMissing() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         return context.Read<int>(_instances[0], _passThrough.Input);
     }
 
     [Benchmark]
     public void WriteRead_SingleInt() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         context.Write(_instances[0], _passThrough.Input, 42);
         _ = context.Read<int>(_instances[0], _passThrough.Input);
     }
 
     [Benchmark]
     public void Write_SingleString() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         context.Write(_instances[0], _passThrough.Input, "hello benchmark");
     }
 
     [Benchmark]
     public void Write_ManyInts() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         for (var i = 0; i < PortCount; i++)
             context.Write(_instances[i], _passThrough.Input, i);
     }
@@ -83,13 +85,13 @@ public class PipelineContextBenchmarks {
     }
 
     [Benchmark]
-    public void Write_DirectGuid() {
-        var context = new PipelineContext();
-        context.Write(_directGuids[0], 42);
+    public void Write_DirectChannel() {
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
+        context.Write(_directChannels[0], 42);
     }
 
     [Benchmark]
-    public int Read_DirectGuid() {
-        return _preloadedContext.Read<int>(_directGuids[0]);
+    public int Read_DirectChannel() {
+        return _preloadedContext.Read<int>(_directChannels[0]);
     }
 }

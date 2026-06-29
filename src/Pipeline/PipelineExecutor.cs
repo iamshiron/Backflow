@@ -119,7 +119,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
     private void AssembleFrozenArrayInputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
         if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return;
 
-        var indexedByPort = new Dictionary<IPort, List<(int Index, Guid SourceGuid)>>();
+        var indexedByPort = new Dictionary<IPort, List<(int Index, int SourceChannel)>>();
 
         foreach (var edge in edges) {
             if (!edge.DestIndex.HasValue) continue;
@@ -134,13 +134,13 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         foreach (var (port, sources) in indexedByPort) {
             if (port is not IArrayInputPortMarker { IsFrozen: true }) continue;
 
-            var targetGuid = node.Mappings[port];
-            ((IArrayPortAssembly) port).Assemble(global, targetGuid, sources);
+            var targetChannel = node.Mappings[port];
+            ((IArrayPortAssembly) port).Assemble(global, targetChannel, sources);
         }
     }
 
-    private Dictionary<IPort, IReadOnlyList<(int Index, Guid SourceGuid)>> BuildIndexedInputs(PipelineBuilder.NodeInstance node) {
-        var result = new Dictionary<IPort, IReadOnlyList<(int Index, Guid SourceGuid)>>();
+    private Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> BuildIndexedInputs(PipelineBuilder.NodeInstance node) {
+        var result = new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>();
 
         if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return result;
 
@@ -148,11 +148,11 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
             if (!edge.DestIndex.HasValue) continue;
 
             if (!result.TryGetValue(edge.DestinationPort, out var list)) {
-                list = new List<(int Index, Guid SourceGuid)>();
+                list = new List<(int Index, int SourceChannel)>();
                 result[edge.DestinationPort] = list;
             }
 
-            ((List<(int Index, Guid SourceGuid)>) list).Add((edge.DestIndex.Value, edge.SourceNode.Mappings[edge.SourcePort]));
+            ((List<(int Index, int SourceChannel)>) list).Add((edge.DestIndex.Value, edge.SourceNode.Mappings[edge.SourcePort]));
         }
 
         return result;
@@ -239,20 +239,20 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         var outputs = new Dictionary<string, CachePortValue>();
 
         foreach (var port in node.Node.Inputs) {
-            var guid = node.Mappings[port];
-            if (!global.HasAny(guid)) continue;
+            var channel = node.Mappings[port];
+            if (!global.HasAny(channel)) continue;
 
-            var value = global.ReadAny(guid);
+            var value = global.ReadAny(channel);
             value = TryStoreBlob(value);
             var typeName = value?.GetType().AssemblyQualifiedName ?? "null";
             inputs[port.Name] = new CachePortValue(value, typeName);
         }
 
         foreach (var port in node.Node.Outputs) {
-            var guid = node.Mappings[port];
-            if (!global.HasAny(guid)) continue;
+            var channel = node.Mappings[port];
+            if (!global.HasAny(channel)) continue;
 
-            var value = global.ReadAny(guid);
+            var value = global.ReadAny(channel);
             value = TryStoreBlob(value);
             var typeName = value?.GetType().AssemblyQualifiedName ?? "null";
             outputs[port.Name] = new CachePortValue(value, typeName);
@@ -319,23 +319,17 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
     }
 
     private void RestoreOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, ICacheEntry entry) {
-        var typedStore = global as PipelineContext;
-
         foreach (var port in node.Node.Outputs) {
             if (!entry.Outputs.TryGetValue(port.Name, out var cached)) continue;
 
-            var guid = node.Mappings[port];
+            var channel = node.Mappings[port];
             var type = Type.GetType(cached.TypeName);
             var value = cached.Value;
 
             if (value is BlobCacheEntry blobEntry) {
                 var restored = RestoreBlobEntry(blobEntry, port.PortType!);
                 var storageType = ResolveStorageType(restored, port.PortType!);
-                if (typedStore is not null) {
-                    typedStore.Store.Set(guid, restored, storageType);
-                } else {
-                    global.Write(guid, restored);
-                }
+                global.Write(channel, restored, storageType);
                 continue;
             }
 
@@ -352,18 +346,14 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
                     storageType = typeof(IStreamData);
                 }
 
-                if (typedStore is not null) {
-                    typedStore.Store.Set(guid, restored, storageType);
-                } else {
-                    global.Write(guid, restored);
-                }
+                global.Write(channel, restored, storageType);
                 continue;
             }
 
-            if (type is not null && typedStore is not null) {
-                typedStore.Store.Set(guid, value, type);
+            if (type is not null) {
+                global.Write(channel, value, type);
             } else {
-                global.Write(guid, value);
+                global.Write(channel, value);
             }
         }
     }
@@ -405,6 +395,6 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
 }
 
 internal interface IArrayPortAssembly {
-    void Assemble(IPipelineContext context, Guid targetGuid, IReadOnlyList<(int Index, Guid SourceGuid)> sources);
-    void AssembleWithCount(IPipelineContext context, Guid targetGuid, IReadOnlyList<(int Index, Guid SourceGuid)> sources, int count);
+    void Assemble(IPipelineContext context, int targetChannel, IReadOnlyList<(int Index, int SourceChannel)> sources);
+    void AssembleWithCount(IPipelineContext context, int targetChannel, IReadOnlyList<(int Index, int SourceChannel)> sources, int count);
 }

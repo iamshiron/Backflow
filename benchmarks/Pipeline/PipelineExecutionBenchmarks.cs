@@ -126,28 +126,28 @@ public class PipelineExecutionBenchmarks {
 
     [Benchmark]
     public ExecutionStats Execute_Serial() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_serialPipeline);
         context.Write(_serialFirst, _passThrough.Input, 42);
         return _serialExecutor.Execute(context);
     }
 
     [Benchmark]
     public ExecutionStats Execute_FanOut() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_fanOutPipeline);
         context.Write(_fanOutSource, _passThrough.Input, 42);
         return _fanOutExecutor.Execute(context);
     }
 
     [Benchmark]
     public ExecutionStats Execute_FanOutToSerial() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_fanOutSerialPipeline);
         context.Write(_fanOutSerialSource, _passThrough.Input, 42);
         return _fanOutSerialExecutor.Execute(context);
     }
 
     [Benchmark]
     public ExecutionStats Execute_BinaryOut() {
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(_binaryOutPipeline);
         context.Write(_binaryOutRoot, _passThrough.Input, 42);
         return _binaryOutExecutor.Execute(context);
     }

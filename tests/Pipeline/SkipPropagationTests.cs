@@ -95,10 +95,11 @@ public class SkipPropagationTests {
         var node = new SourceWithChipEnable();
         var inst = builder.AddNode(node);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(inst, node.ChipEnableBehavior.ChipEnable, false);
 
-        new PipelineExecutor(builder.Build()).Execute(ctx);
+        new PipelineExecutor(pipeline).Execute(ctx);
         Assert.Equal(NodeState.Skipped, inst.State);
     }
 
@@ -108,10 +109,11 @@ public class SkipPropagationTests {
         var node = new SourceWithChipEnable();
         var inst = builder.AddNode(node);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(inst, node.ChipEnableBehavior.ChipEnable, false);
 
-        await new PipelineExecutor(builder.Build()).ExecuteAsync(ctx);
+        await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
         Assert.Equal(NodeState.Skipped, inst.State);
     }
 
@@ -125,10 +127,11 @@ public class SkipPropagationTests {
         var destInst = builder.AddNode(dest);
         builder.AddConnection(srcInst, source.Out, destInst, dest.In);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
-        new PipelineExecutor(builder.Build()).Execute(ctx);
+        new PipelineExecutor(pipeline).Execute(ctx);
         Assert.Equal(NodeState.Skipped, srcInst.State);
         Assert.Equal(NodeState.Skipped, destInst.State);
     }
@@ -143,10 +146,11 @@ public class SkipPropagationTests {
         var destInst = builder.AddNode(dest);
         builder.AddConnection(srcInst, source.Out, destInst, dest.In);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
-        await new PipelineExecutor(builder.Build()).ExecuteAsync(ctx);
+        await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
         Assert.Equal(NodeState.Skipped, srcInst.State);
         Assert.Equal(NodeState.Skipped, destInst.State);
     }
@@ -161,10 +165,11 @@ public class SkipPropagationTests {
         var destInst = builder.AddNode(dest);
         builder.AddConnection(srcInst, source.Out, destInst, dest.In);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
-        new PipelineExecutor(builder.Build()).Execute(ctx);
+        new PipelineExecutor(pipeline).Execute(ctx);
         Assert.Equal(NodeState.Skipped, srcInst.State);
         Assert.Equal(NodeState.Done, destInst.State);
     }
@@ -179,10 +184,11 @@ public class SkipPropagationTests {
         var destInst = builder.AddNode(dest);
         builder.AddConnection(srcInst, source.Out, destInst, dest.In);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
-        await new PipelineExecutor(builder.Build()).ExecuteAsync(ctx);
+        await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
         Assert.Equal(NodeState.Skipped, srcInst.State);
         Assert.Equal(NodeState.Done, destInst.State);
     }
@@ -201,10 +207,11 @@ public class SkipPropagationTests {
         builder.AddConnection(srcInst, source.Out, relayInst, relay.In);
         builder.AddConnection(relayInst, relay.Out, sinkInst, sink.In);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
-        new PipelineExecutor(builder.Build()).Execute(ctx);
+        new PipelineExecutor(pipeline).Execute(ctx);
         Assert.Equal(NodeState.Skipped, srcInst.State);
         Assert.Equal(NodeState.Skipped, relayInst.State);
         Assert.Equal(NodeState.Skipped, sinkInst.State);
@@ -225,11 +232,12 @@ public class SkipPropagationTests {
         builder.AddConnection(skipInst, skippedSource.Out, destInst, dest.RequiredIn);
         builder.AddConnection(normInst, normalSource.Out, destInst, dest.OptionalIn);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(skipInst, skippedSource.ChipEnableBehavior.ChipEnable, false);
         ctx.Write(normInst, normalSource.Out, 99);
 
-        new PipelineExecutor(builder.Build()).Execute(ctx);
+        new PipelineExecutor(pipeline).Execute(ctx);
         Assert.Equal(NodeState.Skipped, skipInst.State);
         Assert.Equal(NodeState.Done, normInst.State);
         Assert.Equal(NodeState.Skipped, destInst.State);
@@ -251,11 +259,12 @@ public class SkipPropagationTests {
         builder.AddConnection(skipInst, skippedSource.Out, destInst, dest.OptionalIn);
         builder.AddConnection(normInst, normalSource.Out, destInst, dest.RequiredIn);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(skipInst, skippedSource.ChipEnableBehavior.ChipEnable, false);
         ctx.Write(normInst, normalSource.Out, 99);
 
-        new PipelineExecutor(builder.Build()).Execute(ctx);
+        new PipelineExecutor(pipeline).Execute(ctx);
         Assert.Equal(NodeState.Skipped, skipInst.State);
         Assert.Equal(NodeState.Done, normInst.State);
         Assert.Equal(NodeState.Done, destInst.State);
@@ -272,10 +281,11 @@ public class SkipPropagationTests {
         var destInst = builder.AddNode(dest);
         builder.AddConnection(srcInst, source.Out, destInst, dest.In);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, true);
 
-        new PipelineExecutor(builder.Build()).Execute(ctx);
+        new PipelineExecutor(pipeline).Execute(ctx);
         Assert.Equal(NodeState.Done, srcInst.State);
         Assert.Equal(NodeState.Done, destInst.State);
     }
@@ -284,7 +294,8 @@ public class SkipPropagationTests {
     public void Execute_NoIncomingEdges_NeverSkippedByPropagation() {
         var builder = new PipelineBuilder(_registry);
         var inst = builder.AddNode(new SourceNode());
-        new PipelineExecutor(builder.Build()).Execute(new PipelineContext());
+        var pipeline = builder.Build();
+        new PipelineExecutor(pipeline).Execute(ArrayPipelineContext.ForPipeline(pipeline));
         Assert.Equal(NodeState.Done, inst.State);
     }
 
@@ -303,11 +314,12 @@ public class SkipPropagationTests {
         builder.AddConnection(instA, sharedNode.Out, destAInst, destA.In);
         builder.AddConnection(instB, sharedNode.Out, destBInst, destB.In);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(instA, sharedNode.ChipEnableBehavior.ChipEnable, true);
         ctx.Write(instB, sharedNode.ChipEnableBehavior.ChipEnable, false);
 
-        new PipelineExecutor(builder.Build()).Execute(ctx);
+        new PipelineExecutor(pipeline).Execute(ctx);
         Assert.Equal(NodeState.Done, destAInst.State);
         Assert.Equal(NodeState.Skipped, destBInst.State);
     }
@@ -327,11 +339,12 @@ public class SkipPropagationTests {
         builder.AddConnection(instA, sharedNode.Out, destAInst, destA.In);
         builder.AddConnection(instB, sharedNode.Out, destBInst, destB.In);
 
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(instA, sharedNode.ChipEnableBehavior.ChipEnable, true);
         ctx.Write(instB, sharedNode.ChipEnableBehavior.ChipEnable, false);
 
-        await new PipelineExecutor(builder.Build()).ExecuteAsync(ctx);
+        await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
         Assert.Equal(NodeState.Done, destAInst.State);
         Assert.Equal(NodeState.Skipped, destBInst.State);
     }

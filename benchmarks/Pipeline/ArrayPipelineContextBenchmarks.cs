@@ -1,10 +1,10 @@
 using BenchmarkDotNet.Attributes;
-using Shiron.Lib.Pipeline.Casting;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Registry;
 
 using PipelineBuilder = Shiron.Lib.Pipeline.PipelineBuilder;
+using Pipe = global::Shiron.Lib.Pipeline.Pipeline;
 
 namespace Shiron.Lib.Benchmarks.Pipeline;
 
@@ -21,9 +21,8 @@ public class ArrayPipelineContextBenchmarks {
     private PassThroughNode _passThrough = null!;
     private PipelineBuilder.NodeInstance[] _instances = null!;
     private ArrayPipelineContext _preloadedContext = null!;
-    private Guid[] _directGuids = null!;
-    private Dictionary<Type, int> _counts = null!;
-    private Dictionary<Guid, int> _indices = null!;
+    private int[] _directChannels = null!;
+    private Pipe _pipeline;
 
     [GlobalSetup]
     public void Setup() {
@@ -32,32 +31,23 @@ public class ArrayPipelineContextBenchmarks {
 
         var builder = new PipelineBuilder(_registry);
         _instances = new PipelineBuilder.NodeInstance[PortCount];
-        _directGuids = new Guid[PortCount];
+        _directChannels = new int[PortCount];
 
         for (var i = 0; i < PortCount; i++) {
             _instances[i] = builder.AddNode(_passThrough);
-            _directGuids[i] = _instances[i].Mappings[_passThrough.Input];
+            _directChannels[i] = _instances[i].Mappings[_passThrough.Input];
         }
 
-        _ = builder.Build(out _counts, out _indices);
+        _pipeline = builder.Build();
 
-        // The pipeline only declares value-type (int) ports, so reference values
-        // (e.g. the string benchmark) reuse an int-port index into the shared
-        // object bucket. Size it to cover every assignable index.
-        _counts[typeof(object)] = _counts[typeof(int)];
-
-        _preloadedContext = CreateContext();
+        _preloadedContext = ArrayPipelineContext.ForPipeline(_pipeline);
         for (var i = 0; i < PortCount; i++)
             _preloadedContext.Write(_instances[i], _passThrough.Input, i);
     }
 
-    private ArrayPipelineContext CreateContext() {
-        return new ArrayPipelineContext(CastRegistry.Default, _counts, _indices);
-    }
-
     [Benchmark]
     public void Write_SingleInt() {
-        var context = CreateContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         context.Write(_instances[0], _passThrough.Input, 42);
     }
 
@@ -68,26 +58,26 @@ public class ArrayPipelineContextBenchmarks {
 
     [Benchmark]
     public int Read_SingleIntMissing() {
-        var context = CreateContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         return context.Read<int>(_instances[0], _passThrough.Input);
     }
 
     [Benchmark]
     public void WriteRead_SingleInt() {
-        var context = CreateContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         context.Write(_instances[0], _passThrough.Input, 42);
         _ = context.Read<int>(_instances[0], _passThrough.Input);
     }
 
     [Benchmark]
     public void Write_SingleString() {
-        var context = CreateContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         context.Write(_instances[0], _passThrough.Input, "hello benchmark");
     }
 
     [Benchmark]
     public void Write_ManyInts() {
-        var context = CreateContext();
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
         for (var i = 0; i < PortCount; i++)
             context.Write(_instances[i], _passThrough.Input, i);
     }
@@ -99,13 +89,13 @@ public class ArrayPipelineContextBenchmarks {
     }
 
     [Benchmark]
-    public void Write_DirectGuid() {
-        var context = CreateContext();
-        context.Write(_directGuids[0], 42);
+    public void Write_DirectChannel() {
+        var context = ArrayPipelineContext.ForPipeline(_pipeline);
+        context.Write(_directChannels[0], 42);
     }
 
     [Benchmark]
-    public int Read_DirectGuid() {
-        return _preloadedContext.Read<int>(_directGuids[0]);
+    public int Read_DirectChannel() {
+        return _preloadedContext.Read<int>(_directChannels[0]);
     }
 }

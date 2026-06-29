@@ -1,4 +1,5 @@
 using Shiron.Lib.Pipeline;
+using Shiron.Lib.Pipeline.Casting;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
@@ -29,13 +30,14 @@ public class NodeContextTests {
         }
     }
 
-    private static (PipelineBuilder.NodeInstance instance, SimpleNode node, PipelineContext pipelineCtx, NodeContext nodeCtx)
+    private static (PipelineBuilder.NodeInstance instance, SimpleNode node, ArrayPipelineContext pipelineCtx, NodeContext nodeCtx)
         CreateNodeWithMappings() {
         var registry = new NodeRegistry();
         var builder = new PipelineBuilder(registry);
         var node = new SimpleNode();
         var instance = builder.AddNode(node);
-        var pipelineCtx = new PipelineContext();
+        var pipeline = builder.Build();
+        var pipelineCtx = ArrayPipelineContext.ForPipeline(pipeline);
         var nodeCtx = new NodeContext(pipelineCtx, instance.Mappings);
         return (instance, node, pipelineCtx, nodeCtx);
     }
@@ -128,17 +130,19 @@ public class NodeContextTests {
 
         var node = new ArrayConsumerTestNode();
         var instance = builder.AddNode(node);
-        var pipelineCtx = new PipelineContext();
+        _ = builder.Build();
 
-        var sourceGuid1 = Guid.NewGuid();
-        var sourceGuid2 = Guid.NewGuid();
-        pipelineCtx.Write(sourceGuid1, 10);
-        pipelineCtx.Write(sourceGuid2, 20);
+        var pipelineCtx = ArrayPipelineContext.Create(
+            CastRegistry.CreateDefault(), typeof(int[]), typeof(int), typeof(int)
+        );
+
+        pipelineCtx.Write(1, 10);
+        pipelineCtx.Write(2, 20);
 
         var arrayPort = (IPort) node.Values;
-        var indexedInputs = new Dictionary<IPort, IReadOnlyList<(int Index, Guid SourceGuid)>> {
-            [arrayPort] = new List<(int Index, Guid SourceGuid)> {
-                (0, sourceGuid1), (1, sourceGuid2)
+        var indexedInputs = new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> {
+            [arrayPort] = new List<(int Index, int SourceChannel)> {
+                (0, 1), (1, 2)
             }
         };
 
@@ -158,15 +162,18 @@ public class NodeContextTests {
 
         var node = new ArrayConsumerTestNode();
         var instance = builder.AddNode(node);
-        var pipelineCtx = new PipelineContext();
+        _ = builder.Build();
 
-        var sourceGuid = Guid.NewGuid();
-        pipelineCtx.Write(sourceGuid, 42);
+        var pipelineCtx = ArrayPipelineContext.Create(
+            CastRegistry.CreateDefault(), typeof(int[]), typeof(int)
+        );
+
+        pipelineCtx.Write(1, 42);
 
         var arrayPort = (IPort) node.Values;
-        var indexedInputs = new Dictionary<IPort, IReadOnlyList<(int Index, Guid SourceGuid)>> {
-            [arrayPort] = new List<(int Index, Guid SourceGuid)> {
-                (2, sourceGuid)
+        var indexedInputs = new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> {
+            [arrayPort] = new List<(int Index, int SourceChannel)> {
+                (2, 1)
             }
         };
 
@@ -187,7 +194,8 @@ public class NodeContextTests {
 
         var node = new ArrayConsumerTestNode();
         var instance = builder.AddNode(node);
-        var pipelineCtx = new PipelineContext();
+        var pipeline = builder.Build();
+        var pipelineCtx = ArrayPipelineContext.ForPipeline(pipeline);
 
         var nodeCtx = new NodeContext(pipelineCtx, instance.Mappings);
 
@@ -201,7 +209,8 @@ public class NodeContextTests {
 
         var node = new ArrayConsumerTestNode();
         var instance = builder.AddNode(node);
-        var pipelineCtx = new PipelineContext();
+        var pipeline = builder.Build();
+        var pipelineCtx = ArrayPipelineContext.ForPipeline(pipeline);
 
         var nodeCtx = new NodeContext(pipelineCtx, instance.Mappings);
 

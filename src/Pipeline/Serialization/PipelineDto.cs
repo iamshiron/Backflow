@@ -21,7 +21,7 @@ public record InputDto(
 public record NodeInstanceDto(
     string Id,
     string NodeTypeName,
-    Dictionary<string, Guid> PortMappings,
+    Dictionary<string, int> PortMappings,
     string[]? GenericTypeArgs = null
 );
 

@@ -7,17 +7,15 @@ using Xunit;
 namespace Shiron.Lib.Tests.Pipeline;
 
 public class InputPortValidationTests {
-    private static (NodeContext ctx, Guid channelId) CreateContext() {
-        var pipeline = new PipelineContext();
-        var channelId = Guid.NewGuid();
-        return (new NodeContext(pipeline, new Dictionary<IPort, Guid>()), channelId);
+    private static (NodeContext ctx, int channelId) CreateContext() {
+        var pipeline = ArrayPipelineContext.Create();
+        return (new NodeContext(pipeline, new Dictionary<IPort, int>()), 0);
     }
 
     private static NodeContext WriteToChannel<T>(InputPort<T> port, T value) {
-        var pipeline = new PipelineContext();
-        var channelId = Guid.NewGuid();
-        var mappings = new Dictionary<IPort, Guid> { [port] = channelId };
-        pipeline.Write(channelId, value);
+        var pipeline = ArrayPipelineContext.Create(typeof(T));
+        var mappings = new Dictionary<IPort, int> { [port] = 0 };
+        pipeline.Write(0, value);
         return new NodeContext(pipeline, mappings);
     }
 
@@ -107,8 +105,8 @@ public class InputPortValidationTests {
     [Fact]
     public void TryRead_NoValueInContext_ReturnsFalseAndDefault() {
         var port = CreateNumericPort(min: 0, max: 100, defaultVal: 7);
-        var pipeline = new PipelineContext();
-        var mappings = new Dictionary<IPort, Guid> { [port] = Guid.NewGuid() };
+        var pipeline = ArrayPipelineContext.Create(typeof(int));
+        var mappings = new Dictionary<IPort, int> { [port] = 0 };
         var ctx = new NodeContext(pipeline, mappings);
         var result = port.TryRead(ctx, out var value);
         Assert.False(result);

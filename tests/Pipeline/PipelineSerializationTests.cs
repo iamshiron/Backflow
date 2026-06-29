@@ -134,7 +134,7 @@ public class PipelineSerializationTests {
         builder.AddConnection(source, srcNode.Out, dest, dstNode.In);
         var pipeline = builder.Build();
 
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(source, srcNode.Out, 42);
 
         var dto = pipeline.ToInputsDto(ctx);
@@ -181,7 +181,7 @@ public class PipelineSerializationTests {
         var source = builder.AddNode(srcNode);
         var pipeline = builder.Build();
 
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(source, srcNode.Out, 99);
 
         var json = pipeline.SerializeInputs(ctx);
@@ -197,7 +197,7 @@ public class PipelineSerializationTests {
         var inst = builder.AddNode(strNode);
         var pipeline = builder.Build();
 
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(inst, strNode.Out, "hello world");
 
         var json = pipeline.SerializeInputs(ctx);

@@ -84,7 +84,7 @@ public class PipelineBuilderTests {
         Assert.Equal(node.Ports.Count, instance.Mappings.Count);
         foreach (var port in node.Ports) {
             Assert.True(instance.Mappings.ContainsKey(port));
-            Assert.NotEqual(Guid.Empty, instance.Mappings[port]);
+            Assert.True(instance.Mappings[port] >= 0);
         }
     }
 

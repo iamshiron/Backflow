@@ -48,8 +48,8 @@ public class CacheKeyFactory : ICacheKeyFactory {
 
         var parts = new List<string>();
         foreach (var port in sortedInputs) {
-            var guid = node.Mappings[port];
-            var value = context.ReadAny(guid);
+            var channel = node.Mappings[port];
+            var value = context.ReadAny(channel);
             var serialized = JsonSerializer.Serialize(value, _jsonOptions);
             parts.Add($"{port.Name}={serialized}");
         }

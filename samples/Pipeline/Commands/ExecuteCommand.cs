@@ -42,7 +42,7 @@ public class ExecuteCommand : AsyncCommand<ExecuteCommand.Settings> {
 
             var context = settings.InputsFile is not null
                 ? PipelineSerialization.DeserializeInputs(await File.ReadAllTextAsync(settings.InputsFile, cancellationToken), pipeline)
-                : new PipelineContext();
+                : ArrayPipelineContext.ForPipeline(pipeline);
 
             CacheTypeAdapterRegistry? adapters = null;
             if (settings.EnableCaching) {

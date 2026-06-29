@@ -137,79 +137,53 @@ public class ImplicitCastTests {
 
     [Fact]
     public void PipelineContext_Read_IntWrittenAsDouble() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, 42);
-        var result = ctx.Read<double>(guid);
-
-        Assert.Equal(42.0, result);
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write(0, 42);
+        Assert.Equal(42.0, ctx.Read<double>(0));
     }
 
     [Fact]
     public void PipelineContext_Read_DoubleWrittenAsInt_Truncates() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, 3.14);
-        var result = ctx.Read<int>(guid);
-
-        Assert.Equal(3, result);
+        var ctx = ArrayPipelineContext.Create(typeof(double));
+        ctx.Write(0, 3.14);
+        Assert.Equal(3, ctx.Read<int>(0));
     }
 
     [Fact]
     public void PipelineContext_Read_FloatToDouble() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, 3.14f);
-        var result = ctx.Read<double>(guid);
-
-        Assert.Equal((double) 3.14f, result);
+        var ctx = ArrayPipelineContext.Create(typeof(float));
+        ctx.Write(0, 3.14f);
+        Assert.Equal((double) 3.14f, ctx.Read<double>(0));
     }
 
     [Fact]
     public void PipelineContext_Read_LongToDouble() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, (long) 1_000_000_000_000);
-        var result = ctx.Read<double>(guid);
-
-        Assert.Equal(1e12, result);
+        var ctx = ArrayPipelineContext.Create(typeof(long));
+        ctx.Write(0, (long) 1_000_000_000_000);
+        Assert.Equal(1e12, ctx.Read<double>(0));
     }
 
     [Fact]
     public void PipelineContext_Has_ConsidersCastableTypes() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, 42);
-        Assert.True(ctx.Has<double>(guid));
-        Assert.True(ctx.Has<int>(guid));
-        Assert.True(ctx.Has<string>(guid));
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write(0, 42);
+        Assert.True(ctx.Has<double>(0));
+        Assert.True(ctx.Has<int>(0));
+        Assert.True(ctx.Has<string>(0));
     }
 
     [Fact]
     public void PipelineContext_Read_IncompatibleTypes_ReturnsDefault() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, "hello");
-        var result = ctx.Read<int>(guid);
-
-        Assert.Equal(0, result);
+        var ctx = ArrayPipelineContext.Create(typeof(string));
+        ctx.Write(0, "hello");
+        Assert.Equal(0, ctx.Read<int>(0));
     }
 
     [Fact]
     public void PipelineContext_Read_ExactTypeMatch_NoConversionNeeded() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, 42);
-        var result = ctx.Read<int>(guid);
-
-        Assert.Equal(42, result);
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write(0, 42);
+        Assert.Equal(42, ctx.Read<int>(0));
     }
 
     [Fact]
@@ -217,13 +191,9 @@ public class ImplicitCastTests {
         var registry = new CastRegistry();
         registry.Register<string, int>(TypeCast.Lossy, s => int.Parse(s));
 
-        var ctx = new PipelineContext(registry);
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, "42");
-        var result = ctx.Read<int>(guid);
-
-        Assert.Equal(42, result);
+        var ctx = ArrayPipelineContext.Create(registry, typeof(string));
+        ctx.Write(0, "42");
+        Assert.Equal(42, ctx.Read<int>(0));
     }
 
     [Fact]
@@ -255,24 +225,16 @@ public class ImplicitCastTests {
 
     [Fact]
     public void PipelineContext_Read_ByteToDouble() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, (byte) 255);
-        var result = ctx.Read<double>(guid);
-
-        Assert.Equal(255.0, result);
+        var ctx = ArrayPipelineContext.Create(typeof(byte));
+        ctx.Write(0, (byte) 255);
+        Assert.Equal(255.0, ctx.Read<double>(0));
     }
 
     [Fact]
     public void PipelineContext_Read_IntToFloat() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, 42);
-        var result = ctx.Read<float>(guid);
-
-        Assert.Equal(42.0f, result);
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write(0, 42);
+        Assert.Equal(42.0f, ctx.Read<float>(0));
     }
 
     [Fact]
@@ -285,7 +247,7 @@ public class ImplicitCastTests {
         builder.AddConnection(src, srcNode.Out, dest, destNode.In);
 
         var pipeline = builder.Build();
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
 
         ctx.Write(src, srcNode.Out, 42);
         var result = ctx.Read<double>(dest, destNode.In);
@@ -303,7 +265,7 @@ public class ImplicitCastTests {
         builder.AddConnection(src, srcNode.Out, dest, destNode.In);
 
         var pipeline = builder.Build();
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
 
         ctx.Write(src, srcNode.Out, 9.81);
         var result = ctx.Read<int>(dest, destNode.In);
@@ -368,11 +330,9 @@ public class ImplicitCastTests {
         var builder = new PipelineBuilder(_registry)
             .RegisterCast<string, int>(TypeCast.Lossy, s => int.Parse(s));
 
-        var ctx = builder.CreateContext();
-        var guid = Guid.NewGuid();
-
-        ctx.Write(guid, "123");
-        Assert.Equal(123, ctx.Read<int>(guid));
+        var ctx = ArrayPipelineContext.Create(builder.CastRegistry, typeof(string));
+        ctx.Write(0, "123");
+        Assert.Equal(123, ctx.Read<int>(0));
     }
 
     [Fact]
@@ -400,7 +360,7 @@ public class ImplicitCastTests {
         builder.AddConnection(src, srcNode.Out, dest, destNode.In);
 
         var pipeline = builder.Build();
-        var ctx = builder.CreateContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
 
         ctx.Write(src, srcNode.Out, "99");
         var result = ctx.Read<int>(dest, destNode.In);

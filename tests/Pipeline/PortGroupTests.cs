@@ -183,7 +183,7 @@ public class ArrayInputPortTests {
         builder.AddConnection(i2, s2.Out, ai, (IPort) arrayNode.Values, 1);
 
         var pipeline = builder.Build();
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
 
         context.Write(i1, s1.Out, 10);
         context.Write(i2, s2.Out, 20);
@@ -203,7 +203,7 @@ public class ArrayInputPortTests {
         var ai = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 3 });
 
         var pipeline = builder.Build();
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
 
         context.Write<int[]>(ai, (IPort) arrayNode.Values, [5, 10, 15]);
 
@@ -270,7 +270,7 @@ public class ArrayInputPortTests {
         builder.AddConnection(i1, s1.Out, ai, (IPort) arrayNode.Values, 0);
 
         var pipeline = builder.Build();
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
         context.Write(i1, s1.Out, 42);
 
         var executor = new PipelineExecutor(pipeline);
@@ -337,13 +337,12 @@ public class ArrayOutputPortTests {
 
     [Fact]
     public void ArrayOutputPort_Write_WritesArrayToContext() {
-        var ctx = new PipelineContext();
-        var guid = Guid.NewGuid();
+        var ctx = ArrayPipelineContext.Create(typeof(int[]));
 
         var port = new ArrayOutputPort<int>("out");
-        ctx.Write(guid, new int[] { 1, 2, 3 });
+        ctx.Write(0, new int[] { 1, 2, 3 });
 
-        var result = ctx.Read<int[]>(guid);
+        var result = ctx.Read<int[]>(0);
         Assert.Equal([1, 2, 3], result!);
     }
 
@@ -376,7 +375,7 @@ public class ArrayOutputPortTests {
         builder.AddConnection(prodInst, (IPort) producer.Out, consInst, (IPort) consumer.Values);
 
         var pipeline = builder.Build();
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         var executor = new PipelineExecutor(pipeline);
 
         await executor.ExecuteAsync(ctx);

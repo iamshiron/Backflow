@@ -78,7 +78,8 @@ public class NodeStateTests {
         var builder = new PipelineBuilder(_registry);
         var node = new SuccessNode();
         var inst = builder.AddNode(node);
-        new PipelineExecutor(builder.Build()).Execute(new PipelineContext());
+        var pipeline = builder.Build();
+        new PipelineExecutor(pipeline).Execute(ArrayPipelineContext.ForPipeline(pipeline));
         Assert.Equal(NodeState.Done, inst.State);
     }
 
@@ -87,7 +88,8 @@ public class NodeStateTests {
         var builder = new PipelineBuilder(_registry);
         var node = new SuccessNode();
         var inst = builder.AddNode(node);
-        await new PipelineExecutor(builder.Build()).ExecuteAsync(new PipelineContext());
+        var pipeline = builder.Build();
+        await new PipelineExecutor(pipeline).ExecuteAsync(ArrayPipelineContext.ForPipeline(pipeline));
         Assert.Equal(NodeState.Done, inst.State);
     }
 
@@ -96,7 +98,8 @@ public class NodeStateTests {
         var builder = new PipelineBuilder(_registry);
         var node = new FailingNode();
         var inst = builder.AddNode(node);
-        Assert.Throws<NodeExecutionException>(() => new PipelineExecutor(builder.Build()).Execute(new PipelineContext()));
+        var pipeline = builder.Build();
+        Assert.Throws<NodeExecutionException>(() => new PipelineExecutor(pipeline).Execute(ArrayPipelineContext.ForPipeline(pipeline)));
         Assert.Equal(NodeState.Failed, inst.State);
     }
 
@@ -105,8 +108,9 @@ public class NodeStateTests {
         var builder = new PipelineBuilder(_registry);
         var node = new FailingNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
         await Assert.ThrowsAsync<NodeExecutionException>(() =>
-            new PipelineExecutor(builder.Build()).ExecuteAsync(new PipelineContext()));
+            new PipelineExecutor(pipeline).ExecuteAsync(ArrayPipelineContext.ForPipeline(pipeline)));
         Assert.Equal(NodeState.Failed, inst.State);
     }
 
@@ -115,7 +119,8 @@ public class NodeStateTests {
         var builder = new PipelineBuilder(_registry);
         var node = new ThrowingNode();
         var inst = builder.AddNode(node);
-        Assert.Throws<NodeExecutionException>(() => new PipelineExecutor(builder.Build()).Execute(new PipelineContext()));
+        var pipeline = builder.Build();
+        Assert.Throws<NodeExecutionException>(() => new PipelineExecutor(pipeline).Execute(ArrayPipelineContext.ForPipeline(pipeline)));
         Assert.Equal(NodeState.Failed, inst.State);
     }
 
@@ -124,8 +129,9 @@ public class NodeStateTests {
         var builder = new PipelineBuilder(_registry);
         var node = new ThrowingNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
         await Assert.ThrowsAsync<NodeExecutionException>(() =>
-            new PipelineExecutor(builder.Build()).ExecuteAsync(new PipelineContext()));
+            new PipelineExecutor(pipeline).ExecuteAsync(ArrayPipelineContext.ForPipeline(pipeline)));
         Assert.Equal(NodeState.Failed, inst.State);
     }
 
@@ -134,7 +140,8 @@ public class NodeStateTests {
         var builder = new PipelineBuilder(_registry);
         var instA = builder.AddNode(new SuccessNode());
         var instB = builder.AddNode(new SuccessNode());
-        new PipelineExecutor(builder.Build()).Execute(new PipelineContext());
+        var pipeline = builder.Build();
+        new PipelineExecutor(pipeline).Execute(ArrayPipelineContext.ForPipeline(pipeline));
         Assert.Equal(NodeState.Done, instA.State);
         Assert.Equal(NodeState.Done, instB.State);
     }

@@ -40,7 +40,8 @@ public class CacheKeyFactoryTests {
         var builder = new PipelineBuilder(_registry);
         var node = new AddNode();
         var inst = builder.AddNode(node);
-        var ctx = new PipelineContext();
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(inst, node.A, 10);
         ctx.Write(inst, node.B, 20);
 
@@ -56,12 +57,13 @@ public class CacheKeyFactoryTests {
         var builder = new PipelineBuilder(_registry);
         var node = new AddNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.A, 10);
         ctx1.Write(inst, node.B, 20);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.A, 99);
         ctx2.Write(inst, node.B, 1);
 
@@ -77,12 +79,13 @@ public class CacheKeyFactoryTests {
         var builder = new PipelineBuilder(_registry);
         var node = new AddNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.A, 5);
         ctx1.Write(inst, node.B, 15);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.B, 15);
         ctx2.Write(inst, node.A, 5);
 
@@ -102,12 +105,13 @@ public class CacheKeyFactoryTests {
 
         var node2 = new MultiplyNode();
         var inst2 = builder.AddNode(node2);
+        var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst1, node1.A, 10);
         ctx1.Write(inst1, node1.B, 20);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst2, node2.A, 10);
         ctx2.Write(inst2, node2.B, 20);
 
@@ -201,13 +205,13 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.In, 21);
         new PipelineExecutor(pipeline, cache).Execute(ctx1);
         Assert.Equal(1, node.ExecutionCount);
         Assert.Equal(42, ctx1.Read<int>(inst, node.Out));
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.In, 21);
         new PipelineExecutor(pipeline, cache).Execute(ctx2);
         Assert.Equal(1, node.ExecutionCount);
@@ -224,12 +228,12 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.In, 21);
         await new PipelineExecutor(pipeline, cache).ExecuteAsync(ctx1);
         Assert.Equal(1, node.ExecutionCount);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.In, 21);
         await new PipelineExecutor(pipeline, cache).ExecuteAsync(ctx2);
         Assert.Equal(1, node.ExecutionCount);
@@ -246,13 +250,13 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.In, 21);
         new PipelineExecutor(pipeline, cache).Execute(ctx1);
         Assert.Equal(1, node.ExecutionCount);
         Assert.Equal(42, ctx1.Read<int>(inst, node.Out));
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.In, 10);
         new PipelineExecutor(pipeline, cache).Execute(ctx2);
         Assert.Equal(2, node.ExecutionCount);
@@ -269,13 +273,13 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.In, 21);
         var stats1 = new PipelineExecutor(pipeline, cache).Execute(ctx1);
         Assert.Equal(0, stats1.CacheHits);
         Assert.Equal(1, stats1.CacheMisses);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.In, 21);
         var stats2 = new PipelineExecutor(pipeline, cache).Execute(ctx2);
         Assert.Equal(1, stats2.CacheHits);
@@ -290,7 +294,7 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write(inst, node.In, 21);
         var stats = new PipelineExecutor(pipeline).Execute(ctx);
 
@@ -309,10 +313,10 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         new PipelineExecutor(pipeline, cache).Execute(ctx1);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         var stats = new PipelineExecutor(pipeline, cache).Execute(ctx2);
 
         Assert.Equal(0, stats.CacheHits);
@@ -331,7 +335,7 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst1, node1.In, 5);
         ctx1.Write(inst2, node2.In, "hello");
         var stats1 = new PipelineExecutor(pipeline, cache).Execute(ctx1);
@@ -340,7 +344,7 @@ public class CacheExecutionTests {
         Assert.Equal(1, node1.ExecutionCount);
         Assert.Equal(1, node2.ExecutionCount);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst1, node1.In, 5);
         ctx2.Write(inst2, node2.In, "world");
         var stats2 = new PipelineExecutor(pipeline, cache).Execute(ctx2);
@@ -360,11 +364,11 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.In, "test");
         new PipelineExecutor(pipeline, cache).Execute(ctx1);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.In, "test");
         new PipelineExecutor(pipeline, cache).Execute(ctx2);
 
@@ -382,21 +386,21 @@ public class CacheExecutionTests {
 
         var pipeline = builder.Build();
 
-        var ctxA1 = new PipelineContext();
+        var ctxA1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctxA1.Write(inst, node.In, 10);
         var statsA1 = new PipelineExecutor(pipeline, cache).Execute(ctxA1);
         Assert.Equal(0, statsA1.CacheHits);
         Assert.Equal(1, statsA1.CacheMisses);
         Assert.Equal(1, node.ExecutionCount);
 
-        var ctxB = new PipelineContext();
+        var ctxB = ArrayPipelineContext.ForPipeline(pipeline);
         ctxB.Write(inst, node.In, 20);
         var statsB = new PipelineExecutor(pipeline, cache).Execute(ctxB);
         Assert.Equal(0, statsB.CacheHits);
         Assert.Equal(1, statsB.CacheMisses);
         Assert.Equal(2, node.ExecutionCount);
 
-        var ctxA2 = new PipelineContext();
+        var ctxA2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctxA2.Write(inst, node.In, 10);
         var statsA2 = new PipelineExecutor(pipeline, cache).Execute(ctxA2);
         Assert.Equal(1, statsA2.CacheHits);
@@ -466,7 +470,7 @@ public class CacheTypeAdapterTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.X, 10);
         ctx1.Write(inst, node.Y, 20);
         var stats1 = new PipelineExecutor(pipeline, cache, typeAdapters: adapters).Execute(ctx1);
@@ -474,7 +478,7 @@ public class CacheTypeAdapterTests {
         Assert.Equal(1, stats1.CacheMisses);
         Assert.Equal(new Point<int>(10, 20), ctx1.Read<Point<int>>(inst, node.Out));
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.X, 10);
         ctx2.Write(inst, node.Y, 20);
         var stats2 = new PipelineExecutor(pipeline, cache, typeAdapters: adapters).Execute(ctx2);
@@ -496,12 +500,12 @@ public class CacheTypeAdapterTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.X, 10);
         ctx1.Write(inst, node.Y, 20);
         new PipelineExecutor(pipeline, cache, typeAdapters: adapters).Execute(ctx1);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.X, 30);
         ctx2.Write(inst, node.Y, 40);
         var stats2 = new PipelineExecutor(pipeline, cache, typeAdapters: adapters).Execute(ctx2);
@@ -523,12 +527,12 @@ public class CacheTypeAdapterTests {
 
         var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write(inst, node.X, 10);
         ctx1.Write(inst, node.Y, 20);
         new PipelineExecutor(pipeline, cache, typeAdapters: adapters).Execute(ctx1);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write(inst, node.X, 10);
         ctx2.Write(inst, node.Y, 20);
         var stats2 = new PipelineExecutor(pipeline, cache, typeAdapters: adapters).Execute(ctx2);

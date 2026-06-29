@@ -23,7 +23,7 @@ public class PipelineBuilderBenchmarks {
     private Pipe _fanOutPipeline;
     private string _serializedDefinition = null!;
     private string _serializedInputs = null!;
-    private PipelineContext _serializedContext = null!;
+    private ArrayPipelineContext _serializedContext = null!;
 
     [GlobalSetup]
     public void Setup() {
@@ -33,7 +33,7 @@ public class PipelineBuilderBenchmarks {
         _serialPipeline = BuildSerialPipeline();
         _fanOutPipeline = BuildFanOutPipeline();
 
-        _serializedContext = new PipelineContext();
+        _serializedContext = ArrayPipelineContext.ForPipeline(_serialPipeline);
         _serializedContext.Write(
             _serialPipeline.Topology.Nodes.First(),
             _passThrough.Input,
@@ -95,7 +95,7 @@ public class PipelineBuilderBenchmarks {
     }
 
     [Benchmark]
-    public PipelineContext DeserializeInputs() {
+    public ArrayPipelineContext DeserializeInputs() {
         return PipelineSerialization.DeserializeInputs(_serializedInputs, _serialPipeline);
     }
 

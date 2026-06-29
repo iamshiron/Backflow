@@ -82,6 +82,9 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             var intArrayLengthInstance = builder.AddNode(registry.IntArrayLength);
             var printIntArrayLengthInstance = builder.AddNode(registry.Print);
 
+            var saveFileInstance4 = builder.AddNode(registry.SaveFile);
+            var grayScaleInstance2 = builder.AddNode(registry.GrayScale);
+
             var intAverageInstance = builder.AddNode(registry.IntAverage, new Dictionary<string, int> { ["Values"] = 5 });
             var printIntAverageInstance = builder.AddNode(registry.Print);
 
@@ -168,6 +171,16 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             builder.AddConnection(
                 packVector2Instance, registry.PackVector2.Out,
                 printVector2Instance, registry.Print.Message
+            );
+
+            // Test
+            builder.AddConnection(
+                blurInstance2, registry.Blur.Out,
+                grayScaleInstance2, registry.GrayScale.In
+            );
+            builder.AddConnection(
+                grayScaleInstance2, registry.GrayScale.Out,
+                saveFileInstance4, registry.SaveFile.Data
             );
 
             builder.AddConnection(
@@ -316,7 +329,9 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
                 printLossyCastInstance, registry.Print.Message
             );
 
-            var context = builder.CreateContext();
+            var pipeline = builder.Build();
+            var context = ArrayPipelineContext.ForPipeline(pipeline, builder.CastRegistry);
+
             context.Write<int>(addInstance, registry.Add.Number1, 19);
             context.Write<int>(addInstance, registry.Add.Number2, 95);
             context.Write<int>(subtractInstance, registry.Subtract.Number1, 100);
@@ -344,6 +359,8 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             context.Write<string>(saveFileInstance, registry.SaveFile.FileName, "./.output/image-blur.png");
             context.Write<string>(saveFileInstance2, registry.SaveFile.FileName, "./.output/image-blur-2.png");
             context.Write<string>(saveFileInstance3, registry.SaveFile.FileName, "./.output/image-grayscale.png");
+            context.Write<string>(saveFileInstance4, registry.SaveFile.FileName, "./.output/image-grayscale-blur.png");
+
             context.Write<int>(blurInstance, registry.Blur.Radius, 4);
             context.Write<int>(blurInstance2, registry.Blur.Radius, 32);
             context.Write<string>(printInstanceWidth, registry.Print.Prefix, "Image Width: ");
@@ -402,8 +419,6 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             Console.WriteLine($"Port 4: {context.Read<string>(concatInstance, registry.Concat.String1)}");
             Console.WriteLine($"Port 5: {context.Read<string>(concatInstance, registry.Concat.String2)}");
 
-            var pipeline = builder.Build();
-
             CacheTypeAdapterRegistry? adapters = null;
             if (settings.EnableCaching) {
                 adapters = new CacheTypeAdapterRegistry();
@@ -426,7 +441,7 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             };
 
             await File.WriteAllTextAsync(".output/graph.json", pipeline.SerializeDefinition(jsonOptions), cancellationToken);
-            await File.WriteAllTextAsync(".output/inputs.json", pipeline.SerializeInputs(context, jsonOptions), cancellationToken);
+            // await File.WriteAllTextAsync(".output/inputs.json", pipeline.SerializeInputs(context, jsonOptions), cancellationToken);
             var stats = await executor.ExecuteAsync(context);
             if (cache is not null) await cache.FlushAsync();
             Console.WriteLine(stats);

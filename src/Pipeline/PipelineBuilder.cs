@@ -18,7 +18,9 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     /// <summary>Configuration that controls type-casting strictness and other build-time behavior.</summary>
     public PipelineBuilderConfig Config { get; set; } = new();
 
-    private readonly CastRegistry _castRegistry = castRegistry ?? CastRegistry.CreateDefault();
+    public readonly CastRegistry CastRegistry = castRegistry ?? CastRegistry.CreateDefault();
+
+    private int _nextChannelId;
 
     /// <summary>
     /// Register a custom type cast from <typeparamref name="TSrc"/> to <typeparamref name="TDst"/>.
@@ -26,23 +28,18 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     /// <param name="castType">Whether the conversion is <see cref="TypeCast.Lossless"/> or <see cref="TypeCast.Lossy"/>.</param>
     /// <param name="converter">Function that performs the conversion.</param>
     public PipelineBuilder RegisterCast<TSrc, TDst>(TypeCast castType, Func<TSrc, TDst> converter) {
-        _castRegistry.Register(castType, converter);
+        CastRegistry.Register(castType, converter);
         return this;
-    }
-
-    /// <summary>Create a <see cref="PipelineContext"/> that shares this builder's cast registry.</summary>
-    public PipelineContext CreateContext() {
-        return new PipelineContext(_castRegistry);
     }
 
     /// <summary>
     /// A concrete node within a pipeline graph, carrying its runtime ID, the <see cref="AbstractNode"/> instance,
-    /// and the port-to-channel GUID mappings used for shared-memory communication.
+    /// and the port-to-channel mappings used for shared-memory communication.
     /// </summary>
     public record NodeInstance(
         string ID,
         AbstractNode Node,
-        Dictionary<IPort, Guid> Mappings
+        Dictionary<IPort, int> Mappings
     ) {
         public NodeState State { get; set; } = NodeState.Pending;
         public virtual bool Equals(NodeInstance? other) {
@@ -90,10 +87,10 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         var fullName = node.GetType().FullName!;
         var id = NextId(fullName);
 
-        var mappings = new Dictionary<IPort, Guid>();
+        var mappings = new Dictionary<IPort, int>();
 
         foreach (var port in node.Ports) {
-            mappings[port] = Guid.NewGuid();
+            mappings[port] = _nextChannelId++;
 
             if (port is IArrayInputPortMarker arrayPort) {
                 if (arrayCounts.TryGetValue(port.Name, out var count)) {
@@ -128,9 +125,9 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         var fullName = blueprint.OpenType.FullName!;
         var id = NextId(fullName);
 
-        var portMappings = new Dictionary<string, Guid>();
+        var portMappings = new Dictionary<string, int>();
         foreach (var port in blueprint.Ports) {
-            portMappings[port.Name] = Guid.NewGuid();
+            portMappings[port.Name] = _nextChannelId++;
         }
 
         var genericRef = new GenericNodeRef(id, blueprint, portMappings, registry);
@@ -232,12 +229,12 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             var concreteNode = genericRef.MaterializedNode
                 ?? registry.GetOrCreateConcrete(genericRef.Blueprint.OpenType, genericRef.TypeArgs!);
 
-            var mappings = new Dictionary<IPort, Guid>();
+            var mappings = new Dictionary<IPort, int>();
             foreach (var port in concreteNode.Ports) {
-                if (genericRef.PortMappings.TryGetValue(port.Name, out var guid))
-                    mappings[port] = guid;
+                if (genericRef.PortMappings.TryGetValue(port.Name, out var channel))
+                    mappings[port] = channel;
                 else
-                    mappings[port] = Guid.NewGuid();
+                    mappings[port] = _nextChannelId++;
             }
 
             allInstances[id] = new NodeInstance(id, concreteNode, mappings);
@@ -266,7 +263,53 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             allEdges.Add(new EdgeInstance(srcInstance, srcPort, dstInstance, dstPort));
         }
 
-        return new Pipeline(graph, [.. allEdges]);
+        return new Pipeline(graph, [.. allEdges], CastRegistry);
+    }
+
+    /// <summary>
+    /// Computes the channel layout (types and bucket sizes) for a built pipeline.
+    /// Channel types preserve the actual declared port type (for cast-on-read); bucket sizes
+    /// route value types to their own bucket and all reference types to a shared <c>object</c> bucket.
+    /// Source (writer) port types take precedence for connected channels.
+    /// </summary>
+    internal static (Type[] channelTypes, Dictionary<Type, int> sizes) ComputeLayout(Pipeline pipeline) {
+        var maxChannel = -1;
+        var tempTypes = new Dictionary<int, Type>();
+
+        foreach (var edge in pipeline.Edges) {
+            var channel = edge.SourceNode.Mappings[edge.SourcePort];
+            if (channel > maxChannel) maxChannel = channel;
+            if (!tempTypes.ContainsKey(channel)) {
+                tempTypes[channel] = edge.SourcePort.PortType;
+            }
+        }
+
+        foreach (var node in pipeline.Topology.Nodes) {
+            foreach (var port in node.Node.Ports) {
+                var channel = node.Mappings[port];
+                if (channel > maxChannel) maxChannel = channel;
+                if (!tempTypes.ContainsKey(channel)) {
+                    tempTypes[channel] = port.PortType;
+                }
+            }
+        }
+
+        var totalChannels = maxChannel + 1;
+        var channelTypes = new Type[totalChannels];
+        foreach (var (ch, t) in tempTypes) {
+            channelTypes[ch] = t;
+        }
+
+        var sizes = new Dictionary<Type, int>();
+        foreach (var t in channelTypes) {
+            if (t is null) continue;
+            var bucketType = t.IsValueType ? t : typeof(object);
+            if (!sizes.ContainsKey(bucketType)) {
+                sizes[bucketType] = totalChannels;
+            }
+        }
+
+        return (channelTypes, sizes);
     }
 
     private void CheckCycle(string sourceId, string destId) {
@@ -422,7 +465,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         if (sourceType == targetType) return;
         if (sourceType.IsAssignableTo(targetType)) return;
 
-        if (_castRegistry.TryGetCast(sourceType, targetType, out var rule)) {
+        if (CastRegistry.TryGetCast(sourceType, targetType, out var rule)) {
             if (Config.StrictTypeCasting && rule!.CastType == TypeCast.Lossy)
                 throw new TypeIncompatibilityException(sourcePort.Name, sourceType, targetPort.Name, targetType);
             return;

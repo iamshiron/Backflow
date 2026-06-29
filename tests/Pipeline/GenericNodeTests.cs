@@ -410,7 +410,7 @@ public class GenericNodeTests {
         builder.AddNode(blueprint, [typeof(int)]);
         var pipeline = builder.Build();
 
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
         var addInstance = pipeline.Topology.Nodes.ElementAt(0);
 
         var aPort = addInstance.Node.Ports.First(p => p.Name == "A");
@@ -439,7 +439,7 @@ public class GenericNodeTests {
         builder.AddNode(blueprint, [typeof(double)]);
         var pipeline = builder.Build();
 
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
         var addInstance = pipeline.Topology.Nodes.ElementAt(0);
 
         var aPort = addInstance.Node.Ports.First(p => p.Name == "A");
@@ -682,7 +682,7 @@ public class GenericNodeTests {
 
         var pipeline = builder.Build();
 
-        var context = new PipelineContext();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
         var srcInst1 = pipeline.Topology.Nodes.First(n => n.Node == source1.Node);
         var srcInst2 = pipeline.Topology.Nodes.First(n => n.Node == source2.Node);
         var addInst = pipeline.Topology.Nodes.First(n => n.Node is TestGenericAddNode<int>);

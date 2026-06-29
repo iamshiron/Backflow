@@ -46,9 +46,10 @@ public class CacheKeyFactoryExtendedTests {
         var builder = new PipelineBuilder(_registry);
         var node = new NullableInputNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
-        var ctx2 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
 
         var factory = new CacheKeyFactory();
         var key1 = factory.CreateKey(inst, ctx1);
@@ -63,10 +64,11 @@ public class CacheKeyFactoryExtendedTests {
         var builder = new PipelineBuilder(_registry);
         var node = new NullableInputNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
 
-        var ctxNull = new PipelineContext();
+        var ctxNull = ArrayPipelineContext.ForPipeline(pipeline);
 
-        var ctxNonNull = new PipelineContext();
+        var ctxNonNull = ArrayPipelineContext.ForPipeline(pipeline);
         ctxNonNull.Write<string?>(inst, node.Text, "hello");
 
         var factory = new CacheKeyFactory();
@@ -82,8 +84,9 @@ public class CacheKeyFactoryExtendedTests {
         var bp = registry.RegisterGeneric(typeof(GenericNode<>));
         var builder = new PipelineBuilder(registry);
         var inst = builder.AddNode(bp, [typeof(int)]);
+        var pipeline = builder.Build();
 
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
 
         var factory = new CacheKeyFactory();
         var key = factory.CreateKey(inst, ctx);
@@ -100,9 +103,10 @@ public class CacheKeyFactoryExtendedTests {
 
         var instInt = builder.AddNode(bp, [typeof(int)]);
         var instDouble = builder.AddNode(bp, [typeof(double)]);
+        var pipeline = builder.Build();
 
         var factory = new CacheKeyFactory();
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
 
         var keyInt = factory.CreateKey(instInt, ctx);
         var keyDouble = factory.CreateKey(instDouble, ctx);
@@ -116,11 +120,12 @@ public class CacheKeyFactoryExtendedTests {
         var builder = new PipelineBuilder(_registry);
         var node = new NullableInputNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
 
-        var ctx1 = new PipelineContext();
+        var ctx1 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx1.Write<string?>(inst, node.Text, null);
 
-        var ctx2 = new PipelineContext();
+        var ctx2 = ArrayPipelineContext.ForPipeline(pipeline);
         ctx2.Write<string?>(inst, node.Text, null);
 
         var factory = new CacheKeyFactory();
@@ -135,8 +140,9 @@ public class CacheKeyFactoryExtendedTests {
         var builder = new PipelineBuilder(_registry);
         var node = new NullableInputNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
 
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
 
         var factory = new CacheKeyFactory();
         var key = factory.CreateKey(inst, ctx);
@@ -150,8 +156,9 @@ public class CacheKeyFactoryExtendedTests {
         var builder = new PipelineBuilder(_registry);
         var node = new NullableInputNode();
         var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
 
-        var ctx = new PipelineContext();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
         ctx.Write<string?>(inst, node.Text, "test");
 
         var factory = new CacheKeyFactory(new CacheTypeAdapterRegistry());

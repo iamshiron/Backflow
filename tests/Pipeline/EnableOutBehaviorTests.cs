@@ -1,7 +1,9 @@
+using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Node.Behvaior;
 using Shiron.Lib.Pipeline.Port;
+using Shiron.Lib.Pipeline.Registry;
 using Xunit;
 
 namespace Shiron.Lib.Tests.Pipeline;
@@ -55,12 +57,13 @@ public class EnableOutBehaviorTests {
         }
     }
 
-    private static Dictionary<IPort, Guid> BuildMappings(AbstractNode node) {
-        var mappings = new Dictionary<IPort, Guid>();
-        foreach (var port in node.Ports) {
-            mappings[port] = Guid.NewGuid();
-        }
-        return mappings;
+    private static (ArrayPipelineContext ctx, NodeContext nodeCtx, PipelineBuilder.NodeInstance inst) Setup(AbstractNode node) {
+        var registry = new NodeRegistry();
+        var builder = new PipelineBuilder(registry);
+        var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
+        return (ctx, new NodeContext(ctx, inst.Mappings), inst);
     }
 
     [Fact]
@@ -73,40 +76,33 @@ public class EnableOutBehaviorTests {
     [Fact]
     public async Task ExecuteAsync_SuccessfulNode_WritesTrueToEnableOut() {
         var node = new SuccessNodeWithEnableOut();
-        var mappings = BuildMappings(node);
-        var pipelineCtx = new PipelineContext();
-        var nodeCtx = new NodeContext(pipelineCtx, mappings);
+        var (pipelineCtx, nodeCtx, inst) = Setup(node);
 
-        var inPort = node.Ports.First(p => p.Name == "in");
-        pipelineCtx.Write(mappings[inPort], 21);
+        pipelineCtx.Write(inst, node.In, 21);
 
         var state = await node.ExecuteAsync(nodeCtx);
 
         Assert.Equal(NodeState.Done, state);
         var outPort = node.Ports.First(p => p.Name == "EnableOut");
-        Assert.True(pipelineCtx.Read<bool>(mappings[outPort]));
+        Assert.True(pipelineCtx.Read<bool>(inst.Mappings[outPort]));
     }
 
     [Fact]
     public async Task ExecuteAsync_FailingNode_WritesFalseToEnableOut() {
         var node = new FailingNodeWithEnableOut();
-        var mappings = BuildMappings(node);
-        var pipelineCtx = new PipelineContext();
-        var nodeCtx = new NodeContext(pipelineCtx, mappings);
+        var (pipelineCtx, nodeCtx, inst) = Setup(node);
 
         var state = await node.ExecuteAsync(nodeCtx);
 
         Assert.Equal(NodeState.Failed, state);
         var outPort = node.Ports.First(p => p.Name == "EnableOut");
-        Assert.False(pipelineCtx.Read<bool>(mappings[outPort]));
+        Assert.False(pipelineCtx.Read<bool>(inst.Mappings[outPort]));
     }
 
     [Fact]
     public async Task ExecuteAsync_ThrowingNode_DoesNotWriteToEnableOut() {
         var node = new ThrowingNodeWithEnableOut();
-        var mappings = BuildMappings(node);
-        var pipelineCtx = new PipelineContext();
-        var nodeCtx = new NodeContext(pipelineCtx, mappings);
+        var (_, nodeCtx, _) = Setup(node);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             node.ExecuteAsync(nodeCtx).AsTask());
@@ -116,9 +112,7 @@ public class EnableOutBehaviorTests {
     public async Task PreExecuteAsync_AlwaysReturnsShouldContinueTrue() {
         var behavior = new EnableOutBehavior();
         var node = new SuccessNodeWithEnableOut();
-        var mappings = BuildMappings(node);
-        var pipelineCtx = new PipelineContext();
-        var nodeCtx = new NodeContext(pipelineCtx, mappings);
+        var (_, nodeCtx, _) = Setup(node);
 
         var (shouldContinue, result) = await behavior.PreExecuteAsync(nodeCtx);
 
@@ -138,11 +132,10 @@ public class EnableOutBehaviorTests {
     [Fact]
     public void EnableOut_DefaultValue_IsFalse() {
         var node = new SuccessNodeWithEnableOut();
-        var mappings = BuildMappings(node);
-        var pipelineCtx = new PipelineContext();
+        var (pipelineCtx, _, inst) = Setup(node);
 
         var outPort = node.Ports.First(p => p.Name == "EnableOut");
-        Assert.False(pipelineCtx.HasAny(mappings[outPort]));
+        Assert.False(pipelineCtx.HasAny(inst.Mappings[outPort]));
     }
 }
 
@@ -171,45 +164,42 @@ public class NodeBehaviorInteractionTests {
         }
     }
 
-    private static Dictionary<IPort, Guid> BuildMappings(AbstractNode node) {
-        var mappings = new Dictionary<IPort, Guid>();
-        foreach (var port in node.Ports) {
-            mappings[port] = Guid.NewGuid();
-        }
-        return mappings;
+    private static (ArrayPipelineContext ctx, NodeContext nodeCtx, PipelineBuilder.NodeInstance inst) Setup(AbstractNode node) {
+        var registry = new NodeRegistry();
+        var builder = new PipelineBuilder(registry);
+        var inst = builder.AddNode(node);
+        var pipeline = builder.Build();
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
+        return (ctx, new NodeContext(ctx, inst.Mappings), inst);
     }
 
     [Fact]
     public async Task MultipleBehaviors_BothExecute() {
         var node = new MultiBehaviorNode();
-        var mappings = BuildMappings(node);
-        var pipelineCtx = new PipelineContext();
-        var nodeCtx = new NodeContext(pipelineCtx, mappings);
+        var (pipelineCtx, nodeCtx, inst) = Setup(node);
 
         var chipPort = node.Ports.First(p => p.Name == "ChipEnable");
-        pipelineCtx.Write(mappings[chipPort], true);
+        pipelineCtx.Write(inst.Mappings[chipPort], true);
 
         var state = await node.ExecuteAsync(nodeCtx);
 
         Assert.Equal(NodeState.Done, state);
         var outPort = node.Ports.First(p => p.Name == "EnableOut");
-        Assert.True(pipelineCtx.Read<bool>(mappings[outPort]));
+        Assert.True(pipelineCtx.Read<bool>(inst.Mappings[outPort]));
     }
 
     [Fact]
     public async Task ChipEnableDisabled_CoreExecutionSkipped_EnableOutReceivesSkippedResult() {
         var node = new MultiBehaviorNode();
-        var mappings = BuildMappings(node);
-        var pipelineCtx = new PipelineContext();
-        var nodeCtx = new NodeContext(pipelineCtx, mappings);
+        var (pipelineCtx, nodeCtx, inst) = Setup(node);
 
         var chipPort = node.Ports.First(p => p.Name == "ChipEnable");
-        pipelineCtx.Write(mappings[chipPort], false);
+        pipelineCtx.Write(inst.Mappings[chipPort], false);
 
         var state = await node.ExecuteAsync(nodeCtx);
 
         Assert.Equal(NodeState.Skipped, state);
         var outPort = node.Ports.First(p => p.Name == "EnableOut");
-        Assert.False(pipelineCtx.Read<bool>(mappings[outPort]));
+        Assert.False(pipelineCtx.Read<bool>(inst.Mappings[outPort]));
     }
 }

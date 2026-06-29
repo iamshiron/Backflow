@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Shiron.Lib.Collections;
+using Shiron.Lib.Pipeline.Casting;
 using Shiron.Lib.Pipeline.Context;
 using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Generic;
@@ -30,7 +31,6 @@ public static class PipelineSerialization {
             return new NodeInstanceDto(
                 n.ID,
                 typeName,
-                n.Mappings.ToDictionary(kvp => kvp.Key.Name, kvp => kvp.Value),
                 genericArgs
             );
         }).ToArray();
@@ -47,19 +47,20 @@ public static class PipelineSerialization {
     }
 
     /// <summary>Capture current input values from the context as a serializable DTO.</summary>
-    public static PipelineInputsDto ToInputsDto(this Pipeline pipeline, PipelineContext context) {
+    public static PipelineInputsDto ToInputsDto(this Pipeline pipeline, IPipelineContext context) {
         var inputs = new Dictionary<string, Dictionary<string, InputDto>>();
 
         foreach (var node in pipeline.Topology.Nodes) {
             var nodeInputs = new Dictionary<string, InputDto>();
-            foreach (var (port, mappingGuid) in node.Mappings) {
-                if (!context.Store.HasAny(mappingGuid)) continue;
+            foreach (var (port, channel) in node.Mappings) {
+                if (!context.HasAny(channel)) continue;
+
+                var type = context.TypeOf(channel)
+                    ?? throw new InvalidOperationException("Unable to determine type of input");
 
                 nodeInputs[port.Name] = new InputDto(
-                    context.ReadAny(mappingGuid),
-                    context.Store.TypeOf(mappingGuid)?.FullName ??
-                    context.Store.TypeOf(mappingGuid)?.Name ??
-                    throw new InvalidOperationException("Unable to determine type of input")
+                    context.ReadAny(channel),
+                    type.FullName ?? type.Name
                 );
             }
 
@@ -71,18 +72,23 @@ public static class PipelineSerialization {
         return new PipelineInputsDto(inputs);
     }
 
-    /// <summary>Reconstruct a <see cref="Pipeline"/> from a definition DTO using the given registry to resolve node types.</summary>
+    /// <summary>
+    /// Reconstruct a <see cref="Pipeline"/> from a definition DTO using the given registry to resolve node types.
+    /// Channels are not serialized; a fresh channel is assigned to every port, then scalar edges unify
+    /// the destination input channel onto its source output channel, restoring shared-memory connectivity.
+    /// </summary>
     public static Pipeline FromDefinitionDto(this PipelineDefinitionDto dto, NodeRegistry registry) {
         var arrayCounts = BuildArrayCounts(dto.Edges);
 
         var nodeInstances = new Dictionary<string, PipelineBuilder.NodeInstance>();
+        var nextChannel = 0;
 
         foreach (var nodeDto in dto.Nodes) {
             AbstractNode node;
 
             if (nodeDto.GenericTypeArgs is { Length: > 0 }) {
                 var blueprint = registry.GetBlueprint(nodeDto.NodeTypeName)
-                    ?? throw new NodeNotRegisteredException(nodeDto.NodeTypeName, nodeDto.Id, isGeneric: true);
+                    ?? throw new NodeNotRegisteredException(nodeDto.NodeTypeName, nodeDto.Id, true);
 
                 var typeArgs = new Type[nodeDto.GenericTypeArgs.Length];
                 for (var i = 0; i < nodeDto.GenericTypeArgs.Length; i++) {
@@ -114,11 +120,9 @@ public static class PipelineSerialization {
                 }
             }
 
-            var mappings = new Dictionary<IPort, Guid>();
+            var mappings = new Dictionary<IPort, int>();
             foreach (var port in node.Ports) {
-                if (nodeDto.PortMappings.TryGetValue(port.Name, out var mappingGuid)) {
-                    mappings[port] = mappingGuid;
-                }
+                mappings[port] = nextChannel++;
             }
 
             var instance = new PipelineBuilder.NodeInstance(nodeDto.Id, node, mappings);
@@ -150,12 +154,12 @@ public static class PipelineSerialization {
             edges[i] = new PipelineBuilder.EdgeInstance(source, sourcePort, dest, destPort, edgeDto.DestIndex);
         }
 
-        return new Pipeline(graph, edges);
+        return new Pipeline(graph, edges, CastRegistry.CreateDefault());
     }
 
-    /// <summary>Restore input values from a DTO into a new <see cref="PipelineContext"/>.</summary>
-    public static PipelineContext FromInputs(this PipelineInputsDto dto, Pipeline pipeline) {
-        var context = new PipelineContext();
+    /// <summary>Restore input values from a DTO into a new <see cref="ArrayPipelineContext"/>.</summary>
+    public static ArrayPipelineContext FromInputs(this PipelineInputsDto dto, Pipeline pipeline) {
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
         var nodeLookup = pipeline.Topology.Nodes.ToDictionary(n => n.ID);
 
         foreach (var (nodeId, portInputs) in dto.Inputs) {
@@ -172,8 +176,8 @@ public static class PipelineSerialization {
 
                 var port = node.Node.Ports.FirstOrDefault(p => p.Name == portKey)
                     ?? throw new InvalidOperationException($"Port '{portKey}' not found on node '{nodeId}'.");
-                var mappingGuid = node.Mappings[port];
-                context.Store.Set(mappingGuid, value, type);
+                var channel = node.Mappings[port];
+                context.Write(channel, value, type);
             }
         }
         return context;
@@ -185,7 +189,7 @@ public static class PipelineSerialization {
     }
 
     /// <summary>Serialize the current input values to a JSON string.</summary>
-    public static string SerializeInputs(this Pipeline pipeline, PipelineContext context, JsonSerializerOptions? options = null) {
+    public static string SerializeInputs(this Pipeline pipeline, IPipelineContext context, JsonSerializerOptions? options = null) {
         return JsonSerializer.Serialize(pipeline.ToInputsDto(context), options);
     }
 
@@ -197,8 +201,8 @@ public static class PipelineSerialization {
         return dto.FromDefinitionDto(registry);
     }
 
-    /// <summary>Deserialize input values from JSON into a <see cref="PipelineContext"/> bound to <paramref name="pipeline"/>.</summary>
-    public static PipelineContext DeserializeInputs(string json, Pipeline pipeline, JsonSerializerOptions? options = null) {
+    /// <summary>Deserialize input values from JSON into an <see cref="ArrayPipelineContext"/> bound to <paramref name="pipeline"/>.</summary>
+    public static ArrayPipelineContext DeserializeInputs(string json, Pipeline pipeline, JsonSerializerOptions? options = null) {
         var dto = JsonSerializer.Deserialize<PipelineInputsDto>(json, options)
             ?? throw new InvalidOperationException("Failed to deserialize pipeline inputs JSON.");
 

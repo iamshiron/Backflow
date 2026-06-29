@@ -8,8 +8,12 @@ using Pipe = global::Shiron.Lib.Pipeline.Pipeline;
 
 namespace Shiron.Lib.Benchmarks.Pipeline;
 
+/// <summary>
+/// Counterpart to <see cref="PipelineContextBenchmarks"/> for the array-backed
+/// <see cref="ArrayPipelineContext"/> (powered by <see cref="ArrayBucketStore"/>).
+/// </summary>
 [MemoryDiagnoser]
-public class PipelineContextBenchmarks {
+public class ArrayPipelineContextBenchmarks {
     [Params(1, 10, 100)]
     public int PortCount { get; set; }
 

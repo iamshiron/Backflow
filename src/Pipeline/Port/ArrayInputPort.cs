@@ -91,7 +91,7 @@ public class ArrayInputPort<T>(
         return array?.Length ?? 0;
     }
 
-    void IArrayPortAssembly.Assemble(IPipelineContext context, Guid targetGuid, IReadOnlyList<(int Index, Guid SourceGuid)> sources) {
+    void IArrayPortAssembly.Assemble(IPipelineContext context, int targetChannel, IReadOnlyList<(int Index, int SourceChannel)> sources) {
         if (!IsFrozen)
             throw new InvalidOperationException($"Cannot assemble array port '{Name}' without a frozen count.");
 
@@ -99,9 +99,9 @@ public class ArrayInputPort<T>(
         var array = new T[count];
         if (elementDefault is T def) Array.Fill(array, def);
 
-        foreach (var (index, sourceGuid) in sources) {
+        foreach (var (index, sourceChannel) in sources) {
             if (index >= 0 && index < count) {
-                array[index] = context.Read<T>(sourceGuid) ?? (elementDefault is T d ? d : default!);
+                array[index] = context.Read<T>(sourceChannel) ?? (elementDefault is T d ? d : default!);
             }
         }
 
@@ -111,12 +111,12 @@ public class ArrayInputPort<T>(
                 throw new PortValidationException($"{Name}[{i}]", array[i], error);
         }
 
-        context.Write(targetGuid, array);
+        context.Write(targetChannel, array);
     }
 
-    void IArrayPortAssembly.AssembleWithCount(IPipelineContext context, Guid targetGuid, IReadOnlyList<(int Index, Guid SourceGuid)> sources, int count) {
+    void IArrayPortAssembly.AssembleWithCount(IPipelineContext context, int targetChannel, IReadOnlyList<(int Index, int SourceChannel)> sources, int count) {
         SetCount(count);
-        ((IArrayPortAssembly) this).Assemble(context, targetGuid, sources);
+        ((IArrayPortAssembly) this).Assemble(context, targetChannel, sources);
     }
 
     private T[] CreateDefaultArray() {

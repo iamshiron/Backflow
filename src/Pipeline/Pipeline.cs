@@ -1,4 +1,5 @@
 using Shiron.Lib.Collections;
+using Shiron.Lib.Pipeline.Casting;
 
 namespace Shiron.Lib.Pipeline;
 
@@ -7,5 +8,6 @@ namespace Shiron.Lib.Pipeline;
 /// </summary>
 public readonly record struct Pipeline(
     DirectedAcyclicGraph<PipelineBuilder.NodeInstance> Topology,
-    PipelineBuilder.EdgeInstance[] Edges
+    PipelineBuilder.EdgeInstance[] Edges,
+    CastRegistry CastRegistry
 );

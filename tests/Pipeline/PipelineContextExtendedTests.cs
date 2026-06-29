@@ -31,13 +31,26 @@ public class PipelineContextWriteAtTests {
         public string? Validate(int[]? value) => null;
     }
 
-    [Fact]
-    public void WriteAt_NoExistingArray_CreatesArrayOfIndexPlusOne() {
+    private static ArrayPipelineContext BuildContext(ArrayNode node, out PipelineBuilder.NodeInstance instance) {
         var registry = new NodeRegistry();
         var builder = new PipelineBuilder(registry);
+        instance = builder.AddNode(node);
+        var pipeline = builder.Build();
+        return ArrayPipelineContext.ForPipeline(pipeline);
+    }
+
+    private static ArrayPipelineContext BuildContext(ArrayNode node, Dictionary<string, int> arrayCounts, out PipelineBuilder.NodeInstance instance) {
+        var registry = new NodeRegistry();
+        var builder = new PipelineBuilder(registry);
+        instance = builder.AddNode(node, arrayCounts);
+        var pipeline = builder.Build();
+        return ArrayPipelineContext.ForPipeline(pipeline);
+    }
+
+    [Fact]
+    public void WriteAt_NoExistingArray_CreatesArrayOfIndexPlusOne() {
         var node = new ArrayNode();
-        var instance = builder.AddNode(node);
-        var ctx = new PipelineContext();
+        var ctx = BuildContext(node, out var instance);
 
         ctx.WriteAt(instance, node.Data, 3, 99);
 
@@ -49,11 +62,8 @@ public class PipelineContextWriteAtTests {
 
     [Fact]
     public void WriteAt_ExistingArray_SetsElementAtIndex() {
-        var registry = new NodeRegistry();
-        var builder = new PipelineBuilder(registry);
         var node = new ArrayNode();
-        var instance = builder.AddNode(node);
-        var ctx = new PipelineContext();
+        var ctx = BuildContext(node, out var instance);
 
         ctx.WriteAt(instance, node.Data, 0, 10);
         ctx.WriteAt(instance, node.Data, 1, 20);
@@ -66,11 +76,8 @@ public class PipelineContextWriteAtTests {
 
     [Fact]
     public void WriteAt_IndexBeyondArrayLength_ResizesArray() {
-        var registry = new NodeRegistry();
-        var builder = new PipelineBuilder(registry);
         var node = new ArrayNode();
-        var instance = builder.AddNode(node);
-        var ctx = new PipelineContext();
+        var ctx = BuildContext(node, out var instance);
 
         ctx.WriteAt(instance, node.Data, 0, 1);
         ctx.WriteAt(instance, node.Data, 5, 6);
@@ -85,11 +92,8 @@ public class PipelineContextWriteAtTests {
 
     [Fact]
     public void WriteAt_FrozenPort_UsesFrozenCountAsInitialSize() {
-        var registry = new NodeRegistry();
-        var builder = new PipelineBuilder(registry);
         var node = new ArrayNode();
-        var instance = builder.AddNode(node, new Dictionary<string, int> { ["data"] = 4 });
-        var ctx = new PipelineContext();
+        var ctx = BuildContext(node, new Dictionary<string, int> { ["data"] = 4 }, out var instance);
 
         ctx.WriteAt(instance, node.Data, 2, 42);
 
@@ -101,11 +105,8 @@ public class PipelineContextWriteAtTests {
 
     [Fact]
     public void WriteAt_OverwriteIndex_UpdatesValue() {
-        var registry = new NodeRegistry();
-        var builder = new PipelineBuilder(registry);
         var node = new ArrayNode();
-        var instance = builder.AddNode(node);
-        var ctx = new PipelineContext();
+        var ctx = BuildContext(node, out var instance);
 
         ctx.WriteAt(instance, node.Data, 0, 10);
         ctx.WriteAt(instance, node.Data, 0, 99);
@@ -117,11 +118,8 @@ public class PipelineContextWriteAtTests {
 
     [Fact]
     public void WriteAt_IndexZero_CreatesSingleElementArray() {
-        var registry = new NodeRegistry();
-        var builder = new PipelineBuilder(registry);
         var node = new ArrayNode();
-        var instance = builder.AddNode(node);
-        var ctx = new PipelineContext();
+        var ctx = BuildContext(node, out var instance);
 
         ctx.WriteAt(instance, node.Data, 0, 7);
 
@@ -133,115 +131,67 @@ public class PipelineContextWriteAtTests {
 }
 
 public class PipelineContextCastOnReadTests {
-    private class PassValidator<T> : IPortValidator<T> {
-        public string? Validate(T? value) => null;
-    }
-
-    private class SourceNode : AbstractNode {
-        public readonly IOutputPort<int> Out;
-
-        public SourceNode() {
-            Out = Output(new OutputPort<int>("out"));
-        }
-
-        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context)
-            => ValueTask.FromResult(true);
-    }
-
     [Fact]
     public void Read_IntStoredAsDouble_ReturnsDoubleViaCast() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, 42);
-
-        var result = ctx.Read<double>(id);
-        Assert.Equal(42.0, result);
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write(0, 42);
+        Assert.Equal(42.0, ctx.Read<double>(0));
     }
 
     [Fact]
     public void Read_LongStoredAsDouble_ReturnsDoubleViaCast() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, 123456789L);
-
-        var result = ctx.Read<double>(id);
-        Assert.Equal(123456789.0, result);
+        var ctx = ArrayPipelineContext.Create(typeof(long));
+        ctx.Write(0, 123456789L);
+        Assert.Equal(123456789.0, ctx.Read<double>(0));
     }
 
     [Fact]
     public void Read_FloatStoredAsDouble_ReturnsDoubleViaCast() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, 3.14f);
-
-        var result = ctx.Read<double>(id);
-        Assert.Equal((double) 3.14f, result);
+        var ctx = ArrayPipelineContext.Create(typeof(float));
+        ctx.Write(0, 3.14f);
+        Assert.Equal((double) 3.14f, ctx.Read<double>(0));
     }
 
     [Fact]
     public void Read_DoubleStoredAsInt_TruncatesViaCast() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, 3.14);
-
-        var result = ctx.Read<int>(id);
-        Assert.Equal(3, result);
+        var ctx = ArrayPipelineContext.Create(typeof(double));
+        ctx.Write(0, 3.14);
+        Assert.Equal(3, ctx.Read<int>(0));
     }
 
     [Fact]
     public void Read_ByteStoredAsDouble_WidensViaCast() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, (byte) 255);
-
-        var result = ctx.Read<double>(id);
-        Assert.Equal(255.0, result);
+        var ctx = ArrayPipelineContext.Create(typeof(byte));
+        ctx.Write(0, (byte) 255);
+        Assert.Equal(255.0, ctx.Read<double>(0));
     }
 
     [Fact]
     public void Read_IncompatibleTypes_ReturnsDefault() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, "hello");
-
-        var result = ctx.Read<int>(id);
-        Assert.Equal(0, result);
+        var ctx = ArrayPipelineContext.Create(typeof(string));
+        ctx.Write(0, "hello");
+        Assert.Equal(0, ctx.Read<int>(0));
     }
 
     [Fact]
     public void Has_CastableType_ReturnsTrue() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, 42);
-
-        Assert.True(ctx.Has<double>(id));
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write(0, 42);
+        Assert.True(ctx.Has<double>(0));
     }
 
     [Fact]
     public void Has_ExactType_ReturnsTrue() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, 42);
-
-        Assert.True(ctx.Has<int>(id));
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write(0, 42);
+        Assert.True(ctx.Has<int>(0));
     }
 
     [Fact]
     public void Has_IncompatibleType_ReturnsFalse() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, "hello");
-
-        Assert.False(ctx.Has<int>(id));
+        var ctx = ArrayPipelineContext.Create(typeof(string));
+        ctx.Write(0, "hello");
+        Assert.False(ctx.Has<int>(0));
     }
 
     [Fact]
@@ -249,34 +199,22 @@ public class PipelineContextCastOnReadTests {
         var customRegistry = new CastRegistry();
         customRegistry.Register<string, int>(TypeCast.Lossless, s => int.Parse(s!));
 
-        var ctx = new PipelineContext(customRegistry);
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, "123");
-
-        var result = ctx.Read<int>(id);
-        Assert.Equal(123, result);
+        var ctx = ArrayPipelineContext.Create(customRegistry, typeof(string));
+        ctx.Write(0, "123");
+        Assert.Equal(123, ctx.Read<int>(0));
     }
 
     [Fact]
     public void Read_NullStoredValue_WithCastRule_ReturnsDefault() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write<int>(id, default);
-
-        var result = ctx.Read<double>(id);
-        Assert.Equal(0.0, result);
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write<int>(0, default);
+        Assert.Equal(0.0, ctx.Read<double>(0));
     }
 
     [Fact]
     public void Read_IntStoredAsFloat_ReturnsFloatViaCast() {
-        var ctx = new PipelineContext();
-        var id = Guid.NewGuid();
-
-        ctx.Write(id, 42);
-
-        var result = ctx.Read<float>(id);
-        Assert.Equal(42.0f, result);
+        var ctx = ArrayPipelineContext.Create(typeof(int));
+        ctx.Write(0, 42);
+        Assert.Equal(42.0f, ctx.Read<float>(0));
     }
 }

@@ -22,4 +22,12 @@ public interface INodeContext {
 
     /// <summary>Initialize an array input port from indexed connections with an explicit count.</summary>
     void InitializeArray<T>(IArrayInputPort<T> port, int count);
+
+    /// <summary>
+    /// Whether the element at <paramref name="index"/> of the given array port was supplied
+    /// (connected or written) rather than being a default fill.
+    /// </summary>
+    /// <param name="port">The array input port to check.</param>
+    /// <param name="index">The element index.</param>
+    bool IsSlotSupplied(IPort port, int index);
 }

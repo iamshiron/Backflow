@@ -2,18 +2,19 @@ using Shiron.Lib.Pipeline.Context;
 
 namespace Shiron.Lib.Pipeline.Port;
 
-/// <summary>Marker interface for array input ports, providing count constraints and freeze state.</summary>
+/// <summary>Marker interface for array input ports, providing count constraints.</summary>
 public interface IArrayInputPortMarker : IPort {
     /// <summary>Minimum number of elements required.</summary>
     int MinCount { get; }
     /// <summary>Maximum number of elements allowed, or <c>null</c> for unbounded.</summary>
     int? MaxCount { get; }
-    /// <summary>Fixed element count once the port is frozen, or <c>null</c> if unfrozen.</summary>
-    int? Count { get; }
-    /// <summary>Whether <see cref="SetCount"/> has been called.</summary>
-    bool IsFrozen { get; }
-    /// <summary>Freeze the array to a fixed element count.</summary>
-    void SetCount(int count);
+
+    /// <summary>
+    /// Validate that <paramref name="count"/> satisfies the <see cref="MinCount"/> and
+    /// <see cref="MaxCount"/> constraints. Throws on violation.
+    /// </summary>
+    /// <param name="count">The element count to validate.</param>
+    void ValidateCount(int count);
 }
 
 /// <summary>
@@ -24,6 +25,11 @@ public interface IArrayInputPort<T> : IInputPort<T[]>, IArrayInputPortMarker {
     T? ReadAt(INodeContext context, int index);
     /// <summary>Whether an element exists at the given index.</summary>
     bool HasValueAt(INodeContext context, int index);
-    /// <summary>Get the current element count (frozen count or actual array length).</summary>
+    /// <summary>Get the current element count (actual array length, or 0 if no value).</summary>
     int GetCount(INodeContext context);
+    /// <summary>
+    /// Whether the element at <paramref name="index"/> was supplied (connected/written)
+    /// rather than being a default fill.
+    /// </summary>
+    bool IsSuppliedAt(INodeContext context, int index);
 }

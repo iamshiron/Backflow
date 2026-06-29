@@ -1,3 +1,4 @@
+using System.Collections;
 using Shiron.Lib.Pipeline.Port;
 
 namespace Shiron.Lib.Pipeline.Context;
@@ -9,10 +10,18 @@ namespace Shiron.Lib.Pipeline.Context;
 public sealed class NodeContext(
     IPipelineContext context,
     IReadOnlyDictionary<IPort, int> mappings,
-    IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> indexedInputs
+    IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> indexedInputs,
+    Dictionary<IPort, BitArray>? suppliedMasks = null
 ) : INodeContext {
+    private readonly Dictionary<IPort, BitArray> _suppliedMasks = suppliedMasks ?? new Dictionary<IPort, BitArray>();
+
     public NodeContext(IPipelineContext context, IReadOnlyDictionary<IPort, int> mappings)
-        : this(context, mappings, new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>()) {
+        : this(context, mappings, new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>(), null) {
+    }
+
+    public NodeContext(IPipelineContext context, IReadOnlyDictionary<IPort, int> mappings,
+                       IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> indexedInputs)
+        : this(context, mappings, indexedInputs, null) {
     }
 
     public void Write<T>(IPort port, T? value) {
@@ -34,13 +43,21 @@ public sealed class NodeContext(
         return context.HasAny(mappings[port]);
     }
 
+    /// <inheritdoc/>
+    public bool IsSlotSupplied(IPort port, int index) {
+        if (_suppliedMasks.TryGetValue(port, out var mask))
+            return index >= 0 && index < mask.Length && mask[index];
+        return context.HasAny(mappings[port]);
+    }
+
     /// <summary>Initialize an array port from its indexed connections (count inferred from max index).</summary>
     public void InitializeArray<T>(IArrayInputPort<T> port) {
         var targetChannel = mappings[(IPort) port];
 
         if (indexedInputs.TryGetValue((IPort) port, out var sources) && sources.Count > 0) {
             var count = sources.Max(s => s.Index) + 1;
-            ((IArrayPortAssembly) port).AssembleWithCount(context, targetChannel, sources, count);
+            var mask = ((IArrayPortAssembly) port).Assemble(context, targetChannel, sources, count);
+            _suppliedMasks[(IPort) port] = mask;
         } else {
             throw new InvalidOperationException(
                 $"Cannot initialize array port '{port.Name}' without indexed connections.");
@@ -51,6 +68,7 @@ public sealed class NodeContext(
         var targetChannel = mappings[(IPort) port];
         var sources = indexedInputs.TryGetValue((IPort) port, out var s) ? s : [];
 
-        ((IArrayPortAssembly) port).AssembleWithCount(context, targetChannel, sources, count);
+        var mask = ((IArrayPortAssembly) port).Assemble(context, targetChannel, sources, count);
+        _suppliedMasks[(IPort) port] = mask;
     }
 }

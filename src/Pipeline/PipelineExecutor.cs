@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
@@ -53,7 +54,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
                     continue;
                 }
 
-                AssembleFrozenArrayInputs(node, global);
+                var masks = AssembleFrozenArrayInputs(node, global);
 
                 if (TryCacheHit(node, global)) {
                     node.State = NodeState.Done;
@@ -64,7 +65,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
 
                 if (IsNodeCacheable(node)) cacheMisses++;
 
-                ExecuteNodeAsync(node, global).GetAwaiter().GetResult();
+                ExecuteNodeAsync(node, global, masks).GetAwaiter().GetResult();
                 CacheOutputs(node, global);
                 executed++;
             }
@@ -93,7 +94,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
                         return;
                     }
 
-                    AssembleFrozenArrayInputs(node, global);
+                    var masks = AssembleFrozenArrayInputs(node, global);
 
                     if (TryCacheHit(node, global)) {
                         node.State = NodeState.Done;
@@ -104,7 +105,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
 
                     if (IsNodeCacheable(node)) Interlocked.Increment(ref cacheMisses);
 
-                    await ExecuteNodeAsync(node, global);
+                    await ExecuteNodeAsync(node, global, masks);
                     await CacheOutputsAsync(node, global);
                     Interlocked.Increment(ref executed);
                 }));
@@ -116,27 +117,47 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         return new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, sw.Elapsed);
     }
 
-    private void AssembleFrozenArrayInputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
-        if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return;
+    private Dictionary<IPort, BitArray> AssembleFrozenArrayInputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+        var masks = new Dictionary<IPort, BitArray>();
+        if (node.ArrayCounts is null) return masks;
 
         var indexedByPort = new Dictionary<IPort, List<(int Index, int SourceChannel)>>();
 
-        foreach (var edge in edges) {
-            if (!edge.DestIndex.HasValue) continue;
+        if (_incomingEdges.TryGetValue(node.ID, out var edges)) {
+            foreach (var edge in edges) {
+                if (!edge.DestIndex.HasValue) continue;
 
-            if (!indexedByPort.TryGetValue(edge.DestinationPort, out var list)) {
-                list = [];
-                indexedByPort[edge.DestinationPort] = list;
+                if (!indexedByPort.TryGetValue(edge.DestinationPort, out var list)) {
+                    list = [];
+                    indexedByPort[edge.DestinationPort] = list;
+                }
+                list.Add((edge.DestIndex.Value, edge.SourceNode.Mappings[edge.SourcePort]));
             }
-            list.Add((edge.DestIndex.Value, edge.SourceNode.Mappings[edge.SourcePort]));
         }
 
-        foreach (var (port, sources) in indexedByPort) {
-            if (port is not IArrayInputPortMarker { IsFrozen: true }) continue;
-
+        foreach (var (port, count) in node.ArrayCounts) {
             var targetChannel = node.Mappings[port];
-            ((IArrayPortAssembly) port).Assemble(global, targetChannel, sources);
+            var sources = indexedByPort.TryGetValue(port, out var s)
+                ? (IReadOnlyList<(int Index, int SourceChannel)>) s
+                : [];
+            var writeAtMask = global.GetSuppliedMask(targetChannel);
+
+            if (sources.Count == 0 && writeAtMask is null) continue;
+
+            var mask = ((IArrayPortAssembly) port).Assemble(global, targetChannel, sources, count);
+
+            if (writeAtMask is not null) {
+                for (var i = 0; i < mask.Length; i++) {
+                    var word = i >> 5;
+                    if (word >= writeAtMask.Length) break;
+                    if ((writeAtMask[word] & (1 << (i & 31))) != 0) mask[i] = true;
+                }
+            }
+
+            masks[port] = mask;
         }
+
+        return masks;
     }
 
     private Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> BuildIndexedInputs(PipelineBuilder.NodeInstance node) {
@@ -171,9 +192,9 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         return false;
     }
 
-    private async Task ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+    private async Task ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global, Dictionary<IPort, BitArray> suppliedMasks) {
         var indexedInputs = BuildIndexedInputs(node);
-        var context = new NodeContext(global, node.Mappings, indexedInputs);
+        var context = new NodeContext(global, node.Mappings, indexedInputs, suppliedMasks);
 
         NodeState state;
         try {
@@ -395,6 +416,5 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
 }
 
 internal interface IArrayPortAssembly {
-    void Assemble(IPipelineContext context, int targetChannel, IReadOnlyList<(int Index, int SourceChannel)> sources);
-    void AssembleWithCount(IPipelineContext context, int targetChannel, IReadOnlyList<(int Index, int SourceChannel)> sources, int count);
+    BitArray Assemble(IPipelineContext context, int targetChannel, IReadOnlyList<(int Index, int SourceChannel)> sources, int count);
 }

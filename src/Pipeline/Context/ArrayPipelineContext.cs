@@ -17,6 +17,7 @@ public sealed class ArrayPipelineContext(
     private readonly CastRegistry _castRegistry = castRegistry;
     private readonly ArrayBucketStore _store = store;
     private readonly Type[] _channelTypes = channelTypes;
+    private readonly Dictionary<int, int[]> _writeAtMasks = [];
 
     /// <summary>Create a context for a built pipeline, computing the channel layout from its topology.</summary>
     public static ArrayPipelineContext ForPipeline(Pipeline pipeline, CastRegistry? castRegistry = null) {
@@ -122,8 +123,8 @@ public sealed class ArrayPipelineContext(
 
         if (existing is not null) {
             array = existing;
-        } else if (port.Count.HasValue) {
-            array = new T[port.Count.Value];
+        } else if (node.ArrayCounts?.TryGetValue((IPort) port, out var count) == true) {
+            array = new T[count];
         } else {
             array = new T[index + 1];
         }
@@ -136,5 +137,29 @@ public sealed class ArrayPipelineContext(
 
         array[index] = value!;
         _store.Set(channel, array);
+
+        var requiredWords = (array.Length + 31) >> 5;
+        if (!_writeAtMasks.TryGetValue(channel, out var mask) || mask.Length < requiredWords) {
+            var grown = new int[requiredWords];
+            if (mask is not null)
+                Array.Copy(mask, grown, Math.Min(mask.Length, requiredWords));
+            _writeAtMasks[channel] = grown;
+            mask = grown;
+        }
+        mask[index >> 5] |= 1 << (index & 31);
+    }
+
+    /// <inheritdoc/>
+    public int[]? GetSuppliedMask(int channel) {
+        return _writeAtMasks.TryGetValue(channel, out var mask) ? mask : null;
+    }
+
+    /// <inheritdoc/>
+    public void SetSuppliedMask(int channel, int[]? mask) {
+        if (mask is null) {
+            _writeAtMasks.Remove(channel);
+            return;
+        }
+        _writeAtMasks[channel] = mask;
     }
 }

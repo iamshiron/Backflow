@@ -1,5 +1,7 @@
+using System.Text;
 using Shiron.Lib.Pipeline;
 using Shiron.Lib.Pipeline.Context;
+using Shiron.Lib.Pipeline.Exceptions;
 using Shiron.Lib.Pipeline.Node;
 using Shiron.Lib.Pipeline.Port;
 using Shiron.Lib.Pipeline.Port.Builder;
@@ -57,16 +59,64 @@ public class ArrayInputPortTests {
         }
     }
 
+    private class NullableArrayNode : AbstractNode {
+        public readonly IArrayInputPort<int> Values;
+        public readonly IOutputPort<int> Result;
+
+        public NullableArrayNode() {
+            Values = Input(
+                new ArrayPortBuilder<int>(nameof(Values))
+                    .Using(new NumericPortBuilder<int>(""))
+                    .MinCount(1)
+                    .MaxCount(5)
+                    .Nullable()
+                    .Input()
+            );
+            Result = Output(new OutputPort<int>("result"));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            var values = Values.Read(context);
+            Result.Write(context, values?.Sum() ?? 0);
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    private class SuppliedCheckNode : AbstractNode {
+        public readonly IArrayInputPort<int> Values;
+        public readonly IOutputPort<string> Result;
+
+        public SuppliedCheckNode() {
+            Values = Input(
+                new ArrayPortBuilder<int>(nameof(Values))
+                    .Using(new NumericPortBuilder<int>(""))
+                    .MinCount(1)
+                    .MaxCount(5)
+                    .Input()
+            );
+            Result = Output(new OutputPort<string>("result"));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+            var sb = new StringBuilder();
+            for (var i = 0; i < Values.GetCount(context); i++) {
+                sb.Append(Values.IsSuppliedAt(context, i) ? '1' : '0');
+            }
+            Result.Write(context, sb.ToString());
+            return ValueTask.FromResult(true);
+        }
+    }
+
     private readonly NodeRegistry _registry = new();
 
     [Fact]
-    public void AddNode_WithArrayCounts_FreezesPortCount() {
+    public void AddNode_WithArrayCounts_RecordsPerInstanceCount() {
         var builder = new PipelineBuilder(_registry);
         var node = new ArrayNode();
         var instance = builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 3 });
 
-        Assert.Equal(3, node.Values.Count);
-        Assert.True(node.Values.IsFrozen);
+        Assert.NotNull(instance.ArrayCounts);
+        Assert.Equal(3, instance.ArrayCounts![(IPort) node.Values]);
     }
 
     [Fact]
@@ -75,8 +125,8 @@ public class ArrayInputPortTests {
         var node = new OptionalArrayNode();
         var instance = builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 0 });
 
-        Assert.Equal(0, node.Values.Count);
-        Assert.True(node.Values.IsFrozen);
+        Assert.NotNull(instance.ArrayCounts);
+        Assert.Equal(0, instance.ArrayCounts![(IPort) node.Values]);
     }
 
     [Fact]
@@ -96,13 +146,12 @@ public class ArrayInputPortTests {
     }
 
     [Fact]
-    public void AddNode_WithoutArrayCounts_CountNotFrozen() {
+    public void AddNode_WithoutArrayCounts_NoInstanceCount() {
         var builder = new PipelineBuilder(_registry);
         var node = new OptionalArrayNode();
         var instance = builder.AddNode(node);
 
-        Assert.Null(node.Values.Count);
-        Assert.False(node.Values.IsFrozen);
+        Assert.Null(instance.ArrayCounts);
     }
 
     [Fact]
@@ -280,14 +329,106 @@ public class ArrayInputPortTests {
     }
 
     [Fact]
-    public void SetCount_FreezesAfterFirstCall() {
-        var node = new OptionalArrayNode();
-        node.Values.SetCount(3);
+    public void AddNode_SameSharedNode_DifferentCounts_BothSucceed() {
+        var builder = new PipelineBuilder(_registry);
+        var arrayNode = new ArrayNode();
 
-        Assert.Equal(3, node.Values.Count);
-        Assert.True(node.Values.IsFrozen);
+        var a = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 5 });
+        var b = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 3 });
 
-        Assert.Throws<InvalidOperationException>(() => node.Values.SetCount(5));
+        Assert.Equal(5, a.ArrayCounts![(IPort) arrayNode.Values]);
+        Assert.Equal(3, b.ArrayCounts![(IPort) arrayNode.Values]);
+    }
+
+    [Fact]
+    public void AddNode_SameCountOnSameSharedNode_BothSucceed() {
+        var builder = new PipelineBuilder(_registry);
+        var arrayNode = new ArrayNode();
+
+        var a = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 4 });
+        var b = builder.AddNode(arrayNode, new Dictionary<string, int> { ["Values"] = 4 });
+
+        Assert.Equal(4, a.ArrayCounts![(IPort) arrayNode.Values]);
+        Assert.Equal(4, b.ArrayCounts![(IPort) arrayNode.Values]);
+    }
+
+    [Fact]
+    public async Task IsSuppliedAt_PartiallyConnected_ReflectsConnections() {
+        var builder = new PipelineBuilder(_registry);
+        var s1 = new SourceNode();
+        var s3 = new SourceNode();
+        var node = new SuppliedCheckNode();
+
+        var i1 = builder.AddNode(s1);
+        var i3 = builder.AddNode(s3);
+        var ni = builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 3 });
+
+        builder.AddConnection(i1, s1.Out, ni, (IPort) node.Values, 0);
+        builder.AddConnection(i3, s3.Out, ni, (IPort) node.Values, 2);
+
+        var pipeline = builder.Build();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
+
+        context.Write(i1, s1.Out, 10);
+        context.Write(i3, s3.Out, 30);
+
+        var executor = new PipelineExecutor(pipeline);
+        await executor.ExecuteAsync(context);
+
+        Assert.Equal("101", context.Read<string>(ni, node.Result));
+    }
+
+    [Fact]
+    public async Task IsSuppliedAt_ValueTypeDefault_IsNotSupplied() {
+        var builder = new PipelineBuilder(_registry);
+        var s1 = new SourceNode();
+        var node = new SuppliedCheckNode();
+
+        var i1 = builder.AddNode(s1);
+        var ni = builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 3 });
+
+        builder.AddConnection(i1, s1.Out, ni, (IPort) node.Values, 0);
+
+        var pipeline = builder.Build();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
+
+        context.Write(i1, s1.Out, 0);
+
+        var executor = new PipelineExecutor(pipeline);
+        await executor.ExecuteAsync(context);
+
+        Assert.Equal("100", context.Read<string>(ni, node.Result));
+    }
+
+    [Fact]
+    public async Task Read_UnconnectedNullableFrozenPort_ReturnsNull() {
+        var builder = new PipelineBuilder(_registry);
+        var node = new NullableArrayNode();
+
+        var ai = builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 3 });
+
+        var pipeline = builder.Build();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
+
+        var executor = new PipelineExecutor(pipeline);
+        await executor.ExecuteAsync(context);
+
+        Assert.Null(context.Read<int[]>(ai, (IPort) node.Values));
+        Assert.Equal(0, context.Read<int>(ai, node.Result));
+    }
+
+    [Fact]
+    public async Task Read_UnconnectedNonNullableFrozenPort_Throws() {
+        var builder = new PipelineBuilder(_registry);
+        var node = new ArrayNode();
+
+        builder.AddNode(node, new Dictionary<string, int> { ["Values"] = 3 });
+
+        var pipeline = builder.Build();
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
+
+        var executor = new PipelineExecutor(pipeline);
+        await Assert.ThrowsAsync<NodeExecutionException>(async () => await executor.ExecuteAsync(context));
     }
 }
 

@@ -34,12 +34,13 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
 
     /// <summary>
     /// A concrete node within a pipeline graph, carrying its runtime ID, the <see cref="AbstractNode"/> instance,
-    /// and the port-to-channel mappings used for shared-memory communication.
+    /// the port-to-channel mappings used for shared-memory communication, and any per-instance array port counts.
     /// </summary>
     public record NodeInstance(
         string ID,
         AbstractNode Node,
-        Dictionary<IPort, int> Mappings
+        Dictionary<IPort, int> Mappings,
+        Dictionary<IPort, int>? ArrayCounts = null
     ) {
         public NodeState State { get; set; } = NodeState.Pending;
         public virtual bool Equals(NodeInstance? other) {
@@ -88,28 +89,18 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         var id = NextId(fullName);
 
         var mappings = new Dictionary<IPort, int>();
+        Dictionary<IPort, int>? instanceArrayCounts = null;
 
         foreach (var port in node.Ports) {
             mappings[port] = _nextChannelId++;
 
-            if (port is IArrayInputPortMarker arrayPort) {
-                if (arrayCounts.TryGetValue(port.Name, out var count)) {
-                    if (count < arrayPort.MinCount) {
-                        throw new ArgumentException(
-                            $"Array port '{port.Name}' requires at least {arrayPort.MinCount} elements, got {count}.",
-                            nameof(arrayCounts));
-                    }
-                    if (arrayPort.MaxCount.HasValue && count > arrayPort.MaxCount.Value) {
-                        throw new ArgumentException(
-                            $"Array port '{port.Name}' supports at most {arrayPort.MaxCount.Value} elements, got {count}.",
-                            nameof(arrayCounts));
-                    }
-                    arrayPort.SetCount(count);
-                }
+            if (port is IArrayInputPortMarker arrayPort && arrayCounts.TryGetValue(port.Name, out var count)) {
+                arrayPort.ValidateCount(count);
+                (instanceArrayCounts ??= new Dictionary<IPort, int>())[port] = count;
             }
         }
 
-        var instance = new NodeInstance(id, node, mappings);
+        var instance = new NodeInstance(id, node, mappings, instanceArrayCounts);
         _graph.AddNode(instance);
         return instance;
     }
@@ -159,10 +150,10 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         if (destPort is not IArrayInputPortMarker)
             throw new ArgumentException($"Port '{destPort.Name}' is not an array input port.", nameof(destPort));
 
-        if (destPort is IArrayInputPortMarker { IsFrozen: true } frozen) {
-            if (destIndex < 0 || destIndex >= frozen.Count!.Value)
+        if (dest.ArrayCounts?.TryGetValue(destPort, out var count) == true) {
+            if (destIndex < 0 || destIndex >= count)
                 throw new ArgumentOutOfRangeException(nameof(destIndex),
-                    $"Index {destIndex} is out of range for array port '{destPort.Name}' (count: {frozen.Count}).");
+                    $"Index {destIndex} is out of range for array port '{destPort.Name}' (count: {count}).");
         }
 
         CheckCycle(source.ID, dest.ID);

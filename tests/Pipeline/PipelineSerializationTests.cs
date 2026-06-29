@@ -227,7 +227,7 @@ public class PipelineSerializationTests {
     [Fact]
     public void FromDefinitionDto_MissingNode_ThrowsNodeNotRegisteredException() {
         var dto = new PipelineDefinitionDto(
-            [new NodeInstanceDto("n1", "NonExistent.Node", [])],
+            [new NodeInstanceDto("n1", "NonExistent.Node")],
             []
         );
 
@@ -240,7 +240,7 @@ public class PipelineSerializationTests {
     [Fact]
     public void FromDefinitionDto_MissingGenericBlueprint_ThrowsNodeNotRegisteredException() {
         var dto = new PipelineDefinitionDto(
-            [new NodeInstanceDto("g1", "NonExistent.GenericNode`1", [], ["System.Int32"])],
+            [new NodeInstanceDto("g1", "NonExistent.GenericNode`1", ["System.Int32"])],
             []
         );
 
@@ -254,8 +254,8 @@ public class PipelineSerializationTests {
     public void FromDefinitionDto_MissingPort_ThrowsInvalidOperationException() {
         var dto = new PipelineDefinitionDto(
             [
-                new NodeInstanceDto("s", typeof(SourceNode).FullName!, []),
-                new NodeInstanceDto("d", typeof(DestNode).FullName!, [])
+                new NodeInstanceDto("s", typeof(SourceNode).FullName!),
+                new NodeInstanceDto("d", typeof(DestNode).FullName!)
             ],
             [new EdgeDto("s", "nonexistent_port", "d", "in")]
         );
@@ -295,7 +295,7 @@ public class PipelineSerializationTests {
     }
 
     [Fact]
-    public void RoundTrip_PortMappings_Preserved() {
+    public void RoundTrip_ConnectedPorts_ShareChannel() {
         var builder = new PipelineBuilder(_registry);
         var srcNode = new SourceNode();
         var dstNode = new DestNode();
@@ -307,13 +307,32 @@ public class PipelineSerializationTests {
         var json = pipeline.SerializeDefinition();
         var restored = PipelineSerialization.DeserializeDefinition(json, _registry);
 
-        var restoredDest = restored.Topology.Nodes.First(n => n.ID.Contains("DestNode"));
-        var restoredSource = restored.Topology.Nodes.First(n => n.ID.Contains("SourceNode"));
+        var edge = Assert.Single(restored.Edges);
+        var sourceChannel = edge.SourceNode.Mappings[edge.SourcePort];
+        var destChannel = edge.DestinationNode.Mappings[edge.DestinationPort];
 
-        var destInGuid = restoredDest.Mappings.Values.First();
-        var sourceOutGuid = restoredSource.Mappings.Values.First();
+        Assert.Equal(sourceChannel, destChannel);
+    }
 
-        Assert.Equal(destInGuid, sourceOutGuid);
+    [Fact]
+    public void RoundTrip_ReconstructedChannels_CarryValues() {
+        var builder = new PipelineBuilder(_registry);
+        var srcNode = new SourceNode();
+        var dstNode = new DestNode();
+        var source = builder.AddNode(srcNode);
+        var dest = builder.AddNode(dstNode);
+        builder.AddConnection(source, srcNode.Out, dest, dstNode.In);
+        var pipeline = builder.Build();
+
+        var json = pipeline.SerializeDefinition();
+        var restored = PipelineSerialization.DeserializeDefinition(json, _registry);
+
+        var edge = Assert.Single(restored.Edges);
+        var ctx = ArrayPipelineContext.ForPipeline(restored);
+
+        ctx.Write(edge.SourceNode, edge.SourcePort, 12345);
+
+        Assert.Equal(12345, ctx.Read<int>(edge.DestinationNode, edge.DestinationPort));
     }
 
 }

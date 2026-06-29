@@ -18,10 +18,13 @@ public record InputDto(
 );
 
 /// <summary>Serializable representation of a <see cref="PipelineBuilder.NodeInstance"/>.</summary>
+/// <remarks>
+/// Port-to-channel mappings are intentionally omitted: channels are internal bus IDs and are
+/// fully reconstructed from <see cref="EdgeDto"/> connectivity during deserialization.
+/// </remarks>
 public record NodeInstanceDto(
     string Id,
     string NodeTypeName,
-    Dictionary<string, int> PortMappings,
     string[]? GenericTypeArgs = null
 );
 

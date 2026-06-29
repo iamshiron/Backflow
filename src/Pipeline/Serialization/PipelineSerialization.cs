@@ -31,7 +31,6 @@ public static class PipelineSerialization {
             return new NodeInstanceDto(
                 n.ID,
                 typeName,
-                n.Mappings.ToDictionary(kvp => kvp.Key.Name, kvp => kvp.Value),
                 genericArgs
             );
         }).ToArray();
@@ -73,11 +72,16 @@ public static class PipelineSerialization {
         return new PipelineInputsDto(inputs);
     }
 
-    /// <summary>Reconstruct a <see cref="Pipeline"/> from a definition DTO using the given registry to resolve node types.</summary>
+    /// <summary>
+    /// Reconstruct a <see cref="Pipeline"/> from a definition DTO using the given registry to resolve node types.
+    /// Channels are not serialized; a fresh channel is assigned to every port, then scalar edges unify
+    /// the destination input channel onto its source output channel, restoring shared-memory connectivity.
+    /// </summary>
     public static Pipeline FromDefinitionDto(this PipelineDefinitionDto dto, NodeRegistry registry) {
         var arrayCounts = BuildArrayCounts(dto.Edges);
 
         var nodeInstances = new Dictionary<string, PipelineBuilder.NodeInstance>();
+        var nextChannel = 0;
 
         foreach (var nodeDto in dto.Nodes) {
             AbstractNode node;
@@ -118,9 +122,7 @@ public static class PipelineSerialization {
 
             var mappings = new Dictionary<IPort, int>();
             foreach (var port in node.Ports) {
-                if (nodeDto.PortMappings.TryGetValue(port.Name, out var channel)) {
-                    mappings[port] = channel;
-                }
+                mappings[port] = nextChannel++;
             }
 
             var instance = new PipelineBuilder.NodeInstance(nodeDto.Id, node, mappings);

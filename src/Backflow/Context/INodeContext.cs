@@ -30,4 +30,10 @@ public interface INodeContext {
     /// <param name="port">The array input port to check.</param>
     /// <param name="index">The element index.</param>
     bool IsSlotSupplied(IPort port, int index);
+
+    /// <summary>
+    /// The cancellation token for the current pipeline execution. Nodes and behaviors that perform
+    /// long-running or async work should observe this and abort promptly when cancellation is requested.
+    /// </summary>
+    CancellationToken CancellationToken { get; }
 }

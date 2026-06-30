@@ -11,9 +11,13 @@ public sealed class NodeContext(
     IPipelineContext context,
     IReadOnlyDictionary<IPort, int> mappings,
     IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> indexedInputs,
-    Dictionary<IPort, BitArray>? suppliedMasks = null
+    Dictionary<IPort, BitArray>? suppliedMasks = null,
+    CancellationToken ct = default
 ) : INodeContext {
     private readonly Dictionary<IPort, BitArray> _suppliedMasks = suppliedMasks ?? new Dictionary<IPort, BitArray>();
+
+    /// <inheritdoc/>
+    public CancellationToken CancellationToken { get; } = ct;
 
     public NodeContext(IPipelineContext context, IReadOnlyDictionary<IPort, int> mappings)
         : this(context, mappings, new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>(), null) {

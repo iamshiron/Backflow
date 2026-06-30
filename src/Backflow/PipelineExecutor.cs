@@ -41,12 +41,14 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
     /// Execute the pipeline synchronously, layer by layer. Nodes within a layer run sequentially.
     /// </summary>
     /// <param name="global">The shared context for reading/writing port values.</param>
+    /// <param name="ct">Cancellation token observed between layers and after each node (cooperative).</param>
     /// <returns>Execution statistics including cache hit/miss counts and timing.</returns>
-    public ExecutionStats Execute(IPipelineContext global) {
+    public ExecutionStats Execute(IPipelineContext global, CancellationToken ct = default) {
         var sw = Stopwatch.StartNew();
         int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;
 
         foreach (var layer in Layers) {
+            ct.ThrowIfCancellationRequested();
             foreach (var node in layer) {
                 if (ShouldSkipDueToPropagation(node)) {
                     node.State = NodeState.Skipped;
@@ -65,9 +67,10 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
 
                 if (IsNodeCacheable(node)) cacheMisses++;
 
-                ExecuteNodeAsync(node, global, masks).GetAwaiter().GetResult();
-                CacheOutputs(node, global);
+                ExecuteNodeAsync(node, global, masks, ct).GetAwaiter().GetResult();
+                CacheOutputs(node, global, ct);
                 executed++;
+                ct.ThrowIfCancellationRequested();
             }
         }
 
@@ -79,15 +82,18 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
     /// Execute the pipeline asynchronously, with nodes within each layer running in parallel via <see cref="Task.Run"/>.
     /// </summary>
     /// <param name="global">The shared context for reading/writing port values.</param>
+    /// <param name="ct">Cancellation token observed between layers and before each node (cooperative).</param>
     /// <returns>Execution statistics including cache hit/miss counts and timing.</returns>
-    public async Task<ExecutionStats> ExecuteAsync(IPipelineContext global) {
+    public async Task<ExecutionStats> ExecuteAsync(IPipelineContext global, CancellationToken ct = default) {
         var sw = Stopwatch.StartNew();
         int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;
 
         foreach (var layer in Layers) {
+            ct.ThrowIfCancellationRequested();
             List<Task> tasks = [];
             foreach (var node in layer) {
                 tasks.Add(Task.Run(async () => {
+                    ct.ThrowIfCancellationRequested();
                     if (ShouldSkipDueToPropagation(node)) {
                         node.State = NodeState.Skipped;
                         Interlocked.Increment(ref skipped);
@@ -105,10 +111,10 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
 
                     if (IsNodeCacheable(node)) Interlocked.Increment(ref cacheMisses);
 
-                    await ExecuteNodeAsync(node, global, masks);
-                    await CacheOutputsAsync(node, global);
+                    await ExecuteNodeAsync(node, global, masks, ct);
+                    await CacheOutputsAsync(node, global, ct);
                     Interlocked.Increment(ref executed);
-                }));
+                }, ct));
             }
             await Task.WhenAll(tasks);
         }
@@ -192,13 +198,15 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         return false;
     }
 
-    private async Task ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global, Dictionary<IPort, BitArray> suppliedMasks) {
+    private async Task ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global, Dictionary<IPort, BitArray> suppliedMasks, CancellationToken ct) {
         var indexedInputs = BuildIndexedInputs(node);
-        var context = new NodeContext(global, node.Mappings, indexedInputs, suppliedMasks);
+        var context = new NodeContext(global, node.Mappings, indexedInputs, suppliedMasks, ct);
 
         NodeState state;
         try {
             state = await node.Node.ExecuteAsync(context);
+        } catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+            throw;
         } catch (Exception ex) {
             Console.WriteLine($"Error executing node {node.ID}: {ex.Message}");
             node.State = NodeState.Failed;
@@ -239,23 +247,23 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         return true;
     }
 
-    private void CacheOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+    private void CacheOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, CancellationToken ct) {
         if (!IsNodeCacheable(node)) return;
 
         var key = _keyFactory.CreateKey(node, global);
-        var entry = CaptureOutputs(node, global);
+        var entry = CaptureOutputs(node, global, ct);
         cache!.SetAsync(key, entry).GetAwaiter().GetResult();
     }
 
-    private async Task CacheOutputsAsync(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+    private async Task CacheOutputsAsync(PipelineBuilder.NodeInstance node, IPipelineContext global, CancellationToken ct) {
         if (!IsNodeCacheable(node)) return;
 
         var key = _keyFactory.CreateKey(node, global);
-        var entry = CaptureOutputs(node, global);
+        var entry = CaptureOutputs(node, global, ct);
         await cache!.SetAsync(key, entry);
     }
 
-    private ICacheEntry CaptureOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+    private ICacheEntry CaptureOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, CancellationToken ct) {
         var inputs = new Dictionary<string, CachePortValue>();
         var outputs = new Dictionary<string, CachePortValue>();
 
@@ -264,7 +272,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
             if (!global.HasAny(channel)) continue;
 
             var value = global.ReadAny(channel);
-            value = TryStoreBlob(value);
+            value = TryStoreBlob(value, ct);
             var typeName = value?.GetType().AssemblyQualifiedName ?? "null";
             inputs[port.Name] = new CachePortValue(value, typeName);
         }
@@ -274,7 +282,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
             if (!global.HasAny(channel)) continue;
 
             var value = global.ReadAny(channel);
-            value = TryStoreBlob(value);
+            value = TryStoreBlob(value, ct);
             var typeName = value?.GetType().AssemblyQualifiedName ?? "null";
             outputs[port.Name] = new CachePortValue(value, typeName);
         }
@@ -286,37 +294,37 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         };
     }
 
-    private object? TryStoreBlob(object? value) {
+    private object? TryStoreBlob(object? value, CancellationToken ct) {
         if (blobResolver is null || value is null) return value;
 
         return value switch {
-            IBufferData bufferData => StoreBlobFromBuffer(bufferData),
-            IStreamData streamData => StoreBlobFromStream(streamData),
-            IBlob blob => StoreBlobFromBlob(blob),
+            IBufferData bufferData => StoreBlobFromBuffer(bufferData, ct),
+            IStreamData streamData => StoreBlobFromStream(streamData, ct),
+            IBlob blob => StoreBlobFromBlob(blob, ct),
             _ => value
         };
     }
 
-    private BlobCacheEntry StoreBlobFromBuffer(IBufferData bufferData) {
+    private BlobCacheEntry StoreBlobFromBuffer(IBufferData bufferData, CancellationToken ct) {
         var data = bufferData.Data;
         var metadata = new BlobMetadata { ContentLength = data.Length };
         var storage = blobResolver!.Resolve(metadata);
-        var blobId = storage.StoreAsync(new MemoryStream(data.ToArray()), metadata).GetAwaiter().GetResult();
+        var blobId = storage.StoreAsync(new MemoryStream(data.ToArray()), metadata, ct).GetAwaiter().GetResult();
         return new BlobCacheEntry { ReferenceUri = new BlobReference(storage.Name, blobId).Uri.ToString() };
     }
 
-    private BlobCacheEntry StoreBlobFromStream(IStreamData streamData) {
+    private BlobCacheEntry StoreBlobFromStream(IStreamData streamData, CancellationToken ct) {
         var stream = streamData.OpenRead();
         var storage = blobResolver!.Resolve(null);
-        var blobId = storage.StoreAsync(stream).GetAwaiter().GetResult();
+        var blobId = storage.StoreAsync(stream, null, ct).GetAwaiter().GetResult();
         stream.Dispose();
         return new BlobCacheEntry { ReferenceUri = new BlobReference(storage.Name, blobId).Uri.ToString() };
     }
 
-    private BlobCacheEntry StoreBlobFromBlob(IBlob blob) {
+    private BlobCacheEntry StoreBlobFromBlob(IBlob blob, CancellationToken ct) {
         var stream = blob.Storage.OpenRead();
         var storage = blobResolver!.Resolve(null);
-        var blobId = storage.StoreAsync(stream).GetAwaiter().GetResult();
+        var blobId = storage.StoreAsync(stream, null, ct).GetAwaiter().GetResult();
         stream.Dispose();
 
         var reference = new BlobReference(storage.Name, blobId);

@@ -4,9 +4,11 @@ using Shiron.Backflow;
 using Shiron.Backflow.Caching;
 using Shiron.Backflow.Config;
 using Shiron.Backflow.Context;
+using Shiron.Backflow.Events;
 using Shiron.Backflow.Ext.DI;
 using Shiron.Backflow.Port;
 using Shiron.Backflow.Serialization;
+using Shiron.Backflow.Samples.Listeners;
 using Shiron.Backflow.Samples.Nodes;
 using Shiron.Backflow.Samples.Serialization;
 using Shiron.Backflow.Samples.Services;
@@ -456,12 +458,8 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
             using var cache = settings.EnableCaching ? new JsonFileCache(".output/cache.json", adapters) : null;
             var blobStorage = settings.EnableCaching ? new GlobalStorageRegistry(".output") : null;
 
-            var executor = new PipelineExecutor(pipeline, cache, typeAdapters: adapters, blobResolver: blobStorage);
-
-            Console.WriteLine($"Executing {executor.Layers.Length} layers");
-            for (var i = 0; i < executor.Layers.Length; ++i) {
-                Console.WriteLine($"Layer {i}: {executor.Layers[i].Length} - {string.Join(", ", executor.Layers[i].Select(n => n.Node.GetType().FullName))}");
-            }
+            var listener = new ConsolePipelineEventListener(context);
+            var executor = new PipelineExecutor(pipeline, cache, typeAdapters: adapters, blobResolver: blobStorage, listener: listener);
 
             var jsonOptions = new JsonSerializerOptions {
                 WriteIndented = true,
@@ -470,9 +468,8 @@ public class ExecuteDefaultCommand : AsyncCommand<ExecuteDefaultSettings> {
 
             await File.WriteAllTextAsync(".output/graph.json", pipeline.SerializeDefinition(jsonOptions), cancellationToken);
             await File.WriteAllTextAsync(".output/inputs.json", pipeline.SerializeInputs(context, jsonOptions), cancellationToken);
-            var stats = await executor.ExecuteAsync(context);
+            await executor.ExecuteAsync(context);
             if (cache is not null) await cache.FlushAsync();
-            Console.WriteLine(stats);
             return 0;
         } catch (Exception e) {
             AnsiConsole.WriteException(e);

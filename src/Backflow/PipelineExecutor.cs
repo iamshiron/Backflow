@@ -5,6 +5,7 @@ using System.Text.Json;
 using Shiron.Backflow.BlobStorage;
 using Shiron.Backflow.Caching;
 using Shiron.Backflow.Context;
+using Shiron.Backflow.Events;
 using Shiron.Backflow.Exceptions;
 using Shiron.Backflow.Node;
 using Shiron.Backflow.Port;
@@ -14,13 +15,22 @@ namespace Shiron.Backflow;
 
 /// <summary>
 /// Executes a <see cref="Pipeline"/> topology layer-by-layer (topological order).
-/// Supports optional per-node caching via <see cref="ICache"/> and blob storage via <see cref="IBlobStorageResolver"/>.
+/// Supports optional per-node caching via <see cref="ICache"/> and blob storage via <see cref="IBlobStorageResolver"/>,
+/// and feeds execution lifecycle events to an optional <see cref="IPipelineEventListener"/>.
 /// </summary>
-public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKeyFactory? keyFactory = null, CacheTypeAdapterRegistry? typeAdapters = null, IBlobStorageResolver? blobResolver = null) {
+public class PipelineExecutor(
+    Pipeline pipeline,
+    ICache? cache = null,
+    ICacheKeyFactory? keyFactory = null,
+    CacheTypeAdapterRegistry? typeAdapters = null,
+    IBlobStorageResolver? blobResolver = null,
+    IPipelineEventListener? listener = null
+) {
     /// <summary>The execution layers, each layer contains nodes that can run in parallel.</summary>
     public PipelineBuilder.NodeInstance[][] Layers { get; } = pipeline.Topology.ToLayers();
 
     private readonly ICacheKeyFactory _keyFactory = keyFactory ?? new CacheKeyFactory(typeAdapters);
+    private readonly IPipelineEventListener? _listener = listener;
     private readonly Dictionary<string, List<PipelineBuilder.EdgeInstance>> _incomingEdges = BuildIncomingEdges(pipeline.Edges);
 
     private static Dictionary<string, List<PipelineBuilder.EdgeInstance>> BuildIncomingEdges(PipelineBuilder.EdgeInstance[] edges) {
@@ -47,12 +57,19 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         var sw = Stopwatch.StartNew();
         int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;
 
-        foreach (var layer in Layers) {
+        _listener?.OnPipelineStart(new PipelineStartEvent(Layers.Length, TotalNodeCount));
+
+        for (var li = 0; li < Layers.Length; ++li) {
+            var layer = Layers[li];
             ct.ThrowIfCancellationRequested();
+            var layerSw = Stopwatch.StartNew();
+            _listener?.OnLayerStart(new PipelineLayerStartEvent(li, layer.Length, layer));
+
             foreach (var node in layer) {
                 if (ShouldSkipDueToPropagation(node)) {
                     node.State = NodeState.Skipped;
                     skipped++;
+                    _listener?.OnNodeSkip(new PipelineNodeSkipEvent(node, li));
                     continue;
                 }
 
@@ -62,20 +79,36 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
                     node.State = NodeState.Done;
                     cacheHits++;
                     executed++;
+                    _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, li, TimeSpan.Zero, FromCache: true));
                     continue;
                 }
 
                 if (IsNodeCacheable(node)) cacheMisses++;
 
-                ExecuteNodeAsync(node, global, masks, ct).GetAwaiter().GetResult();
+                _listener?.OnNodeStart(new PipelineNodeStartEvent(node, li));
+                var nodeSw = Stopwatch.StartNew();
+                try {
+                    ExecuteNodeAsync(node, global, masks, ct).GetAwaiter().GetResult();
+                } catch (Exception ex) {
+                    nodeSw.Stop();
+                    _listener?.OnNodeFailure(new PipelineNodeFailureEvent(node, li, ExtractInner(ex), nodeSw.Elapsed));
+                    throw;
+                }
+                nodeSw.Stop();
                 CacheOutputs(node, global, ct);
                 executed++;
+                _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, li, nodeSw.Elapsed, FromCache: false));
                 ct.ThrowIfCancellationRequested();
             }
+
+            layerSw.Stop();
+            _listener?.OnLayerComplete(new PipelineLayerCompleteEvent(li, layer.Length, layerSw.Elapsed));
         }
 
         sw.Stop();
-        return new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, sw.Elapsed);
+        var stats = new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, sw.Elapsed);
+        _listener?.OnPipelineComplete(new PipelineCompleteEvent(Layers.Length, TotalNodeCount, stats));
+        return stats;
     }
 
     /// <summary>
@@ -88,8 +121,14 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         var sw = Stopwatch.StartNew();
         int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;
 
-        foreach (var layer in Layers) {
+        _listener?.OnPipelineStart(new PipelineStartEvent(Layers.Length, TotalNodeCount));
+
+        for (var li = 0; li < Layers.Length; ++li) {
+            var layer = Layers[li];
             ct.ThrowIfCancellationRequested();
+            var layerSw = Stopwatch.StartNew();
+            _listener?.OnLayerStart(new PipelineLayerStartEvent(li, layer.Length, layer));
+
             List<Task> tasks = [];
             foreach (var node in layer) {
                 tasks.Add(Task.Run(async () => {
@@ -97,6 +136,7 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
                     if (ShouldSkipDueToPropagation(node)) {
                         node.State = NodeState.Skipped;
                         Interlocked.Increment(ref skipped);
+                        _listener?.OnNodeSkip(new PipelineNodeSkipEvent(node, li));
                         return;
                     }
 
@@ -106,21 +146,36 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
                         node.State = NodeState.Done;
                         Interlocked.Increment(ref cacheHits);
                         Interlocked.Increment(ref executed);
+                        _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, li, TimeSpan.Zero, FromCache: true));
                         return;
                     }
 
                     if (IsNodeCacheable(node)) Interlocked.Increment(ref cacheMisses);
 
-                    await ExecuteNodeAsync(node, global, masks, ct);
+                    _listener?.OnNodeStart(new PipelineNodeStartEvent(node, li));
+                    var nodeSw = Stopwatch.StartNew();
+                    try {
+                        await ExecuteNodeAsync(node, global, masks, ct);
+                    } catch (Exception ex) {
+                        nodeSw.Stop();
+                        _listener?.OnNodeFailure(new PipelineNodeFailureEvent(node, li, ExtractInner(ex), nodeSw.Elapsed));
+                        throw;
+                    }
+                    nodeSw.Stop();
                     await CacheOutputsAsync(node, global, ct);
                     Interlocked.Increment(ref executed);
+                    _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, li, nodeSw.Elapsed, FromCache: false));
                 }, ct));
             }
             await Task.WhenAll(tasks);
+            layerSw.Stop();
+            _listener?.OnLayerComplete(new PipelineLayerCompleteEvent(li, layer.Length, layerSw.Elapsed));
         }
 
         sw.Stop();
-        return new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, sw.Elapsed);
+        var stats = new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, sw.Elapsed);
+        _listener?.OnPipelineComplete(new PipelineCompleteEvent(Layers.Length, TotalNodeCount, stats));
+        return stats;
     }
 
     private Dictionary<IPort, BitArray> AssembleFrozenArrayInputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
@@ -208,7 +263,6 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         } catch (OperationCanceledException) when (ct.IsCancellationRequested) {
             throw;
         } catch (Exception ex) {
-            Console.WriteLine($"Error executing node {node.ID}: {ex.Message}");
             node.State = NodeState.Failed;
             throw new NodeExecutionException(node, ex);
         }
@@ -216,6 +270,11 @@ public class PipelineExecutor(Pipeline pipeline, ICache? cache = null, ICacheKey
         node.State = state;
         if (state == NodeState.Failed) throw new NodeExecutionException(node);
     }
+
+    /// <summary>Unwraps <see cref="NodeExecutionException"/> so listeners see the original cause.</summary>
+    private static Exception ExtractInner(Exception ex) =>
+        ex is NodeExecutionException nee && nee.InnerException is not null ? nee.InnerException : ex;
+
 
     private bool IsNodeCacheable(PipelineBuilder.NodeInstance node) {
         if (cache is null || !node.Node.UseCache) return false;

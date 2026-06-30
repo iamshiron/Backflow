@@ -63,6 +63,19 @@ public class PipelineSerializationTests {
             => ValueTask.FromResult(true);
     }
 
+    private class TestGenericNode<T> : AbstractGenericNode {
+        public readonly IInputPort<T> In;
+        public readonly IOutputPort<T> Out;
+
+        public TestGenericNode() {
+            In = Input(new InputPort<T>("in", default!, new PassValidator<T>()));
+            Out = Output(new OutputPort<T>("out"));
+        }
+
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context)
+            => ValueTask.FromResult(true);
+    }
+
     private readonly NodeRegistry _registry = new();
 
     public PipelineSerializationTests() {
@@ -70,6 +83,7 @@ public class PipelineSerializationTests {
         _registry.Register<DestNode>();
         _registry.Register<RelayNode>();
         _registry.Register<StringNode>();
+        _registry.RegisterGeneric(typeof(TestGenericNode<>));
     }
 
     [Fact]
@@ -225,33 +239,35 @@ public class PipelineSerializationTests {
     }
 
     [Fact]
-    public void FromDefinitionDto_MissingNode_ThrowsNodeNotRegisteredException() {
+    public void FromDefinitionDto_MissingNode_ThrowsPipelineDeserializationException() {
         var dto = new PipelineDefinitionDto(
             [new NodeInstanceDto("n1", "NonExistent.Node")],
             []
         );
 
-        var ex = Assert.Throws<NodeNotRegisteredException>(() => dto.FromDefinitionDto(_registry));
-        Assert.Equal("NonExistent.Node", ex.NodeTypeName);
-        Assert.Equal("n1", ex.NodeId);
-        Assert.False(ex.IsGeneric);
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.NodeResolution, ex.Errors[0].Phase);
+        Assert.Equal("n1", ex.Errors[0].NodeId);
+        Assert.Contains("NonExistent.Node", ex.Errors[0].Message);
     }
 
     [Fact]
-    public void FromDefinitionDto_MissingGenericBlueprint_ThrowsNodeNotRegisteredException() {
+    public void FromDefinitionDto_MissingGenericBlueprint_ThrowsPipelineDeserializationException() {
         var dto = new PipelineDefinitionDto(
             [new NodeInstanceDto("g1", "NonExistent.GenericNode`1", ["System.Int32"])],
             []
         );
 
-        var ex = Assert.Throws<NodeNotRegisteredException>(() => dto.FromDefinitionDto(_registry));
-        Assert.Equal("NonExistent.GenericNode`1", ex.NodeTypeName);
-        Assert.Equal("g1", ex.NodeId);
-        Assert.True(ex.IsGeneric);
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.NodeResolution, ex.Errors[0].Phase);
+        Assert.Equal("g1", ex.Errors[0].NodeId);
+        Assert.Contains("NonExistent.GenericNode`1", ex.Errors[0].Message);
     }
 
     [Fact]
-    public void FromDefinitionDto_MissingPort_ThrowsInvalidOperationException() {
+    public void FromDefinitionDto_MissingPort_ThrowsPipelineDeserializationException() {
         var dto = new PipelineDefinitionDto(
             [
                 new NodeInstanceDto("s", typeof(SourceNode).FullName!),
@@ -260,27 +276,38 @@ public class PipelineSerializationTests {
             [new EdgeDto("s", "nonexistent_port", "d", "in")]
         );
 
-        Assert.Throws<InvalidOperationException>(() => dto.FromDefinitionDto(_registry));
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.PortResolution, ex.Errors[0].Phase);
+        Assert.Contains("nonexistent_port", ex.Errors[0].Message);
     }
 
     [Fact]
-    public void DeserializeDefinition_InvalidJson_ThrowsJsonException() {
-        Assert.Throws<JsonException>(() =>
+    public void DeserializeDefinition_InvalidJson_ThrowsPipelineDeserializationException() {
+        var ex = Assert.Throws<PipelineDeserializationException>(() =>
             PipelineSerialization.DeserializeDefinition("not valid json", _registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.JsonParsing, ex.Errors[0].Phase);
+        Assert.NotNull(ex.InnerException);
+        Assert.IsType<JsonException>(ex.InnerException);
     }
 
     [Fact]
-    public void DeserializeInputs_InvalidJson_ThrowsJsonException() {
+    public void DeserializeInputs_InvalidJson_ThrowsPipelineDeserializationException() {
         var builder = new PipelineBuilder(_registry);
         builder.AddNode(new SourceNode());
         var pipeline = builder.Build();
 
-        Assert.Throws<JsonException>(() =>
+        var ex = Assert.Throws<PipelineDeserializationException>(() =>
             PipelineSerialization.DeserializeInputs("not valid json", pipeline));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.JsonParsing, ex.Errors[0].Phase);
+        Assert.NotNull(ex.InnerException);
+        Assert.IsType<JsonException>(ex.InnerException);
     }
 
     [Fact]
-    public void FromInputs_MissingNode_ThrowsInvalidOperationException() {
+    public void FromInputs_MissingNode_ThrowsPipelineDeserializationException() {
         var builder = new PipelineBuilder(_registry);
         builder.AddNode(new SourceNode());
         var pipeline = builder.Build();
@@ -291,7 +318,259 @@ public class PipelineSerializationTests {
             }
         );
 
-        Assert.Throws<InvalidOperationException>(() => dto.FromInputs(pipeline));
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromInputs(pipeline));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.NodeResolution, ex.Errors[0].Phase);
+        Assert.Contains("nonexistent-node", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_MultipleMissingNodes_AccumulatesAllErrors() {
+        var dto = new PipelineDefinitionDto(
+            [
+                new NodeInstanceDto("n1", "NonExistent.A"),
+                new NodeInstanceDto("n2", "NonExistent.B"),
+                new NodeInstanceDto("n3", "NonExistent.C"),
+            ],
+            []
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Equal(3, ex.Errors.Count);
+        Assert.All(ex.Errors, e => Assert.Equal(DeserializationPhase.NodeResolution, e.Phase));
+        Assert.Contains(ex.Errors, e => e.NodeId == "n1");
+        Assert.Contains(ex.Errors, e => e.NodeId == "n2");
+        Assert.Contains(ex.Errors, e => e.NodeId == "n3");
+    }
+
+    [Fact]
+    public void FromDefinitionDto_MultipleMissingPorts_AccumulatesAllErrors() {
+        var dto = new PipelineDefinitionDto(
+            [
+                new NodeInstanceDto("s1", typeof(SourceNode).FullName!),
+                new NodeInstanceDto("s2", typeof(SourceNode).FullName!),
+                new NodeInstanceDto("d1", typeof(DestNode).FullName!),
+                new NodeInstanceDto("d2", typeof(DestNode).FullName!),
+            ],
+            [
+                new EdgeDto("s1", "bad_port_1", "d1", "in"),
+                new EdgeDto("s2", "bad_port_2", "d2", "in"),
+            ]
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Equal(2, ex.Errors.Count);
+        Assert.All(ex.Errors, e => Assert.Equal(DeserializationPhase.PortResolution, e.Phase));
+        Assert.Contains(ex.Errors, e => e.Message.Contains("bad_port_1"));
+        Assert.Contains(ex.Errors, e => e.Message.Contains("bad_port_2"));
+    }
+
+    [Fact]
+    public void FromDefinitionDto_MixedErrors_AccumulatesAllPhases() {
+        var dto = new PipelineDefinitionDto(
+            [
+                new NodeInstanceDto("good_src", typeof(SourceNode).FullName!),
+                new NodeInstanceDto("missing_type", "NonExistent.Node"),
+                new NodeInstanceDto("good_dst", typeof(DestNode).FullName!),
+            ],
+            [
+                new EdgeDto("good_src", "nonexistent_port", "good_dst", "in"),
+            ]
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Equal(2, ex.Errors.Count);
+        Assert.Contains(ex.Errors, e => e.Phase == DeserializationPhase.NodeResolution);
+        Assert.Contains(ex.Errors, e => e.Phase == DeserializationPhase.PortResolution);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_DuplicateNodeIds_ReportsDuplicate() {
+        var dto = new PipelineDefinitionDto(
+            [
+                new NodeInstanceDto("dup", typeof(SourceNode).FullName!),
+                new NodeInstanceDto("dup", typeof(SourceNode).FullName!),
+            ],
+            []
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.Structure, ex.Errors[0].Phase);
+        Assert.Contains("Duplicate", ex.Errors[0].Message);
+        Assert.Contains("dup", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_DanglingEdgeReference_ReportsUnknownNode() {
+        var dto = new PipelineDefinitionDto(
+            [new NodeInstanceDto("n1", typeof(SourceNode).FullName!)],
+            [new EdgeDto("n1", "out", "ghost", "in")]
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.Structure, ex.Errors[0].Phase);
+        Assert.Contains("ghost", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_SelfLoop_ReportsCycle() {
+        var dto = new PipelineDefinitionDto(
+            [new NodeInstanceDto("n1", typeof(RelayNode).FullName!)],
+            [new EdgeDto("n1", "out", "n1", "in")]
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.Graph, ex.Errors[0].Phase);
+        Assert.Contains("Self-loop", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_TwoNodeCycle_ReportsCycle() {
+        var dto = new PipelineDefinitionDto(
+            [
+                new NodeInstanceDto("a", typeof(RelayNode).FullName!),
+                new NodeInstanceDto("b", typeof(RelayNode).FullName!),
+            ],
+            [
+                new EdgeDto("a", "out", "b", "in"),
+                new EdgeDto("b", "out", "a", "in"),
+            ]
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.Graph, ex.Errors[0].Phase);
+        Assert.Contains("cycle", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_MissingSourcePort_IncludesAvailablePortsHint() {
+        var dto = new PipelineDefinitionDto(
+            [
+                new NodeInstanceDto("s", typeof(SourceNode).FullName!),
+                new NodeInstanceDto("d", typeof(DestNode).FullName!),
+            ],
+            [new EdgeDto("s", "nonexistent_port", "d", "in")]
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Contains("Available ports: [out]", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_MissingDestinationPort_IncludesAvailablePortsHint() {
+        var dto = new PipelineDefinitionDto(
+            [
+                new NodeInstanceDto("s", typeof(SourceNode).FullName!),
+                new NodeInstanceDto("d", typeof(DestNode).FullName!),
+            ],
+            [new EdgeDto("s", "out", "d", "nonexistent_port")]
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Contains("Available ports: [in, out]", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_PortError_IncludesEdgeIndexContext() {
+        var dto = new PipelineDefinitionDto(
+            [
+                new NodeInstanceDto("s", typeof(SourceNode).FullName!),
+                new NodeInstanceDto("d", typeof(DestNode).FullName!),
+            ],
+            [new EdgeDto("s", "bad_port", "d", "in")]
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(0, ex.Errors[0].EdgeIndex);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_MissingGenericBlueprint_IncludesTypeArgsHint() {
+        var dto = new PipelineDefinitionDto(
+            [new NodeInstanceDto("g1", "NonExistent.GenericNode`1", ["System.Int32", "System.String"])],
+            []
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Contains("Type arguments: [System.Int32, System.String]", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromInputs_MissingPort_IncludesAvailablePortsHint() {
+        var builder = new PipelineBuilder(_registry);
+        builder.AddNode(new SourceNode());
+        var pipeline = builder.Build();
+        var nodeId = pipeline.Topology.Nodes.First().ID;
+
+        var dto = new PipelineInputsDto(
+            new Dictionary<string, Dictionary<string, InputDto>> {
+                [nodeId] = new() { ["nonexistent"] = new InputDto(42, typeof(int).FullName!) }
+            }
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromInputs(pipeline));
+        Assert.Single(ex.Errors);
+        Assert.Contains("Available ports: [out]", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromDefinitionDto_UnresolvableGenericTypeArg_ReportsTypeResolutionError() {
+        var openTypeName = typeof(TestGenericNode<>).FullName!;
+        var dto = new PipelineDefinitionDto(
+            [new NodeInstanceDto("g1", openTypeName, ["Totally.Fake.Type"])],
+            []
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromDefinitionDto(_registry));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.TypeResolution, ex.Errors[0].Phase);
+        Assert.Contains("Totally.Fake.Type", ex.Errors[0].Message);
+    }
+
+    [Fact]
+    public void FromInputs_MultipleMissingPorts_AccumulatesAllErrors() {
+        var builder = new PipelineBuilder(_registry);
+        builder.AddNode(new SourceNode());
+        var pipeline = builder.Build();
+
+        var dto = new PipelineInputsDto(
+            new Dictionary<string, Dictionary<string, InputDto>> {
+                [pipeline.Topology.Nodes.First().ID] = new() {
+                    ["bad_port_1"] = new InputDto(1, typeof(int).FullName!),
+                    ["bad_port_2"] = new InputDto(2, typeof(int).FullName!),
+                }
+            }
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromInputs(pipeline));
+        Assert.Equal(2, ex.Errors.Count);
+        Assert.All(ex.Errors, e => Assert.Equal(DeserializationPhase.PortResolution, e.Phase));
+    }
+
+    [Fact]
+    public void FromInputs_UnresolvableType_ReportsTypeResolutionError() {
+        var builder = new PipelineBuilder(_registry);
+        builder.AddNode(new SourceNode());
+        var pipeline = builder.Build();
+        var nodeId = pipeline.Topology.Nodes.First().ID;
+
+        var dto = new PipelineInputsDto(
+            new Dictionary<string, Dictionary<string, InputDto>> {
+                [nodeId] = new() { ["out"] = new InputDto(42, "Totally.Fake.Type") }
+            }
+        );
+
+        var ex = Assert.Throws<PipelineDeserializationException>(() => dto.FromInputs(pipeline));
+        Assert.Single(ex.Errors);
+        Assert.Equal(DeserializationPhase.TypeResolution, ex.Errors[0].Phase);
     }
 
     [Fact]

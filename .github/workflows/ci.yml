@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - main
+    - '!feature/*'
+    - '!dev'
+    - '!internal/*'
+  pull_request:
+    branches:
+    - main
+    - '!feature/*'
+    - '!dev'
+    - '!internal/*'
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  test-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.x'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', '**/*.csproj', '**/Directory.Packages.props') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Cache build outputs
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/bin
+          **/obj
+        key: ${{ runner.os }}-build-${{ hashFiles('**/*.cs', '**/*.csproj', '**/Directory.Packages.props') }}
+        restore-keys: |
+          ${{ runner.os }}-build-
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+
+    - name: Test
+      run: dotnet test --no-build --configuration Release --verbosity minimal
+
+  test-cross-platform:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.x'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.nuget/packages
+          %USERPROFILE%\.nuget\packages
+          ~/Library/Caches/NuGet
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', '**/*.csproj', '**/Directory.Packages.props') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Cache build outputs
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/bin
+          **/obj
+        key: ${{ runner.os }}-build-${{ hashFiles('**/*.cs', '**/*.csproj', '**/Directory.Packages.props') }}
+        restore-keys: |
+          ${{ runner.os }}-build-
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build and Test
+      run: dotnet test --configuration Release --verbosity minimal

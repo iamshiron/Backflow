@@ -1,6 +1,8 @@
 # Shiron.Backflow
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![CI](https://github.com/iamshiron/Backflow/actions/workflows/ci.yml/badge.svg)](https://github.com/iamshiron/Backflow/actions/workflows/ci.yml)
+[![Code Quality](https://github.com/iamshiron/Backflow/actions/workflows/code-quality.yml/badge.svg)](https://github.com/iamshiron/Backflow/actions/workflows/code-quality.yml)
 
 A .NET 10 DAG-based data pipeline framework with a strongly-typed port system, generic node support, and type-safe implicit casting.
 

@@ -1,0 +1,80 @@
+# -----------------------------------------------------------------------------
+# C# Project .gitattributes
+# -----------------------------------------------------------------------------
+#
+# This file ensures project-wide consistency for line endings, file encoding,
+# and diffing behavior, regardless of a developer's local Git config.
+#
+
+# -----------------------------------------------------------------------------
+# Default Behavior: Normalize All Text Files
+# -----------------------------------------------------------------------------
+# Set the default for all files to automatically detect if they are text.
+# If so, normalize their line endings to LF in the repository. This is the
+# most important rule for cross-platform collaboration.
+* text=auto eol=lf
+
+# -----------------------------------------------------------------------------
+# C# and .NET Project Files (Text)
+# -----------------------------------------------------------------------------
+# Explicitly define C# and other .NET text files. This ensures they are
+# always normalized. The `diff=csharp` rule helps Git show cleaner diffs
+# for C# source code.
+
+*.cs              text diff=csharp
+*.sln             text
+*.csproj          text
+*.vbproj          text
+*.fsproj          text
+*.sqlproj         text
+*.dbproj          text
+*.wixproj         text
+*.props           text
+*.targets         text
+*.ruleset         text
+*.config          text
+*.json            text
+*.xml             text
+*.xaml            text
+*.razor           text
+*.cshtml          text
+*.vbhtml          text
+*.asax            text
+*.ascx            text
+*.ashx            text
+*.asmx            text
+*.aspx            text
+*.master          text
+*.svc             text
+*.nuspec          text
+*.ps1             text
+app.manifest      text
+
+# -----------------------------------------------------------------------------
+# Common Binary Files in .NET Projects
+# -----------------------------------------------------------------------------
+# Mark common binary files to prevent Git from touching them. This avoids
+# file corruption.
+
+# Compiled assemblies and debug symbols
+*.dll             binary
+*.exe             binary
+*.pdb             binary
+
+# Packages and archives
+*.nupkg           binary
+*.snk             binary
+*.pfx             binary
+*.zip             binary
+
+# Common resources
+*.png             binary
+*.jpg             binary
+*.jpeg            binary
+*.gif             binary
+*.ico             binary
+*.bmp             binary
+*.woff            binary
+*.woff2           binary
+*.ttf             binary
+*.eot             binary

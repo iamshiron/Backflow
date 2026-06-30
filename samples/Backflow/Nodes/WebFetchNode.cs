@@ -1,0 +1,52 @@
+using System.Net.Http.Json;
+using System.Text.Json;
+using Shiron.Backflow.Context;
+using Shiron.Backflow.Node;
+using Shiron.Backflow.Port;
+using Shiron.Backflow.Port.Builder;
+
+namespace Shiron.Backflow.Samples.Nodes;
+
+public class WebFetchNode : AbstractNode {
+    private static readonly HttpClient Client = new();
+
+    public IInputPort<string> Url { get; }
+    public IInputPort<string> Method { get; }
+
+    public IOutputPort<JsonDocument> Response { get; }
+    public IOutputPort<int> ResponseCode { get; }
+
+    public WebFetchNode() {
+        Url = Input(
+            new StringPortBuilder("Url")
+                .Input()
+        );
+        Method = Input(
+            new StringPortBuilder("Method")
+                .Input()
+        );
+        Response = Output(
+            new JsonDocumentPortBuilder("Response")
+                .Output()
+        );
+        ResponseCode = Output(
+            new NumericPortBuilder<int>("ResponseCode")
+                .Output()
+        );
+
+        UseCache = false;
+    }
+
+    protected async override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            Url.Read(context)
+        );
+        var response = await Client.SendAsync(request);
+        var content = await response.Content.ReadFromJsonAsync<JsonDocument>();
+        ResponseCode.Write(context, (int) response.StatusCode);
+        Response.Write(context, content ?? JsonDocument.Parse("{}"));
+
+        return true;
+    }
+}

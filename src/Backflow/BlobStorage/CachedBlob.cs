@@ -1,0 +1,14 @@
+using Shiron.Backflow.Types;
+
+namespace Shiron.Backflow.BlobStorage;
+
+public sealed class CachedBlob : IBlob {
+    private readonly CachedStreamData _storage;
+
+    public CachedBlob(CachedStreamData storage) {
+        _storage = storage;
+    }
+
+    public IStreamData Storage => _storage;
+    public BlobReference Reference => _storage.Reference;
+}

@@ -1,0 +1,20 @@
+using System.Numerics;
+using Shiron.Backflow.Port.Base;
+using Shiron.Backflow.Port.Builder;
+
+namespace Shiron.Backflow.Port.Validator;
+
+/// <summary>Validates numeric values against min/max bounds from <see cref="NumericPortBuilder{T}"/>.</summary>
+public class NumericPortValidator<T>(NumericPortBuilder<T> builder)
+    : BasePortValidator<NumericPortBuilder<T>, T>(builder) where T : struct, INumber<T> {
+    protected override string? ValidateValue(T value) {
+        if (builder.MinValue.HasValue && value < builder.MinValue.Value) {
+            return $"Value {value} is below minimum {builder.MinValue}.";
+        }
+        if (builder.MaxValue.HasValue && value > builder.MaxValue.Value) {
+            return $"Value {value} exceeds maximum {builder.MaxValue}.";
+        }
+
+        return null;
+    }
+}

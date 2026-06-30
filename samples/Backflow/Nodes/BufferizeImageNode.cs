@@ -1,0 +1,38 @@
+using Shiron.Backflow.Context;
+using Shiron.Backflow.Node;
+using Shiron.Backflow.Port;
+using Shiron.Backflow.Port.Builder;
+using Shiron.Backflow.Types;
+using Shiron.Backflow.Samples.Types;
+using Shiron.Backflow.Samples.Types.Meta;
+
+namespace Shiron.Backflow.Samples.Nodes;
+
+public class BufferizeImageNode : AbstractNode {
+    public IInputPort<IBlob<ImageMeta, IStreamData>> In { get; }
+    public IOutputPort<IBlob<ImageMeta, IBufferData>> Out { get; }
+
+    public BufferizeImageNode() {
+        In = Input(
+            new BlobPortBuilder<IBlob<ImageMeta, IStreamData>>(nameof(In))
+                .Input()
+        );
+        Out = Output(
+            new BlobPortBuilder<IBlob<ImageMeta, IBufferData>>(nameof(Out))
+                .Output()
+        );
+
+        UseCache = false;
+    }
+
+    protected async override ValueTask<bool> ExecuteNodeAsync(INodeContext context) {
+        var input = In.Read(context)!;
+
+        var stream = input.Storage.OpenRead();
+        var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        Out.Write(context, new Blob<ImageMeta, IBufferData>(input.Meta, new BufferData(ms.ToArray())));
+        return true;
+    }
+}

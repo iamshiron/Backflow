@@ -1,0 +1,16 @@
+using Microsoft.Extensions.DependencyInjection;
+using Shiron.Backflow.Registry;
+
+namespace Shiron.Backflow.Ext.DI;
+
+public static class PipelineServiceCollectionExtensions {
+    public static IServiceCollection AddPipelineEngine(this IServiceCollection services) {
+        services.AddSingleton<INodeActivator, DINodeActivator>();
+        return services;
+    }
+
+    public static IServiceCollection AddGlobalNodeRegistry<TRegistry>(this IServiceCollection services) where TRegistry : class {
+        services.AddSingleton<TRegistry>();
+        return services;
+    }
+}

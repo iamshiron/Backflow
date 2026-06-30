@@ -1,0 +1,18 @@
+# Binaries
+**/bin
+**/bin-int
+**/obj
+
+.vscode/
+.idea/
+*.DotSettings.user
+.VSCodeCounter
+.output/
+
+log.txt
+log.json
+logs.json
+logs.txt
+
+profiles
+BenchmarkDotNet.Artifacts

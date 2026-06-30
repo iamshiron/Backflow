@@ -1,0 +1,22 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Backflow.Tests/Shiron.Backflow.Tests.csproj" />
+    <Project Path="tests/Backflow.Tests.Ext.DI/Shiron.Backflow.Tests.Ext.DI.csproj" />
+  </Folder>
+  <Folder Name="/Benchmarks/">
+    <Project Path="benchmarks/Backflow/Shiron.Backflow.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/Samples/">
+    <Project Path="samples/Backflow/Shiron.Backflow.Samples.csproj" />
+  </Folder>
+  <Folder Name="/external/lib/">
+    <Project Path="external/lib/src/Collections/Shiron.Lib.Collections.csproj" />
+  </Folder>
+  <Project Path="src/Backflow/Shiron.Backflow.csproj" />
+  <Project Path="src/Backflow.Ext.DI/Shiron.Backflow.Ext.DI.csproj" />
+</Solution>

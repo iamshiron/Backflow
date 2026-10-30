@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace Shiron.Backflow.Casting;
 
 /// <summary>
@@ -6,7 +8,20 @@ namespace Shiron.Backflow.Casting;
 /// </summary>
 public class CastRegistry {
     private readonly Dictionary<(Type source, Type target), ICastRule> _rules = [];
-    private readonly Dictionary<Type, ToStringCastRule> _toStringCache = [];
+    private readonly ConcurrentDictionary<Type, ToStringCastRule> _toStringCache = [];
+    private bool _frozen;
+
+    internal CastRegistry Snapshot() {
+        if (_frozen) return this;
+        var snapshot = new CastRegistry();
+        foreach (var rule in _rules.Values) snapshot.Register(rule);
+        snapshot._frozen = true;
+        return snapshot;
+    }
+
+    private void EnsureMutable() {
+        if (_frozen) throw new InvalidOperationException("Compiled conversion rules are immutable.");
+    }
 
     /// <summary>Singleton default registry with builtin numeric casts pre-registered.</summary>
     public static CastRegistry Default { get; } = CreateDefault();
@@ -20,6 +35,7 @@ public class CastRegistry {
 
     /// <summary>Register a typed conversion rule.</summary>
     public CastRegistry Register<TSrc, TDst>(TypeCast castType, Func<TSrc, TDst> converter) {
+        EnsureMutable();
         var key = (typeof(TSrc), typeof(TDst));
         _rules[key] = new CastRule<TSrc, TDst>(
             typeof(TSrc),
@@ -32,6 +48,7 @@ public class CastRegistry {
 
     /// <summary>Register a generic <see cref="ICastRule"/>.</summary>
     public CastRegistry Register(ICastRule rule) {
+        EnsureMutable();
         _rules[(rule.SourceType, rule.TargetType)] = rule;
         return this;
     }
@@ -41,7 +58,7 @@ public class CastRegistry {
         if (value is null) return default;
         var rule = (CastRule<TSrc, TDst>?) _rules[(typeof(TSrc), typeof(TDst))];
         if (rule is null) throw new InvalidOperationException($"No cast rule registered for {typeof(TSrc)} -> {typeof(TDst)}");
-        return (TDst?) rule.Cast(value);
+        return rule.CastValue(value);
     }
 
     /// <summary>Try to find a cast rule between two types. Falls back to <c>ToString</c> if target is <c>string</c>.</summary>
@@ -70,10 +87,6 @@ public class CastRegistry {
     }
 
     private ToStringCastRule GetToStringRule(Type source) {
-        if (!_toStringCache.TryGetValue(source, out var rule)) {
-            rule = new ToStringCastRule(source);
-            _toStringCache[source] = rule;
-        }
-        return rule;
+        return _toStringCache.GetOrAdd(source, static type => new ToStringCastRule(type));
     }
 }

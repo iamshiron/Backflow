@@ -90,6 +90,14 @@ its default theme. The only intrinsic UI is the ReactFlow graph canvas and its p
 The color conversion and viewport persistence functions above belong to the host;
 no color contract or persistence endpoint is invented by this library.
 
+Canvas handle IDs use reversibly URI-encoded tuples, so quoted port names remain
+safe in ReactFlow's internal CSS selectors during real pointer gestures. These IDs
+are presentation-only: graph documents still store original port names and indices,
+with no persistence migration. Use the typed callbacks or accessible handle labels
+rather than depending on the DOM handle-ID encoding.
+ReactFlow handle bounds are refreshed when handle identities or accepted local
+measurements change, including indexed-slot additions/removals.
+
 The public `BackflowDocument` is editor data, **not** an ASP wire DTO:
 
 ```ts
@@ -196,6 +204,9 @@ rerenders/selection, repeated dragging, dynamic node content, read-only resizing
 and removing/re-adding IDs. It fails on console warnings/errors and native window
 errors/rejections, including resize-loop errors intercepted by Vite; nothing is
 filtered or suppressed. jsdom tests cannot establish this browser layout behavior.
+Real handle-gesture tests also cover host connect/disconnect followed by pointer
+reconnection in both directions, quoted/special-character port names, and indexed
+array slots; they assert both connection-preview validation and persisted topology.
 
 Measured node dimensions are ReactFlow-local state, preserved across controlled
 document updates and discarded when nodes disappear. They never enter persisted

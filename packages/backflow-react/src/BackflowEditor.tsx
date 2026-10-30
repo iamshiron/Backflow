@@ -1,9 +1,16 @@
-import { useMemo, useState, type ReactNode, type CSSProperties } from "react";
+import {
+    useEffect,
+    useMemo,
+    useState,
+    type ReactNode,
+    type CSSProperties,
+} from "react";
 import {
     ReactFlow,
     Background,
     Handle,
     Position,
+    useUpdateNodeInternals,
     type Node,
     type NodeProps,
     type Edge,
@@ -11,6 +18,7 @@ import {
     type ReactFlowInstance,
     type Viewport,
     type OnMove,
+    type Dimensions,
 } from "@xyflow/react";
 import {
     BackflowPortDirection,
@@ -35,6 +43,7 @@ export interface BackflowNodeContext {
     selected: boolean;
 }
 interface CanvasData extends Record<string, unknown> {
+    measurement?: Dimensions;
     descriptor: BackflowNodeDescriptor;
     slots: { port: BackflowPortDescriptor; index: number | null }[];
     renderNode?: (context: BackflowNodeContext) => ReactNode;
@@ -52,6 +61,13 @@ interface CanvasData extends Record<string, unknown> {
 export type BackflowCanvasNode = Node<CanvasData, "backflow">;
 
 function CatalogNode({ id, data, selected }: NodeProps<BackflowCanvasNode>) {
+    const updateNodeInternals = useUpdateNodeInternals();
+    const handles = data.slots
+        .map(({ port, index }) => handleId(port.name, index, port.direction))
+        .join("|");
+    useEffect(() => {
+        updateNodeInternals(id);
+    }, [id, handles, data.measurement, updateNodeInternals]);
     return (
         <div
             style={{
@@ -116,27 +132,43 @@ function CatalogNode({ id, data, selected }: NodeProps<BackflowCanvasNode>) {
     );
 }
 const nodeTypes = { backflow: CatalogNode };
-/** Handle identities are presentation-only, and encode names without separator ambiguity. */
+/** Presentation-only identities, safe for ReactFlow's quoted CSS attribute selectors. */
 export function handleId(
     name: string,
     index: number | null,
     direction: BackflowPortDirection,
 ): string {
-    return JSON.stringify([name, index, direction]);
+    return encodeURIComponent(JSON.stringify([name, index, direction]));
 }
-function readHandle(
-    value: string | null | undefined,
-): { name: string; index: number | null } | null {
+function readHandle(value: string | null | undefined): {
+    name: string;
+    index: number | null;
+    direction: BackflowPortDirection;
+} | null {
     if (!value) return null;
     try {
-        const parsed: unknown = JSON.parse(value);
+        const parsed: unknown = JSON.parse(decodeURIComponent(value));
         if (
             !Array.isArray(parsed) ||
+            parsed.length !== 3 ||
             typeof parsed[0] !== "string" ||
-            !(parsed[1] === null || typeof parsed[1] === "number")
+            !(
+                parsed[1] === null ||
+                (typeof parsed[1] === "number" &&
+                    Number.isSafeInteger(parsed[1]) &&
+                    parsed[1] >= 0)
+            ) ||
+            !(
+                parsed[2] === BackflowPortDirection.Input ||
+                parsed[2] === BackflowPortDirection.Output
+            )
         )
             return null;
-        return { name: parsed[0], index: parsed[1] as number | null };
+        return {
+            name: parsed[0],
+            index: parsed[1] as number | null,
+            direction: parsed[2] as BackflowPortDirection,
+        };
     } catch {
         return null;
     }
@@ -144,7 +176,11 @@ function readHandle(
 function toEdge(connection: Connection | Edge): BackflowEdge | null {
     const source = readHandle(connection.sourceHandle);
     const target = readHandle(connection.targetHandle);
-    return source && target
+    return source &&
+        target &&
+        source.index === null &&
+        source.direction === BackflowPortDirection.Output &&
+        target.direction === BackflowPortDirection.Input
         ? {
               sourceNodeId: connection.source,
               sourcePort: source.name,
@@ -273,6 +309,7 @@ export function BackflowEditor({
                     },
                     selected: nodeSelection.includes(node.id),
                     data: {
+                        measurement: measurements.get(node.id),
                         descriptor,
                         slots,
                         renderNode,

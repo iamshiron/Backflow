@@ -81,7 +81,7 @@ public class ExecutionCancellationTests {
         await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
 
         Assert.True(node.DidExecute);
-        Assert.Equal(NodeState.Done, inst.State);
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(inst));
     }
 
     [Fact]

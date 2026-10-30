@@ -4,11 +4,12 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <BackflowCollectionsProject Condition="'$(BackflowCollectionsProject)' == ''">$(MSBuildThisFileDirectory)../../external/lib/src/Collections/Shiron.Lib.Collections.csproj</BackflowCollectionsProject>
     </PropertyGroup>
 
     <ItemGroup>
         <InternalsVisibleTo Include="Shiron.Backflow.Tests" />
-        <ProjectReference Include="..\..\external\lib\src\Collections\Shiron.Lib.Collections.csproj"/>
+        <ProjectReference Include="$(BackflowCollectionsProject)" />
     </ItemGroup>
 
 </Project>

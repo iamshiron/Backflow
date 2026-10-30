@@ -7,6 +7,15 @@ namespace Shiron.Backflow.Context;
 /// and <see cref="PipelineExecutor.ExecuteAsync"/>.
 /// </summary>
 public interface IPipelineContext {
+    /// <summary>Lifecycle state owned exclusively by this execution context.</summary>
+    PipelineExecutionState Execution { get; }
+
+    /// <summary>Gets immutable caller options of the requested reference type, if supplied.</summary>
+    TOptions? GetOptions<TOptions>() where TOptions : class => null;
+
+    /// <summary>Clears an execution-produced channel before the next run.</summary>
+    void Clear(int channel);
+
     /// <summary>Write via node + port (resolves to the shared channel).</summary>
     void Write<T>(PipelineBuilder.NodeInstance node, IPort port, T? value);
 

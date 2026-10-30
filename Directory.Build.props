@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <_BackflowRelativeProjectPath>$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)', '$(MSBuildProjectFullPath)'))</_BackflowRelativeProjectPath>
+    <_BackflowVersionedProject>$([System.Text.RegularExpressions.Regex]::IsMatch('$(_BackflowRelativeProjectPath)', '^src[/\\]'))</_BackflowVersionedProject>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_BackflowVersionedProject)' == 'true'">
+    <GitVersionPath>$(MSBuildThisFileDirectory)</GitVersionPath>
+    <GitVersion_CommandLineArguments>-config &quot;$(MSBuildThisFileDirectory)GitVersion.yml&quot;</GitVersion_CommandLineArguments>
+    <GitVersion_NoCacheEnabled>true</GitVersion_NoCacheEnabled>
+    <GitVersion_NoNormalizeEnabled>true</GitVersion_NoNormalizeEnabled>
+    <GitVersion_NoFetchEnabled>true</GitVersion_NoFetchEnabled>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(_BackflowVersionedProject)' == 'true'">
+    <PackageReference Include="GitVersion.MsBuild" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

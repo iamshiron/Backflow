@@ -145,7 +145,7 @@ public sealed class GitVersionTests(ITestOutputHelper output) {
             var repo = Path.Combine(Root, "seed");
             var project = Path.Combine(repo, "src", "Fixture");
             Directory.CreateDirectory(project);
-            foreach (var file in new[] { "GitVersion.yml", "Directory.Build.props", "Directory.Packages.props" })
+            foreach (var file in new[] { "GitVersion.yml", "Directory.Build.props", "Directory.Packages.props", "LICENSE" })
                 File.Copy(Path.Combine(_sourceRoot, file), Path.Combine(repo, file));
             await File.WriteAllTextAsync(Path.Combine(repo, ".gitignore"), "**/bin/\n**/obj/\n");
             await File.WriteAllTextAsync(Path.Combine(project, "Fixture.csproj"),

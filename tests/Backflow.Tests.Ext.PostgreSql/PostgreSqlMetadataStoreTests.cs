@@ -160,6 +160,34 @@ public sealed class PostgreSqlMetadataStoreTests(PostgreSqlFixture fixture) : IC
     }
 
     [PostgreSqlFact]
+    public async Task RuntimeRole_DocumentedDmlGrants_WorkWithoutSchemaDdlPrivileges() {
+        var options = Policy();
+        await PostgreSqlCacheProvisioner.ProvisionAsync(fixture.DataSource, options.Schema);
+        var role = "bf_role_" + Guid.NewGuid().ToString("N");
+        var password = Guid.NewGuid().ToString("N");
+        await ExecuteAsync($"""
+            CREATE ROLE "{role}" LOGIN PASSWORD '{password}';
+            GRANT USAGE ON SCHEMA "{options.Schema}" TO "{role}";
+            GRANT SELECT ON "{options.Schema}".schema_version TO "{role}";
+            GRANT SELECT, INSERT, UPDATE ON "{options.Schema}".cache_scopes TO "{role}";
+            GRANT SELECT, INSERT, UPDATE, DELETE ON "{options.Schema}".cache_entries TO "{role}";
+            """);
+        var connection = new NpgsqlConnectionStringBuilder(fixture.ConnectionString) { Username = role, Password = password };
+        await using var runtime = NpgsqlDataSource.Create(connection.ConnectionString);
+        using var cache = new PostgreSqlCache(runtime, options);
+        await cache.InitializeAsync();
+        await cache.SetAsync(Key(), Entry(7));
+        Assert.Equal(7, (await cache.TryGetAsync(Key())).Entry!.Outputs["result"].Value);
+        Assert.True(await cache.RemoveAsync(Key()));
+        await cache.SetAsync(Key(), Entry(8));
+        await cache.ClearAsync();
+        Assert.False((await cache.TryGetAsync(Key())).Found);
+        Assert.Equal(0, await cache.PruneAsync());
+        var denied = await Assert.ThrowsAsync<PostgresException>(() => PostgreSqlCacheProvisioner.ProvisionAsync(runtime, Policy().Schema));
+        Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, denied.SqlState);
+    }
+
+    [PostgreSqlFact]
     public async Task Executor_ActualImmutableContextOptions_IsolatesKeysAndRestoresAfterNewConnectionPool() {
         var options = Policy();
         await PostgreSqlCacheProvisioner.ProvisionAsync(fixture.DataSource, options.Schema);

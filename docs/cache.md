@@ -4,6 +4,10 @@ Backflow's standalone `ICache` and `IBlobStorage` contracts do not depend on an
 application database or hosting framework. This implementation uses JSON metadata
 and filesystem blobs. An S3/RustFS adapter can implement the same blob contract
 without changing the cache. PostgreSQL and S3 are not required by this backend.
+For transactional multi-process metadata persistence, see the standalone
+[PostgreSQL cache adapter](cache-postgresql.md). Both backends share bounded
+`CacheEntrySerializer` snapshots; switching metadata does not require executor or
+blob storage changes.
 
 ## Configuration
 

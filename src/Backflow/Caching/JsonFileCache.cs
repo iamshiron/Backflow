@@ -23,7 +23,8 @@ public sealed class JsonFileCache : ICache {
         PersistentFile.CheckPath(_filePath);
         Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
         _serializer = new CacheEntrySerializer(new CacheEntrySerializerOptions {
-            MaximumEntryBytes = (int) Math.Min(_options.MaximumEntryBytes, _options.MaximumPendingBytes),
+            MaximumEntryBytes = _options.MaximumEntryBytes,
+            MaximumSerializationBytes = (int) Math.Min(_options.MaximumEntryBytes, _options.MaximumPendingBytes),
             AllowedTypes = _options.AllowedTypes
         }, typeAdapters);
     }

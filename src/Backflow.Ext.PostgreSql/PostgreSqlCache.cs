@@ -25,7 +25,9 @@ public sealed class PostgreSqlCache : ICache, IAsyncDisposable {
         _operations = new(options.MaximumConcurrentOperations);
         _lifetimeToken = _lifetime.Token;
         _serializer = new(new CacheEntrySerializerOptions {
-            MaximumEntryBytes = (int) Math.Min(options.MaximumEntryBytes, options.MaximumTotalBytes), AllowedTypes = options.AllowedTypes
+            MaximumEntryBytes = options.MaximumEntryBytes,
+            MaximumSerializationBytes = (int) Math.Min(options.MaximumEntryBytes, options.MaximumTotalBytes),
+            AllowedTypes = options.AllowedTypes
         }, typeAdapters);
     }
 
@@ -74,24 +76,21 @@ public sealed class PostgreSqlCache : ICache, IAsyncDisposable {
         ValidateKey(key);
         using var deadline = Deadline(ct);
         await _operations.WaitAsync(deadline.Token).ConfigureAwait(false);
-        try { EnsureInitialized(); return await _store.RemoveAsync(key.CombinedHash, null, deadline.Token).ConfigureAwait(false); }
-        finally { _operations.Release(); }
+        try { EnsureInitialized(); return await _store.RemoveAsync(key.CombinedHash, null, deadline.Token).ConfigureAwait(false); } finally { _operations.Release(); }
     }
 
     /// <summary>Clears only this namespace, preserving its policy and independent blob storage.</summary>
     public async ValueTask ClearAsync(CancellationToken ct = default) {
         using var deadline = Deadline(ct);
         await _operations.WaitAsync(deadline.Token).ConfigureAwait(false);
-        try { EnsureInitialized(); await _store.ClearAsync(deadline.Token).ConfigureAwait(false); }
-        finally { _operations.Release(); }
+        try { EnsureInitialized(); await _store.ClearAsync(deadline.Token).ConfigureAwait(false); } finally { _operations.Release(); }
     }
 
     /// <summary>Explicit maintenance for expired/over-capacity metadata when no writes occur.</summary>
     public async Task<int> PruneAsync(CancellationToken ct = default) {
         using var deadline = Deadline(ct);
         await _operations.WaitAsync(deadline.Token).ConfigureAwait(false);
-        try { EnsureInitialized(); return await _store.PruneAsync(deadline.Token).ConfigureAwait(false); }
-        finally { _operations.Release(); }
+        try { EnsureInitialized(); return await _store.PruneAsync(deadline.Token).ConfigureAwait(false); } finally { _operations.Release(); }
     }
 
     ValueTask<(bool Found, ICacheEntry? Entry)> ICache.TryGetAsync(ICacheKey key) => TryGetAsync(key);

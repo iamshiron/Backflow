@@ -11,6 +11,33 @@ public sealed class CacheEntrySerializerTests {
     };
 
     [Fact]
+    public void TryDeserialize_SmallerSerializationBudget_AcceptsExistingSnapshotsWithoutWeakeningWriteLimit() {
+        var value = new string('x', 8192);
+        var entry = new CacheEntry {
+            NodeTypeName = "node", Inputs = new Dictionary<string, CachePortValue>(),
+            Outputs = new Dictionary<string, CachePortValue> { ["result"] = new(value, typeof(string).AssemblyQualifiedName!) }
+        };
+        var writer = new CacheEntrySerializer(new() { MaximumEntryBytes = 64 * 1024 });
+        var snapshot = writer.Serialize(Key(), entry);
+        var reader = new CacheEntrySerializer(new() { MaximumEntryBytes = 64 * 1024, MaximumSerializationBytes = 4096 });
+
+        Assert.True(reader.TryDeserialize(Key(), snapshot, out var restored));
+        Assert.Equal(value, restored!.Outputs["result"].Value);
+        Assert.Throws<InvalidDataException>(() => reader.Serialize(Key(), entry));
+        Assert.True(reader.TryDeserialize(Key(), snapshot, out _));
+
+        var entryLimited = new CacheEntrySerializer(new() { MaximumEntryBytes = 4096, MaximumSerializationBytes = 64 * 1024 });
+        Assert.False(entryLimited.TryDeserialize(Key(), snapshot, out _));
+        Assert.Throws<InvalidDataException>(() => entryLimited.Serialize(Key(), entry));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_InvalidSerializationBudget_Rejects(int budget) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheEntrySerializer(new() { MaximumSerializationBytes = budget }));
+
+    [Fact]
     public void Serialize_SharedAcrossConcurrentCalls_RestoresIndependentTypedSnapshots() {
         var serializer = new CacheEntrySerializer();
         var snapshots = new SerializedCacheEntry[64];

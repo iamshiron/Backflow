@@ -66,6 +66,9 @@ before constructing a cache/factory, never concurrently with registration.
   entry and pending budgets is enforced during emission. Rejected writes leave both
   prior entries and the trusted-type registry unchanged. Store rewrites likewise
   serialize into a bounded destination and evict/retry on budget exhaustion.
+  Pending capacity is only write admission: committed reads use `MaximumEntryBytes`,
+  independent of a reader's smaller pending buffer. Instances may use different
+  pending budgets without invalidating each other's valid persisted entries.
   Writer scratch reservations are capped at six times the byte budget plus 4096
   bytes for conservative UTF-8 token/growth requests; committed payloads cannot exceed
   the budget. Default string and raw-JSON converters reject oversized scalar inputs

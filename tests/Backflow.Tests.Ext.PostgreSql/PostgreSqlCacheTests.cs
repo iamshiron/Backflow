@@ -117,10 +117,15 @@ public sealed class PostgreSqlCacheTests {
         Assert.False((await cache.TryGetAsync(Key())).Found);
     }
 
-    [Fact]
-    public async Task SetAsync_OversizedLazyOutput_StopsBeforeReplacingCommittedValue() {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SetAsync_OversizedLazyOutput_StopsBeforeReplacingCommittedValue(bool limitTotalBytes) {
         var store = new MetadataDouble();
-        using var cache = new PostgreSqlCache(store, new() { MaximumEntryBytes = 1024 });
+        using var cache = new PostgreSqlCache(store, new() {
+            MaximumEntryBytes = limitTotalBytes ? 64 * 1024 : 1024,
+            MaximumTotalBytes = limitTotalBytes ? 1024 : 64 * 1024 * 1024
+        });
         await cache.InitializeAsync();
         await cache.SetAsync(Key(), Entry());
         var values = new CountingValues();

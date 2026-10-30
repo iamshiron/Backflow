@@ -66,6 +66,10 @@ is an immutable record and allowed types are snapshotted.
   provide the shared bounded snapshot/type-allowlist contract used by both JSON and
   PostgreSQL metadata backends.
 
+The shared serializer's `MaximumEntryBytes` controls accepted snapshots;
+`MaximumSerializationBytes` optionally narrows write admission only. JSON caches use
+this distinction to let small pending buffers read larger valid committed entries.
+
 Unlike buffered `JsonFileCache`, PostgreSQL Set commits before returning; no flush is
 needed. A disconnected commit can have an ambiguous result; retrying the same
 deterministic key is safe. There is no transaction spanning node execution, metadata

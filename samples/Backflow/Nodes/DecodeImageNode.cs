@@ -5,15 +5,18 @@ using Shiron.Backflow.Port.Builder;
 using Shiron.Backflow.Types;
 using Shiron.Backflow.Samples.Types;
 using Shiron.Backflow.Samples.Types.Meta;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using Shiron.Backflow.Samples.Imaging;
 
 namespace Shiron.Backflow.Samples.Nodes;
 
-public class DecodeImageNode : AbstractNode {
+/// <summary>Validates encoded image pixels and describes them without replacing the input storage.</summary>
+public sealed class DecodeImageNode : AbstractNode {
+    /// <summary>The encoded image buffer.</summary>
     public IInputPort<IBlob> In { get; }
+    /// <summary>The original image buffer with decoded metadata.</summary>
     public IOutputPort<IBlob<ImageMeta, IBufferData>> Out { get; }
 
+    /// <summary>Creates the image decoder ports.</summary>
     public DecodeImageNode() {
         In = Input(
             new BlobPortBuilder<IBlob>(nameof(In))
@@ -29,27 +32,9 @@ public class DecodeImageNode : AbstractNode {
         var blob = In.Read(context)!;
         var storage = (IBufferData) blob.Storage;
 
-        var info = await Image.IdentifyAsync(storage.OpenRead());
-
-        var frameCount = info.FrameMetadataCollection.Count;
-        var hasAlpha = info.PixelType?.AlphaRepresentation
-            is not (PixelAlphaRepresentation.None
-            or null);
-
-        var meta = new ImageMeta(
-            info.Width,
-            info.Height,
-            info.Metadata.DecodedImageFormat?.Name,
-            info.PixelType?.ToString(),
-            info.PixelType?.BitsPerPixel,
-            info.Metadata.HorizontalResolution,
-            info.Metadata.VerticalResolution,
-            hasAlpha,
-            frameCount > 1,
-            frameCount > 1 ? frameCount : null
-        );
-
-        Out.Write(context, new Blob<ImageMeta, IBufferData>(meta, storage));
+        var decoded = await SampleImageCodec.DecodeAsync(storage, context.CancellationToken);
+        using var bitmap = decoded.Bitmap;
+        Out.Write(context, new Blob<ImageMeta, IBufferData>(decoded.Meta, storage));
         return true;
     }
 }

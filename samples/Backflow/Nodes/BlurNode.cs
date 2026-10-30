@@ -6,17 +6,21 @@ using Shiron.Backflow.Samples.Port.Builder;
 using Shiron.Backflow.Types;
 using Shiron.Backflow.Samples.Types;
 using Shiron.Backflow.Samples.Types.Meta;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
+using Shiron.Backflow.Samples.Imaging;
 
 namespace Shiron.Backflow.Samples.Nodes;
 
-public class BlurNode : AbstractNode {
+/// <summary>Applies a Gaussian blur with clamped edges and emits an independent PNG buffer.</summary>
+public sealed class BlurNode : AbstractNode {
+    /// <summary>The encoded input image.</summary>
     public IInputPort<IBlob<ImageMeta, IBufferData>> In { get; }
+    /// <summary>The nonnegative Gaussian sigma in pixels; zero leaves pixels unchanged.</summary>
     public IInputPort<int> Radius { get; }
 
+    /// <summary>The blurred PNG image.</summary>
     public IOutputPort<IBlob<ImageMeta, IBufferData>> Out { get; }
 
+    /// <summary>Creates the image and sigma ports.</summary>
     public BlurNode() {
         UseCache = true;
 
@@ -40,16 +44,16 @@ public class BlurNode : AbstractNode {
         var data = In.Read(context)!;
         var radius = Radius.Read(context);
 
-        Console.WriteLine($"Data: {data}");
-        Console.WriteLine($"Stream: {data.Storage}");
+        ArgumentOutOfRangeException.ThrowIfNegative(radius);
+        var decoded = await SampleImageCodec.DecodeAsync(data.Storage, context.CancellationToken);
+        using var image = decoded.Bitmap;
+        if (radius == 0) {
+            Out.Write(context, SampleImageCodec.EncodePng(image, context.CancellationToken));
+            return true;
+        }
 
-        using var image = await Image.LoadAsync(data.Storage.OpenRead());
-        image.Mutate(i => i.GaussianBlur(radius));
-
-        using var ms = new MemoryStream();
-        await image.SaveAsPngAsync(ms);
-
-        Out.Write(context, new Blob<ImageMeta, IBufferData>(data.Meta, new BufferData(ms.ToArray())));
+        using var result = GaussianBlur.Apply(image, radius, context.CancellationToken);
+        Out.Write(context, SampleImageCodec.EncodePng(result, context.CancellationToken));
 
         return true;
     }

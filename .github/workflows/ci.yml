@@ -66,6 +66,9 @@ jobs:
     - name: Test
       run: dotnet test --no-build --configuration Release --verbosity minimal
 
+    - name: Test sample image codecs
+      run: dotnet test tests/Backflow.Samples.Tests/Shiron.Backflow.Samples.Tests.csproj --configuration Release --verbosity minimal
+
   test-cross-platform:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ${{ matrix.os }}
@@ -111,4 +114,6 @@ jobs:
       run: dotnet restore
 
     - name: Build and Test
-      run: dotnet test --configuration Release --verbosity minimal
+      run: |
+        dotnet test --configuration Release --verbosity minimal
+        dotnet test tests/Backflow.Samples.Tests/Shiron.Backflow.Samples.Tests.csproj --configuration Release --verbosity minimal

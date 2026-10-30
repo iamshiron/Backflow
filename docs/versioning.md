@@ -46,7 +46,7 @@ The separate version-policy project is intentionally invoked explicitly; it is n
 
 The tests establish exact versions from fixture tag `v1.2.3`: `1.2.4-dev.1`, `1.3.0-feat-fixture.2`, `1.3.0-dev.3` after a merge commit, `1.2.4-fix-patch.1`, and `2.0.0-feat-breaking.1`. A fixture-only release merge/tag produces `1.3.0`. A second history produces the same `1.2.4-build-topology.1` in an ordinary clone, linked worktree, and submodule inside a linked worktree. Each topology is actually built and packed; generated JSON, assembly version/provenance, package version, private dependency exclusion, and unchanged refs are checked. An unrelated nested project's restore confirms no GitVersion dependency/options leak into `external/`.
 
-Local Linux validation passed the full Release solution build, all 509 existing library/DI tests, and both separate versioning integration tests. The sample builds with its original dependency but still emits the six unsuppressed advisory findings below. Local packages for both existing source libraries were inspected: their versions match GitVersion, Ext.DI depends on that same Backflow package version, and neither exposes GitVersion.MsBuild as a consumer dependency. Windows/macOS fixture runs and remote CI results are not claimed by this local validation.
+Local Linux versioning validation passed the full Release solution build, all 509 existing library/DI tests, and both separate versioning integration tests. Local packages for both existing source libraries were inspected: their versions match GitVersion, Ext.DI depends on that same Backflow package version, and neither exposes GitVersion.MsBuild as a consumer dependency. Windows/macOS fixture runs and remote CI results are not claimed by this local validation. The subsequent sample codec replacement and its validation are described below.
 
 Formatting commands for this change:
 
@@ -66,6 +66,23 @@ dotnet pack src/Backflow.Ext.DI/Shiron.Backflow.Ext.DI.csproj --configuration Re
 
 Inspect the `.nuspec`, assembly metadata, version, and commit provenance before any separately authorized publication. Keep CLI and MSBuild versions aligned on future package-manager updates. A release requires an approved tag/history and clean full checkout; do not override `Version`/`PackageVersion` or disable GitVersion to manufacture a release. No package publication or release tag creation is part of this change.
 
-## Outstanding sample dependency vulnerability
+## Sample image dependency remediation
 
-The existing sample dependency `SixLabors.ImageSharp` 3.1.12 has six reported high/moderate advisories, including GHSA-j3p4-wp97-rph4. This is **not fixed** or suppressed here. NuGet resolved the latest stable 4.1.3 and the latest 3.x 3.2.0 during upgrade validation; both fail Release compilation without a Six Labors license. The latest 3.1.x still resolves to vulnerable 3.1.12. No license was available in this environment, so the original dependency is retained rather than bypassing enforcement or committing an unbuildable upgrade. A supplied valid license or an explicitly approved sample-library replacement is required before this security follow-up can be completed. The existing warnings-as-errors quality gate continues to surface these advisories.
+The sample-only `SixLabors.ImageSharp` dependency and its unused central version entry have been removed. Its six reported high/moderate advisories (including GHSA-j3p4-wp97-rph4) are no longer in the resolved dependency graph. The sample now uses permissively licensed SkiaSharp for actual decoding and PNG encoding, with `SkiaSharp.NativeAssets.Linux.NoDependencies` providing the Linux codec binary. Both packages were resolved to 4.154.0 using `dotnet add package`, not guessed or manually edited versions. There are no references to Tethys, license-enforcement bypasses, or advisory suppressions.
+
+The existing node ports remain unchanged:
+
+- `DecodeImageNode` fully decodes/validates the first image frame and returns the original encoded storage with its real dimensions, format, normalized RGBA pixel layout, alpha, and animation/frame-count metadata. The source storage still belongs to the caller. DPI is left unknown because this codec API does not expose it; no resolution is invented.
+- `GrayScaleNode` applies BT.709 luminance to straight RGBA channels and preserves alpha.
+- `BlurNode.Radius` remains Gaussian sigma in pixels (default 5), with a separable normalized kernel extending three sigma and clamped image edges. It convolves premultiplied color/alpha to avoid transparent-color halos, then returns straight RGBA. Zero sigma preserves pixels; negative sigma is rejected. Managed processing observes cancellation per pixel and returns its rented intermediate buffer in `finally`.
+- Both transformations return independent PNG byte buffers with dimensions/format/pixel/animation metadata describing the actual output, rather than carrying stale input metadata. Animated inputs are transformed as a single first-frame PNG. Opened read streams and every native decoder/data/bitmap/image object are disposed on success and failure; caller storage is never disposed by a node. Asynchronous input copying observes cancellation, while synchronous native decode/encode calls are checked before and after rather than claiming native preemption.
+
+The dedicated real-codec integration suite creates fixture PNG/JPEG bytes at runtime and verifies exact BT.709 primary-color pixels, alpha, dimensions/metadata, Gaussian impulse-response pixels, clamped uniform edges, transparent boundaries, zero-sigma identity, invalid/truncated images, read failures, pre/read cancellation, stream ownership, and independent output lifetime across repeated native allocations. Codec test doubles cannot establish these native compatibility/pixel properties. The sample tests are explicitly invoked in CI without changing the solution boundary.
+
+```bash
+dotnet test tests/Backflow.Samples.Tests/Shiron.Backflow.Samples.Tests.csproj --configuration Release --verbosity minimal
+dotnet build --configuration Release /p:TreatWarningsAsErrors=true
+dotnet list samples/Backflow/Shiron.Backflow.Samples.csproj package --vulnerable --include-transitive
+```
+
+Local Linux validation passes the full Release build with warnings treated as errors (zero warnings/errors), all 509 existing library/DI tests, 24 sample image checks, and both separate versioning tests. The solution-wide and sample-test vulnerability audits report no known vulnerable direct or transitive packages, without license requirements or suppressed warnings. This is evidence for the resolved dependency set and current advisory feed, not a guarantee against future advisories or validation of an unrelated application/inference stack.

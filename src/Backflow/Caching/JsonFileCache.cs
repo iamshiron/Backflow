@@ -171,8 +171,10 @@ public sealed class JsonFileCache : ICache {
             var dto = JsonSerializer.Deserialize<EntryDto>(envelope.Payload);
             if (dto is null || dto.Key != new KeyDto(key.NodeType, key.AssemblyVersion, key.InputHash, key.CombinedHash) ||
                 dto.CachedAt != envelope.CachedAt || dto.NodeTypeName is null) return null;
-            return new CacheEntry { NodeTypeName = dto.NodeTypeName, CachedAt = dto.CachedAt,
-                Inputs = DecodePorts(dto.Inputs), Outputs = DecodePorts(dto.Outputs) };
+            return new CacheEntry {
+                NodeTypeName = dto.NodeTypeName, CachedAt = dto.CachedAt,
+                Inputs = DecodePorts(dto.Inputs), Outputs = DecodePorts(dto.Outputs)
+            };
         } catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidDataException or ArgumentException) {
             return null;
         }

@@ -78,7 +78,7 @@ public sealed class RustFsIntegrationTests {
 
             var corruptKey = "owned/blobs/backflow-v1/" + ids[1];
             var head = await client.GetObjectMetadataAsync(bucket, corruptKey);
-            var overwrite = new PutObjectRequest { BucketName = bucket, Key = corruptKey, ContentBody = new string('x', (int)head.ContentLength) };
+            var overwrite = new PutObjectRequest { BucketName = bucket, Key = corruptKey, ContentBody = new string('x', (int) head.ContentLength) };
             foreach (var key in head.Metadata.Keys) overwrite.Metadata[key] = head.Metadata[key];
             await client.PutObjectAsync(overwrite);
             await using (var corrupted = await storage.OpenReadAsync(ids[1]))

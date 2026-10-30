@@ -10,8 +10,7 @@ internal static class PersistentFile {
             try {
                 if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
                     throw new IOException($"Symbolic links are not supported in storage paths: {current}");
-            } catch (FileNotFoundException) { }
-            catch (DirectoryNotFoundException) { }
+            } catch (FileNotFoundException) { } catch (DirectoryNotFoundException) { }
         }
     }
 

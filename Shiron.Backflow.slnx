@@ -8,12 +8,14 @@
     <Project Path="tests/Backflow.Tests/Shiron.Backflow.Tests.csproj" />
     <Project Path="tests/Backflow.Tests.Ext.DI/Shiron.Backflow.Tests.Ext.DI.csproj" />
     <Project Path="tests/Backflow.Tests.Ext.S3/Shiron.Backflow.Tests.Ext.S3.csproj" />
+    <Project Path="tests/Backflow.Tests.Ext.AspNetCore/Shiron.Backflow.Tests.Ext.AspNetCore.csproj" />
   </Folder>
   <Folder Name="/Benchmarks/">
     <Project Path="benchmarks/Backflow/Shiron.Backflow.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/Samples/">
     <Project Path="samples/Backflow/Shiron.Backflow.Samples.csproj" />
+    <Project Path="samples/Backflow.AspNetCore/Shiron.Backflow.Samples.AspNetCore.csproj" />
   </Folder>
   <Folder Name="/external/lib/">
     <Project Path="external/lib/src/Collections/Shiron.Lib.Collections.csproj" />
@@ -21,4 +23,5 @@
   <Project Path="src/Backflow/Shiron.Backflow.csproj" />
   <Project Path="src/Backflow.Ext.DI/Shiron.Backflow.Ext.DI.csproj" />
   <Project Path="src/Backflow.Ext.S3/Shiron.Backflow.Ext.S3.csproj" />
+  <Project Path="src/Backflow.Ext.AspNetCore/Shiron.Backflow.Ext.AspNetCore.csproj" />
 </Solution>

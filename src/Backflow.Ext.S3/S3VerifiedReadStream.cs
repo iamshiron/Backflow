@@ -36,7 +36,7 @@ internal sealed class S3VerifiedReadStream(GetObjectResponse response, long expe
             return count;
         } catch { Dispose(); throw; }
     }
-    private int Limit(int requested) => (int)Math.Min(requested, expectedLength - _read + 1);
+    private int Limit(int requested) => (int) Math.Min(requested, expectedLength - _read + 1);
     private void Verify(ReadOnlySpan<byte> data) {
         if (data.Length > 0) {
             _read += data.Length;

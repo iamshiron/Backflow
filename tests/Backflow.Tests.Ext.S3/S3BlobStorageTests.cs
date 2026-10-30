@@ -318,9 +318,11 @@ public sealed class S3BlobStorageTests {
             pages++;
             if (pages == 1) {
                 Assert.Null(request.ContinuationToken);
-                return Task.FromResult(new ListObjectsV2Response { IsTruncated = true, NextContinuationToken = "page-two",
+                return Task.FromResult(new ListObjectsV2Response {
+                    IsTruncated = true, NextContinuationToken = "page-two",
                     S3Objects = [new S3Object { Key = puts[0].Key }, new S3Object { Key = foreign },
-                        new S3Object { Key = "outside/" + new string('a', 32) }, new S3Object { Key = prefix + "../escape" }] });
+                        new S3Object { Key = "outside/" + new string('a', 32) }, new S3Object { Key = prefix + "../escape" }]
+                });
             }
             Assert.Equal("page-two", request.ContinuationToken);
             return Task.FromResult(new ListObjectsV2Response { IsTruncated = false, S3Objects = [new S3Object { Key = puts[1].Key }] });

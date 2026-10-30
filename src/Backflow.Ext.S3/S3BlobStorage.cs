@@ -118,8 +118,7 @@ public sealed class S3BlobStorage : IBlobStorage {
         CheckDisposed();
         var key = Key(blobId);
         GetObjectResponse response;
-        try { response = await _client.GetObjectAsync(new GetObjectRequest { BucketName = _options.Bucket, Key = key }, ct).ConfigureAwait(false); }
-        catch (AmazonS3Exception error) when (IsMissingObject(error)) {
+        try { response = await _client.GetObjectAsync(new GetObjectRequest { BucketName = _options.Bucket, Key = key }, ct).ConfigureAwait(false); } catch (AmazonS3Exception error) when (IsMissingObject(error)) {
             await ConfirmBucketAsync(ct).ConfigureAwait(false);
             throw new FileNotFoundException("Blob was not found.");
         }
@@ -194,8 +193,7 @@ public sealed class S3BlobStorage : IBlobStorage {
     }
 
     private async Task<GetObjectMetadataResponse?> HeadAsync(string key, CancellationToken ct) {
-        try { return await _client.GetObjectMetadataAsync(new GetObjectMetadataRequest { BucketName = _options.Bucket, Key = key }, ct).ConfigureAwait(false); }
-        catch (AmazonS3Exception error) when (IsMissingObject(error)) {
+        try { return await _client.GetObjectMetadataAsync(new GetObjectMetadataRequest { BucketName = _options.Bucket, Key = key }, ct).ConfigureAwait(false); } catch (AmazonS3Exception error) when (IsMissingObject(error)) {
             await ConfirmBucketAsync(ct).ConfigureAwait(false);
             return null;
         }

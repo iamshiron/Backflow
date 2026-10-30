@@ -10,4 +10,10 @@ public readonly record struct Pipeline(
     DirectedAcyclicGraph<PipelineBuilder.NodeInstance> Topology,
     PipelineBuilder.EdgeInstance[] Edges,
     CastRegistry CastRegistry
-);
+) {
+    /// <summary>Conversion rules snapshotted when the graph is compiled.</summary>
+    public CastRegistry CastRegistry { get; } = CastRegistry.Snapshot();
+
+    internal (Type[] channelTypes, Dictionary<Type, int> sizes) ChannelLayout { get; } =
+        PipelineBuilder.ComputeLayout(Topology, Edges);
+}

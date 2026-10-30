@@ -1,5 +1,6 @@
 using Shiron.Lib.Collections.Bucket;
 using Shiron.Backflow.Casting;
+using Shiron.Backflow.Caching;
 using Shiron.Backflow.Port;
 
 namespace Shiron.Backflow.Context;
@@ -12,12 +13,34 @@ namespace Shiron.Backflow.Context;
 public sealed class ArrayPipelineContext(
     CastRegistry castRegistry,
     ArrayBucketStore store,
-    Type[] channelTypes
-) : IPipelineContext {
+    Type[] channelTypes,
+    object? options = null
+) : IPipelineContext, ICacheIdentityProvider {
     private readonly CastRegistry _castRegistry = castRegistry;
     private readonly ArrayBucketStore _store = store;
-    private readonly Type[] _channelTypes = channelTypes;
+    private readonly Type[] _channelTypes = channelTypes.ToArray();
     private readonly Dictionary<int, int[]> _writeAtMasks = [];
+
+    /// <inheritdoc/>
+    public PipelineExecutionState Execution { get; } = new();
+
+    /// <inheritdoc/>
+    public TOptions? GetOptions<TOptions>() where TOptions : class => options as TOptions;
+
+    /// <inheritdoc/>
+    public object? CacheIdentity => options is ICacheIdentityProvider provider ? provider.CacheIdentity : options;
+
+    /// <inheritdoc/>
+    public void Clear(int channel) {
+        _store.Clear(channel);
+        _writeAtMasks.Remove(channel);
+    }
+
+    /// <summary>Creates an isolated context with caller-owned immutable execution options.</summary>
+    public static ArrayPipelineContext ForPipeline<TOptions>(Pipeline pipeline, TOptions options) where TOptions : class {
+        var (channelTypes, sizes) = PipelineBuilder.ComputeLayout(pipeline);
+        return new ArrayPipelineContext(pipeline.CastRegistry, new ArrayBucketStore(sizes), channelTypes, options);
+    }
 
     /// <summary>Create a context for a built pipeline, computing the channel layout from its topology.</summary>
     public static ArrayPipelineContext ForPipeline(Pipeline pipeline, CastRegistry? castRegistry = null) {
@@ -36,7 +59,7 @@ public sealed class ArrayPipelineContext(
     public static ArrayPipelineContext Create(CastRegistry? castRegistry, params Type[] channelTypes) {
         var registry = castRegistry ?? CastRegistry.CreateDefault();
         var totalChannels = channelTypes.Length;
-        var sizes = new Dictionary<Type, int>();
+        var sizes = new Dictionary<Type, int> { [typeof(object)] = totalChannels };
         foreach (var t in channelTypes) {
             var bucketType = t.IsValueType ? t : typeof(object);
             if (!sizes.ContainsKey(bucketType))
@@ -83,6 +106,7 @@ public sealed class ArrayPipelineContext(
             return (T?) _store.GetAny(channel, BucketType(channel));
 
         if (_castRegistry.TryGetCast(declaredType, typeof(T), out var rule)) {
+            if (rule is IStoredCastRule<T> typedRule) return typedRule.Read(_store, channel);
             var raw = _store.GetAny(channel, BucketType(channel));
             return raw is not null ? (T?) rule!.Cast(raw) : default;
         }

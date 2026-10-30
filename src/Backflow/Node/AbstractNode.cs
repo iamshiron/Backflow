@@ -6,7 +6,28 @@ namespace Shiron.Backflow.Node;
 /// <summary>
 /// Base class for pipeline nodes. Declare ports in the constructor via <see cref="Input"/> and <see cref="Output"/>.
 /// </summary>
+/// <remarks>
+/// Definitions are shared across graph occurrences and concurrent executions. Keep definitions and behaviors
+/// stateless after construction; read execution-dependent values from the supplied context. Registration or
+/// adding a node to a builder freezes its ports, behaviors and cache policy.
+/// </remarks>
 public abstract class AbstractNode {
+    private readonly List<Port.Port> _inputs = [];
+    private readonly List<Port.Port> _outputs = [];
+    private IReadOnlyList<Port.Port>? _ports;
+    private bool _frozen;
+    private bool _useCache;
+
+    internal void Freeze() {
+        if (_frozen) return;
+        _ports = Array.AsReadOnly(_inputs.Concat(_outputs).ToArray());
+        foreach (var port in _ports) port.Freeze();
+        _frozen = true;
+    }
+
+    private void EnsureMutable() {
+        if (_frozen) throw new InvalidOperationException("Node definitions cannot change after registration or compilation.");
+    }
     private readonly List<INodeBehavior> _behaviors = [];
     private INodeBehavior[] _behaviorSnapshot = [];
 
@@ -47,39 +68,49 @@ public abstract class AbstractNode {
 
     /// <summary>Attach a lifecycle behavior. <see cref="INodeBehavior.AttachPorts"/> is called immediately.</summary>
     protected void AddBehavior(INodeBehavior behavior) {
+        EnsureMutable();
         _behaviors.Add(behavior);
         behavior.AttachPorts(this);
         _behaviorSnapshot = _behaviors.ToArray();
     }
 
     /// <summary>All ports (inputs + outputs) on this node.</summary>
-    public List<Port.Port> Ports => Inputs.Concat(Outputs).ToList();
+    public IReadOnlyList<Port.Port> Ports => _ports ?? Array.AsReadOnly(_inputs.Concat(_outputs).ToArray());
     /// <summary>Input ports on this node.</summary>
-    public List<Port.Port> Inputs { get; } = [];
+    public IReadOnlyList<Port.Port> Inputs => _inputView ??= _inputs.AsReadOnly();
+    private IReadOnlyList<Port.Port>? _inputView;
     /// <summary>Output ports on this node.</summary>
-    public List<Port.Port> Outputs { get; } = [];
+    public IReadOnlyList<Port.Port> Outputs => _outputView ??= _outputs.AsReadOnly();
+    private IReadOnlyList<Port.Port>? _outputView;
 
     /// <summary>When <c>true</c>, the <see cref="PipelineExecutor"/> will cache this node's outputs.</summary>
-    public bool UseCache { get; protected set; }
+    public bool UseCache {
+        get => _useCache;
+        protected set { EnsureMutable(); _useCache = value; }
+    }
 
     /// <summary>Register and return a typed input port on this node.</summary>
     public IInputPort<T> Input<T>(IInputPort<T> port) {
-        Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
+        EnsureMutable();
+        _inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
     /// <summary>Register and return a typed array input port on this node.</summary>
     public IArrayInputPort<T> Input<T>(IArrayInputPort<T> port) {
-        Inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
+        EnsureMutable();
+        _inputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
     /// <summary>Register and return a typed output port on this node.</summary>
     public IOutputPort<T> Output<T>(IOutputPort<T> port) {
-        Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
+        EnsureMutable();
+        _outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
     /// <summary>Register and return a typed array output port on this node.</summary>
     public IArrayOutputPort<T> Output<T>(IArrayOutputPort<T> port) {
-        Outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
+        EnsureMutable();
+        _outputs.Add(port as Port.Port ?? throw new ArgumentException("Port must be an instance of Port<T>", nameof(port)));
         return port;
     }
 }

@@ -6,7 +6,11 @@ namespace Shiron.Backflow.Context;
 /// Per-node execution context. Provides typed read/write access to port values
 /// via the node's port-to-GUID mapping. Passed to <see cref="AbstractNode.ExecuteNodeAsync"/>.
 /// </summary>
+/// <remarks>Valid only during the current node invocation. Do not retain it or access it after completion.</remarks>
 public interface INodeContext {
+    /// <summary>Gets immutable caller options belonging to this execution only.</summary>
+    TOptions? GetOptions<TOptions>() where TOptions : class => null;
+
     /// <summary>Write a typed value to a port.</summary>
     void Write<T>(IPort port, T? value);
     /// <summary>Read a typed value from a port.</summary>

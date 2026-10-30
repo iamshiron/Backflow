@@ -100,7 +100,7 @@ public class SkipPropagationTests {
         ctx.Write(inst, node.ChipEnableBehavior.ChipEnable, false);
 
         new PipelineExecutor(pipeline).Execute(ctx);
-        Assert.Equal(NodeState.Skipped, inst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(inst));
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public class SkipPropagationTests {
         ctx.Write(inst, node.ChipEnableBehavior.ChipEnable, false);
 
         await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
-        Assert.Equal(NodeState.Skipped, inst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(inst));
     }
 
     [Fact]
@@ -132,8 +132,8 @@ public class SkipPropagationTests {
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
         new PipelineExecutor(pipeline).Execute(ctx);
-        Assert.Equal(NodeState.Skipped, srcInst.State);
-        Assert.Equal(NodeState.Skipped, destInst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(srcInst));
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(destInst));
     }
 
     [Fact]
@@ -151,8 +151,8 @@ public class SkipPropagationTests {
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
         await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
-        Assert.Equal(NodeState.Skipped, srcInst.State);
-        Assert.Equal(NodeState.Skipped, destInst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(srcInst));
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(destInst));
     }
 
     [Fact]
@@ -170,8 +170,8 @@ public class SkipPropagationTests {
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
         new PipelineExecutor(pipeline).Execute(ctx);
-        Assert.Equal(NodeState.Skipped, srcInst.State);
-        Assert.Equal(NodeState.Done, destInst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(srcInst));
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(destInst));
     }
 
     [Fact]
@@ -189,8 +189,8 @@ public class SkipPropagationTests {
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
         await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
-        Assert.Equal(NodeState.Skipped, srcInst.State);
-        Assert.Equal(NodeState.Done, destInst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(srcInst));
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(destInst));
     }
 
     [Fact]
@@ -212,9 +212,9 @@ public class SkipPropagationTests {
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, false);
 
         new PipelineExecutor(pipeline).Execute(ctx);
-        Assert.Equal(NodeState.Skipped, srcInst.State);
-        Assert.Equal(NodeState.Skipped, relayInst.State);
-        Assert.Equal(NodeState.Skipped, sinkInst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(srcInst));
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(relayInst));
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(sinkInst));
     }
 
     [Fact]
@@ -238,9 +238,9 @@ public class SkipPropagationTests {
         ctx.Write(normInst, normalSource.Out, 99);
 
         new PipelineExecutor(pipeline).Execute(ctx);
-        Assert.Equal(NodeState.Skipped, skipInst.State);
-        Assert.Equal(NodeState.Done, normInst.State);
-        Assert.Equal(NodeState.Skipped, destInst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(skipInst));
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(normInst));
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(destInst));
         Assert.False(dest.DidExecute);
     }
 
@@ -265,9 +265,9 @@ public class SkipPropagationTests {
         ctx.Write(normInst, normalSource.Out, 99);
 
         new PipelineExecutor(pipeline).Execute(ctx);
-        Assert.Equal(NodeState.Skipped, skipInst.State);
-        Assert.Equal(NodeState.Done, normInst.State);
-        Assert.Equal(NodeState.Done, destInst.State);
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(skipInst));
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(normInst));
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(destInst));
         Assert.True(dest.DidExecute);
     }
 
@@ -286,8 +286,8 @@ public class SkipPropagationTests {
         ctx.Write(srcInst, source.ChipEnableBehavior.ChipEnable, true);
 
         new PipelineExecutor(pipeline).Execute(ctx);
-        Assert.Equal(NodeState.Done, srcInst.State);
-        Assert.Equal(NodeState.Done, destInst.State);
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(srcInst));
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(destInst));
     }
 
     [Fact]
@@ -295,8 +295,9 @@ public class SkipPropagationTests {
         var builder = new PipelineBuilder(_registry);
         var inst = builder.AddNode(new SourceNode());
         var pipeline = builder.Build();
-        new PipelineExecutor(pipeline).Execute(ArrayPipelineContext.ForPipeline(pipeline));
-        Assert.Equal(NodeState.Done, inst.State);
+        var ctx = ArrayPipelineContext.ForPipeline(pipeline);
+        new PipelineExecutor(pipeline).Execute(ctx);
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(inst));
     }
 
     [Fact]
@@ -320,8 +321,8 @@ public class SkipPropagationTests {
         ctx.Write(instB, sharedNode.ChipEnableBehavior.ChipEnable, false);
 
         new PipelineExecutor(pipeline).Execute(ctx);
-        Assert.Equal(NodeState.Done, destAInst.State);
-        Assert.Equal(NodeState.Skipped, destBInst.State);
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(destAInst));
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(destBInst));
     }
 
     [Fact]
@@ -345,7 +346,7 @@ public class SkipPropagationTests {
         ctx.Write(instB, sharedNode.ChipEnableBehavior.ChipEnable, false);
 
         await new PipelineExecutor(pipeline).ExecuteAsync(ctx);
-        Assert.Equal(NodeState.Done, destAInst.State);
-        Assert.Equal(NodeState.Skipped, destBInst.State);
+        Assert.Equal(NodeState.Done, ctx.Execution.GetNodeState(destAInst));
+        Assert.Equal(NodeState.Skipped, ctx.Execution.GetNodeState(destBInst));
     }
 }

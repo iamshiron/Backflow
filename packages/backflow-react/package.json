@@ -1,0 +1,30 @@
+{
+    "name": "@shiron/backflow-react",
+    "version": "0.1.0",
+    "license": "AGPL-3.0-only",
+    "type": "module",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.lib.json",
+        "typecheck": "tsc -p tsconfig.lib.json --noEmit"
+    },
+    "dependencies": {
+        "@shiron/backflow-client": "workspace:*",
+        "ajv": "^8.20.0"
+    },
+    "peerDependencies": {
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "@xyflow/react": "^12.0.0"
+    }
+}

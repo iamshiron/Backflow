@@ -1,0 +1,516 @@
+{
+    "BackflowCatalogDescriptor": {
+        "type": "object",
+        "properties": {
+            "nodes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string"
+                        },
+                        "ports": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "direction": {
+                                        "type": "integer"
+                                    },
+                                    "clrType": {
+                                        "type": "string"
+                                    },
+                                    "schema": true,
+                                    "required": {
+                                        "type": "boolean"
+                                    },
+                                    "minimumCount": {
+                                        "type": ["string", "integer", "null"],
+                                        "pattern": "^-?(?:0|[1-9]\\d*)$"
+                                    },
+                                    "maximumCount": {
+                                        "type": ["string", "integer", "null"],
+                                        "pattern": "^-?(?:0|[1-9]\\d*)$"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "direction",
+                                    "clrType",
+                                    "schema",
+                                    "required",
+                                    "minimumCount",
+                                    "maximumCount"
+                                ]
+                            }
+                        },
+                        "isExecutable": {
+                            "type": "boolean"
+                        },
+                        "configurationSchema": {
+                            "default": null
+                        }
+                    },
+                    "required": ["id", "ports", "isExecutable"]
+                }
+            }
+        },
+        "required": ["nodes"]
+    },
+    "BackflowCompiledGraph": {
+        "type": "object",
+        "properties": {
+            "graph": {
+                "type": "object",
+                "properties": {
+                    "nodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "catalogId": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["id", "catalogId"]
+                        }
+                    },
+                    "edges": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "sourceNodeId": {
+                                    "type": "string"
+                                },
+                                "sourcePort": {
+                                    "type": "string"
+                                },
+                                "destinationNodeId": {
+                                    "type": "string"
+                                },
+                                "destinationPort": {
+                                    "type": "string"
+                                },
+                                "destinationIndex": {
+                                    "type": ["string", "integer", "null"],
+                                    "pattern": "^-?(?:0|[1-9]\\d*)$",
+                                    "default": null
+                                }
+                            },
+                            "required": [
+                                "sourceNodeId",
+                                "sourcePort",
+                                "destinationNodeId",
+                                "destinationPort"
+                            ]
+                        }
+                    }
+                },
+                "required": ["nodes", "edges"]
+            },
+            "topologicalNodeIds": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+        },
+        "required": ["graph", "topologicalNodeIds"]
+    },
+    "BackflowEdge": {
+        "type": "object",
+        "properties": {
+            "sourceNodeId": {
+                "type": "string"
+            },
+            "sourcePort": {
+                "type": "string"
+            },
+            "destinationNodeId": {
+                "type": "string"
+            },
+            "destinationPort": {
+                "type": "string"
+            },
+            "destinationIndex": {
+                "type": ["string", "integer", "null"],
+                "pattern": "^-?(?:0|[1-9]\\d*)$",
+                "default": null
+            }
+        },
+        "required": [
+            "sourceNodeId",
+            "sourcePort",
+            "destinationNodeId",
+            "destinationPort"
+        ]
+    },
+    "BackflowError": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "integer"
+            },
+            "message": {
+                "type": "string"
+            },
+            "nodeId": {
+                "type": ["string", "null"],
+                "default": null
+            },
+            "edgeIndex": {
+                "type": ["string", "integer", "null"],
+                "pattern": "^-?(?:0|[1-9]\\d*)$",
+                "default": null
+            }
+        },
+        "required": ["code", "message"]
+    },
+    "BackflowExecutionAccepted": {
+        "type": "object",
+        "properties": {
+            "jobId": {
+                "type": "string"
+            }
+        },
+        "required": ["jobId"]
+    },
+    "BackflowExecutionSubmission": {
+        "type": "object",
+        "properties": {
+            "graph": {
+                "type": "object",
+                "properties": {
+                    "nodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "catalogId": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["id", "catalogId"]
+                        }
+                    },
+                    "edges": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "sourceNodeId": {
+                                    "type": "string"
+                                },
+                                "sourcePort": {
+                                    "type": "string"
+                                },
+                                "destinationNodeId": {
+                                    "type": "string"
+                                },
+                                "destinationPort": {
+                                    "type": "string"
+                                },
+                                "destinationIndex": {
+                                    "type": ["string", "integer", "null"],
+                                    "pattern": "^-?(?:0|[1-9]\\d*)$",
+                                    "default": null
+                                }
+                            },
+                            "required": [
+                                "sourceNodeId",
+                                "sourcePort",
+                                "destinationNodeId",
+                                "destinationPort"
+                            ]
+                        }
+                    }
+                },
+                "required": ["nodes", "edges"]
+            },
+            "inputs": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "nodeId": {
+                            "type": "string"
+                        },
+                        "portName": {
+                            "type": "string"
+                        },
+                        "value": true
+                    },
+                    "required": ["nodeId", "portName", "value"]
+                }
+            }
+        },
+        "required": ["graph", "inputs"]
+    },
+    "BackflowGraph": {
+        "type": "object",
+        "properties": {
+            "nodes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string"
+                        },
+                        "catalogId": {
+                            "type": "string"
+                        }
+                    },
+                    "required": ["id", "catalogId"]
+                }
+            },
+            "edges": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "sourceNodeId": {
+                            "type": "string"
+                        },
+                        "sourcePort": {
+                            "type": "string"
+                        },
+                        "destinationNodeId": {
+                            "type": "string"
+                        },
+                        "destinationPort": {
+                            "type": "string"
+                        },
+                        "destinationIndex": {
+                            "type": ["string", "integer", "null"],
+                            "pattern": "^-?(?:0|[1-9]\\d*)$",
+                            "default": null
+                        }
+                    },
+                    "required": [
+                        "sourceNodeId",
+                        "sourcePort",
+                        "destinationNodeId",
+                        "destinationPort"
+                    ]
+                }
+            }
+        },
+        "required": ["nodes", "edges"]
+    },
+    "BackflowGraphResult": {
+        "type": "object",
+        "properties": {
+            "graph": {
+                "type": "object",
+                "properties": {
+                    "nodes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "catalogId": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["id", "catalogId"]
+                        }
+                    },
+                    "edges": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "sourceNodeId": {
+                                    "type": "string"
+                                },
+                                "sourcePort": {
+                                    "type": "string"
+                                },
+                                "destinationNodeId": {
+                                    "type": "string"
+                                },
+                                "destinationPort": {
+                                    "type": "string"
+                                },
+                                "destinationIndex": {
+                                    "type": ["string", "integer", "null"],
+                                    "pattern": "^-?(?:0|[1-9]\\d*)$",
+                                    "default": null
+                                }
+                            },
+                            "required": [
+                                "sourceNodeId",
+                                "sourcePort",
+                                "destinationNodeId",
+                                "destinationPort"
+                            ]
+                        }
+                    }
+                },
+                "required": ["nodes", "edges"]
+            }
+        },
+        "required": ["graph"]
+    },
+    "BackflowInput": {
+        "type": "object",
+        "properties": {
+            "nodeId": {
+                "type": "string"
+            },
+            "portName": {
+                "type": "string"
+            },
+            "value": true
+        },
+        "required": ["nodeId", "portName", "value"]
+    },
+    "BackflowNode": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "catalogId": {
+                "type": "string"
+            }
+        },
+        "required": ["id", "catalogId"]
+    },
+    "BackflowNodeDescriptor": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "ports": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "direction": {
+                            "type": "integer"
+                        },
+                        "clrType": {
+                            "type": "string"
+                        },
+                        "schema": true,
+                        "required": {
+                            "type": "boolean"
+                        },
+                        "minimumCount": {
+                            "type": ["string", "integer", "null"],
+                            "pattern": "^-?(?:0|[1-9]\\d*)$"
+                        },
+                        "maximumCount": {
+                            "type": ["string", "integer", "null"],
+                            "pattern": "^-?(?:0|[1-9]\\d*)$"
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "direction",
+                        "clrType",
+                        "schema",
+                        "required",
+                        "minimumCount",
+                        "maximumCount"
+                    ]
+                }
+            },
+            "isExecutable": {
+                "type": "boolean"
+            },
+            "configurationSchema": {
+                "default": null
+            }
+        },
+        "required": ["id", "ports", "isExecutable"]
+    },
+    "BackflowPortDescriptor": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string"
+            },
+            "direction": {
+                "type": "integer"
+            },
+            "clrType": {
+                "type": "string"
+            },
+            "schema": true,
+            "required": {
+                "type": "boolean"
+            },
+            "minimumCount": {
+                "type": ["string", "integer", "null"],
+                "pattern": "^-?(?:0|[1-9]\\d*)$"
+            },
+            "maximumCount": {
+                "type": ["string", "integer", "null"],
+                "pattern": "^-?(?:0|[1-9]\\d*)$"
+            }
+        },
+        "required": [
+            "name",
+            "direction",
+            "clrType",
+            "schema",
+            "required",
+            "minimumCount",
+            "maximumCount"
+        ]
+    },
+    "BackflowValidationResult": {
+        "type": "object",
+        "properties": {
+            "isValid": {
+                "type": "boolean"
+            },
+            "errors": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "code": {
+                            "type": "integer"
+                        },
+                        "message": {
+                            "type": "string"
+                        },
+                        "nodeId": {
+                            "type": ["string", "null"],
+                            "default": null
+                        },
+                        "edgeIndex": {
+                            "type": ["string", "integer", "null"],
+                            "pattern": "^-?(?:0|[1-9]\\d*)$",
+                            "default": null
+                        }
+                    },
+                    "required": ["code", "message"]
+                }
+            }
+        },
+        "required": ["isValid", "errors"]
+    }
+}

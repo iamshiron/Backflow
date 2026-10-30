@@ -39,6 +39,14 @@ it("renders an actual ReactFlow canvas and host children without installing a to
     expect(document.querySelector(".react-flow__controls")).toBeNull();
 });
 it("keeps literal port names, directions and indexed array slots distinct", () => {
+    const name = 'port "quoted" [1] \\ %\n';
+    const encoded = handleId(name, 3, BackflowPortDirection.Input);
+    expect(encoded).not.toMatch(/["\\\n\r]/);
+    expect(JSON.parse(decodeURIComponent(encoded))).toEqual([
+        name,
+        3,
+        BackflowPortDirection.Input,
+    ]);
     expect(handleId("port[1]", null, BackflowPortDirection.Input)).not.toBe(
         handleId("port", 1, BackflowPortDirection.Input),
     );

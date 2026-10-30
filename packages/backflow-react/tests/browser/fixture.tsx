@@ -12,6 +12,7 @@ import {
 import {
     addNode,
     createDocument,
+    connect,
     removeNode,
     type BackflowDocument,
 } from "../../src/document.js";
@@ -45,16 +46,72 @@ const catalog: BackflowCatalogDescriptor = {
                 },
             ],
         },
+        {
+            id: "browser.special",
+            isExecutable: false,
+            configurationSchema: null,
+            ports: [
+                {
+                    name: 'input "quoted" [slot] \\ %',
+                    direction: BackflowPortDirection.Input,
+                    clrType: "System.Int32",
+                    schema: { type: "integer" },
+                    required: false,
+                    minimumCount: null,
+                    maximumCount: null,
+                },
+                {
+                    name: 'output "quoted" [slot] \\ %',
+                    direction: BackflowPortDirection.Output,
+                    clrType: "System.Int32",
+                    schema: { type: "integer" },
+                    required: false,
+                    minimumCount: null,
+                    maximumCount: null,
+                },
+            ],
+        },
+        {
+            id: "browser.array",
+            isExecutable: false,
+            configurationSchema: null,
+            ports: [
+                {
+                    name: "input",
+                    direction: BackflowPortDirection.Input,
+                    clrType: "System.Int32[]",
+                    schema: { type: "array", items: { type: "integer" } },
+                    required: false,
+                    minimumCount: 0,
+                    maximumCount: 4,
+                },
+                {
+                    name: "output",
+                    direction: BackflowPortDirection.Output,
+                    clrType: "System.Int32",
+                    schema: { type: "integer" },
+                    required: false,
+                    minimumCount: null,
+                    maximumCount: null,
+                },
+            ],
+        },
     ],
 };
 function initialDocument(): BackflowDocument {
+    const query = new URLSearchParams(window.location.search);
+    const catalogId = query.has("special")
+        ? "browser.special"
+        : query.has("array")
+          ? "browser.array"
+          : "browser.fixture";
     return addNode(
-        addNode(createDocument(), catalog, "browser.fixture", "first", {
+        addNode(createDocument(), catalog, catalogId, "first", {
             x: 60,
             y: 80,
         }),
         catalog,
-        "browser.fixture",
+        catalogId,
         "second",
         { x: 420, y: 120 },
     );
@@ -68,6 +125,8 @@ export interface BrowserHarness {
     removeFirst(): void;
     restoreFirst(): void;
     setReadOnly(value: boolean): void;
+    connectFirstToSecond(): void;
+    disconnect(): void;
 }
 declare global {
     interface Window {
@@ -110,6 +169,35 @@ function Fixture() {
                     }),
                 ),
             setReadOnly,
+            connectFirstToSecond: () =>
+                setDocument((value) => {
+                    const declaration = catalog.nodes.find(
+                        (entry) => entry.id === value.graph.nodes[0]?.catalogId,
+                    );
+                    const output = declaration?.ports.find(
+                        (port) =>
+                            port.direction === BackflowPortDirection.Output,
+                    );
+                    const input = declaration?.ports.find(
+                        (port) =>
+                            port.direction === BackflowPortDirection.Input,
+                    );
+                    if (!output || !input)
+                        throw new Error("Missing fixture ports");
+                    return connect(value, catalog, {
+                        sourceNodeId: "first",
+                        sourcePort: output.name,
+                        destinationNodeId: "second",
+                        destinationPort: input.name,
+                        destinationIndex:
+                            input.minimumCount === null ? null : 0,
+                    });
+                }),
+            disconnect: () =>
+                setDocument((value) => ({
+                    ...value,
+                    graph: { ...value.graph, edges: [] },
+                })),
         };
     }, [document, instance, documentChanges]);
     return (

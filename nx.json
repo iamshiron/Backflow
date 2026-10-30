@@ -1,0 +1,17 @@
+{
+    "$schema": "./node_modules/nx/schemas/nx-schema.json",
+    "plugins": [
+        {
+            "plugin": "@nx/js/typescript",
+            "options": {
+                "typecheck": { "targetName": "typecheck" },
+                "build": {
+                    "targetName": "build",
+                    "configName": "tsconfig.lib.json"
+                }
+            }
+        }
+    ],
+    "neverConnectToCloud": true,
+    "analytics": false
+}

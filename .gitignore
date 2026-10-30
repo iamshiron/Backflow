@@ -16,3 +16,6 @@ logs.txt
 
 profiles
 BenchmarkDotNet.Artifacts
+node_modules/
+**/dist/
+.nx/

@@ -1,0 +1,24 @@
+{
+    "name": "@shiron/backflow-client",
+    "version": "0.1.0",
+    "license": "MIT",
+    "type": "module",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.lib.json",
+        "typecheck": "tsc -p tsconfig.lib.json --noEmit"
+    },
+    "dependencies": {
+        "ajv": "^8.20.0"
+    }
+}

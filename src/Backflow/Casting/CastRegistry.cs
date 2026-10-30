@@ -12,6 +12,7 @@ public class CastRegistry {
     private bool _frozen;
 
     internal CastRegistry Snapshot() {
+        if (_frozen) return this;
         var snapshot = new CastRegistry();
         foreach (var rule in _rules.Values) snapshot.Register(rule);
         snapshot._frozen = true;

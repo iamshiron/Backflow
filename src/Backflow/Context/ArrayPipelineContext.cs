@@ -16,7 +16,7 @@ public sealed class ArrayPipelineContext(
     Type[] channelTypes,
     object? options = null
 ) : IPipelineContext, ICacheIdentityProvider {
-    private readonly CastRegistry _castRegistry = castRegistry;
+    private readonly CastRegistry _castRegistry = castRegistry.Snapshot();
     private readonly ArrayBucketStore _store = store;
     private readonly Type[] _channelTypes = channelTypes.ToArray();
     private readonly Dictionary<int, int[]> _writeAtMasks = [];

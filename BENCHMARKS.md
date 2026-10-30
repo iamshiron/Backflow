@@ -17,15 +17,15 @@ listeners, array ports, and genuinely asynchronous nodes are deliberately exclud
 
 | Nodes | API | Mean | Standard deviation | Managed allocation/run |
 |---:|---|---:|---:|---:|
-| 1 | `Execute` | 251.2 ns | 1.43 ns | 0 B |
-| 1 | `ExecuteValueAsync` | 263.3 ns | 10.22 ns | 0 B |
-| 1 | `ExecuteAsync` | 265.5 ns | 1.26 ns | 96 B |
-| 32 | `Execute` | 7.801 µs | 0.254 µs | 0 B |
-| 32 | `ExecuteValueAsync` | 10.448 µs | 0.538 µs | 0 B |
-| 32 | `ExecuteAsync` | 11.379 µs | 0.483 µs | 96 B |
-| 256 | `Execute` | 61.235 µs | 0.359 µs | 0 B |
-| 256 | `ExecuteValueAsync` | 74.465 µs | 8.827 µs | 0 B |
-| 256 | `ExecuteAsync` | 61.666 µs | 0.705 µs | 96 B |
+| 1 | `Execute` | 276.1 ns | 24.49 ns | 0 B |
+| 1 | `ExecuteValueAsync` | 277.1 ns | 7.75 ns | 0 B |
+| 1 | `ExecuteAsync` | 303.4 ns | 55.90 ns | 96 B |
+| 32 | `Execute` | 7.491 µs | 0.099 µs | 0 B |
+| 32 | `ExecuteValueAsync` | 8.076 µs | 0.079 µs | 0 B |
+| 32 | `ExecuteAsync` | 7.559 µs | 0.017 µs | 96 B |
+| 256 | `Execute` | 68.331 µs | 8.731 µs | 0 B |
+| 256 | `ExecuteValueAsync` | 81.437 µs | 2.202 µs | 0 B |
+| 256 | `ExecuteAsync` | 58.325 µs | 0.647 µs | 96 B |
 
 `ReusableExecutionTests.ExecuteValueAsync_WarmedSynchronousTypedNodes_DoesNotAllocate` also measures
 1,000 executions after 1,000 warmups using `GC.GetAllocatedBytesForCurrentThread` for each graph size:

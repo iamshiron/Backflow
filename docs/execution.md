@@ -26,9 +26,10 @@ var state = context.Execution.GetNodeState(outputNode);
   caller-owned. The first execution preserves pre-seeded output channels for compatibility. To seed a
   graph differently after execution, write its unconnected inputs or create a fresh context.
 - Graph construction snapshots channel mappings, array counts, channel layout, and conversion rules.
-  Later builder changes do not alter an already built graph. Executors snapshot scheduling and indexed
-  connections. Treat the public `Topology` and `Edges` inspection handles as read-only; do not mutate a
-  built graph. `Layers` returns defensive arrays and frozen channel mappings.
+  Later builder changes do not alter an already built graph. Executors reuse its compiled scheduling
+  and precompile indexed connections. The public `Topology`, `Edges`, and executor `Layers` inspection
+  handles return defensive copies with frozen channel mappings; changing those copies cannot change
+  a compiled pipeline or an active execution.
 - Node definitions freeze their ports, behaviors, required flags, and cache policy when registered or
   added to a builder. Derived nodes, custom ports, validators, conversion delegates, and behaviors must
   themselves be stateless/thread-safe: the engine cannot make arbitrary caller-owned mutable fields

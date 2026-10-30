@@ -48,10 +48,10 @@ public sealed class ExecutorCacheRestoreTests {
         public void Dispose() { }
     }
 
-    private sealed class BrokenStorage(bool missing) : IBlobStorage, IBlobStorageResolver {
+    private sealed class BrokenStorage(bool missing, bool unregistered = false) : IBlobStorage, IBlobStorageResolver {
         public string Name => "test";
         public IBlobStorage Resolve(BlobMetadata? metadata) => this;
-        public IBlobStorage ResolveByName(string storageName) => this;
+        public IBlobStorage ResolveByName(string storageName) => unregistered ? throw new KeyNotFoundException("unregistered") : this;
         public ValueTask<string> StoreAsync(Stream data, BlobMetadata? metadata = null, CancellationToken ct = default) => new("recomputed");
         public ValueTask<Stream> OpenReadAsync(string blobId, CancellationToken ct = default) =>
             throw (missing ? new FileNotFoundException("missing") : new InvalidDataException("corrupt"));
@@ -86,16 +86,17 @@ public sealed class ExecutorCacheRestoreTests {
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ExecuteAsync_MissingOrCorruptCachedBlob_EvictsAndRecomputes(bool missing) {
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public async Task ExecuteAsync_MissingCorruptOrUnregisteredCachedBlob_EvictsAndRecomputes(bool missing, bool unregistered) {
         var node = new StreamNode();
         var builder = new PipelineBuilder(new NodeRegistry());
         var instance = builder.AddNode(node);
         var pipeline = builder.Build();
         var context = ArrayPipelineContext.ForPipeline(pipeline);
         using var cache = new MemoryCache(Entry(new BlobCacheEntry { ReferenceUri = new BlobReference("test", "broken").Uri.ToString() }));
-        using var storage = new BrokenStorage(missing);
+        using var storage = new BrokenStorage(missing, unregistered);
         var stats = await new PipelineExecutor(pipeline, cache, blobResolver: storage).ExecuteAsync(context);
         Assert.Equal(1, cache.Removed);
         Assert.Equal(1, cache.Stored);

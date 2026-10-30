@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Collections.Frozen;
 using Shiron.Lib.Collections;
 using Shiron.Backflow.Casting;
 using Shiron.Backflow.Config;
@@ -256,18 +255,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             allEdges.Add(new EdgeInstance(srcInstance, srcPort, dstInstance, dstPort));
         }
 
-        var snapshots = allInstances.Values.ToDictionary(node => node.ID, node => node with {
-            Mappings = node.Mappings.ToFrozenDictionary(),
-            ArrayCounts = node.ArrayCounts?.ToFrozenDictionary()
-        });
-        var frozenGraph = new DirectedAcyclicGraph<NodeInstance>();
-        foreach (var node in snapshots.Values) frozenGraph.AddNode(node);
-        var frozenEdges = allEdges.Select(edge => edge with {
-            SourceNode = snapshots[edge.SourceNode.ID],
-            DestinationNode = snapshots[edge.DestinationNode.ID]
-        }).ToArray();
-        foreach (var edge in frozenEdges) frozenGraph.AddEdge(edge.SourceNode, edge.DestinationNode);
-        return new Pipeline(frozenGraph, frozenEdges, CastRegistry);
+        return new Pipeline(graph, allEdges.ToArray(), CastRegistry);
     }
 
     /// <summary>

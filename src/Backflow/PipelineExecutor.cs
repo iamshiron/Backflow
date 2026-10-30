@@ -1,7 +1,5 @@
 using System.Collections;
-using System.Collections.Frozen;
 using System.Diagnostics;
-using System.Reflection;
 using System.Text.Json;
 using Shiron.Backflow.BlobStorage;
 using Shiron.Backflow.Caching;
@@ -30,17 +28,11 @@ public class PipelineExecutor(
     /// <summary>The execution layers, each layer contains nodes that can run in parallel.</summary>
     public PipelineBuilder.NodeInstance[][] Layers => _layers.Select(layer => layer.ToArray()).ToArray();
 
-    private readonly PipelineBuilder.NodeInstance[][] _layers = SnapshotLayers(pipeline);
-    private readonly Dictionary<string, int> _indices = pipeline.Topology.ToLayers().SelectMany(layer => layer)
+    private readonly PipelineBuilder.NodeInstance[][] _layers = pipeline.CompiledLayers;
+    private readonly Dictionary<string, int> _indices = pipeline.CompiledNodes
         .Select((node, index) => (node.ID, index)).ToDictionary(pair => pair.ID, pair => pair.index);
     private readonly Dictionary<string, IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>> _indexedInputs =
-        BuildAllIndexedInputs(pipeline.Edges);
-
-    private static PipelineBuilder.NodeInstance[][] SnapshotLayers(Pipeline pipeline) => pipeline.Topology.ToLayers()
-        .Select(layer => layer.Select(node => node with {
-            Mappings = node.Mappings.ToFrozenDictionary(),
-            ArrayCounts = node.ArrayCounts?.ToFrozenDictionary()
-        }).ToArray()).ToArray();
+        BuildAllIndexedInputs(pipeline.CompiledEdges);
 
     private static Dictionary<string, IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>> BuildAllIndexedInputs(PipelineBuilder.EdgeInstance[] edges) =>
         edges.Where(edge => edge.DestIndex.HasValue).GroupBy(edge => edge.DestinationNode.ID)
@@ -54,7 +46,7 @@ public class PipelineExecutor(
 
     private readonly ICacheKeyFactory _keyFactory = keyFactory ?? new CacheKeyFactory(typeAdapters);
     private readonly IPipelineEventListener? _listener = listener;
-    private readonly Dictionary<string, List<PipelineBuilder.EdgeInstance>> _incomingEdges = BuildIncomingEdges(pipeline.Edges);
+    private readonly Dictionary<string, List<PipelineBuilder.EdgeInstance>> _incomingEdges = BuildIncomingEdges(pipeline.CompiledEdges);
 
     private static Dictionary<string, List<PipelineBuilder.EdgeInstance>> BuildIncomingEdges(PipelineBuilder.EdgeInstance[] edges) {
         var result = new Dictionary<string, List<PipelineBuilder.EdgeInstance>>();
@@ -92,8 +84,8 @@ public class PipelineExecutor(
     public ValueTask<ExecutionStats> ExecuteValueAsync(IPipelineContext global, CancellationToken ct = default) =>
         ExecuteCoreAsync(global, true, ct);
 
-    private readonly PipelineBuilder.NodeInstance[] _nodes = SnapshotLayers(pipeline).SelectMany(layer => layer).ToArray();
-    private readonly int[] _outputChannels = pipeline.Topology.Nodes.SelectMany(node =>
+    private readonly PipelineBuilder.NodeInstance[] _nodes = pipeline.CompiledNodes;
+    private readonly int[] _outputChannels = pipeline.CompiledNodes.SelectMany(node =>
         node.Node.Outputs.Select(port => node.Mappings[port])).Distinct().ToArray();
 
     private async ValueTask<ExecutionStats> ExecuteCoreAsync(IPipelineContext global, bool parallel, CancellationToken ct) {
@@ -278,7 +270,7 @@ public class PipelineExecutor(
         try {
             RestoreOutputs(node, global, entry);
             return true;
-        } catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or ArgumentException) {
+        } catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or ArgumentException or KeyNotFoundException) {
             foreach (var port in node.Node.Outputs) global.Clear(node.Mappings[port]);
             await cache.RemoveAsync(key).ConfigureAwait(false);
             return false;
@@ -339,23 +331,22 @@ public class PipelineExecutor(
         var data = bufferData.Data;
         var metadata = new BlobMetadata { ContentLength = data.Length };
         var storage = blobResolver!.Resolve(metadata);
-        var blobId = storage.StoreAsync(new MemoryStream(data.ToArray()), metadata, ct).GetAwaiter().GetResult();
+        using var stream = bufferData.OpenRead();
+        var blobId = storage.StoreAsync(stream, metadata, ct).GetAwaiter().GetResult();
         return new BlobCacheEntry { ReferenceUri = new BlobReference(storage.Name, blobId).Uri.ToString() };
     }
 
     private BlobCacheEntry StoreBlobFromStream(IStreamData streamData, CancellationToken ct) {
-        var stream = streamData.OpenRead();
+        using var stream = streamData.OpenRead();
         var storage = blobResolver!.Resolve(null);
         var blobId = storage.StoreAsync(stream, null, ct).GetAwaiter().GetResult();
-        stream.Dispose();
         return new BlobCacheEntry { ReferenceUri = new BlobReference(storage.Name, blobId).Uri.ToString() };
     }
 
     private BlobCacheEntry StoreBlobFromBlob(IBlob blob, CancellationToken ct) {
-        var stream = blob.Storage.OpenRead();
+        using var stream = blob.Storage.OpenRead();
         var storage = blobResolver!.Resolve(null);
         var blobId = storage.StoreAsync(stream, null, ct).GetAwaiter().GetResult();
-        stream.Dispose();
 
         var reference = new BlobReference(storage.Name, blobId);
 

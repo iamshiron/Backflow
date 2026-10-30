@@ -120,9 +120,11 @@ public sealed class ReusableExecutionTests {
         var secondExecution = executor.ExecuteAsync(second);
         release.SetResult();
         await Task.WhenAll(firstExecution, secondExecution);
-        Assert.Equal([10, 11], first.Read<int[]>(targetInstance, target.Out));
-        Assert.Equal([20, 22], second.Read<int[]>(targetInstance, target.Out));
-        Assert.NotSame(first.Read<int[]>(targetInstance, target.Out), second.Read<int[]>(targetInstance, target.Out));
+        var firstArray = Assert.IsType<int[]>(first.Read<int[]>(targetInstance, target.Out));
+        var secondArray = Assert.IsType<int[]>(second.Read<int[]>(targetInstance, target.Out));
+        Assert.Equal([10, 11], firstArray);
+        Assert.Equal([20, 22], secondArray);
+        Assert.NotSame(firstArray, secondArray);
         Assert.NotSame(first.GetSuppliedMask(targetInstance.Mappings[target.Values]), second.GetSuppliedMask(targetInstance.Mappings[target.Values]));
     }
 
@@ -282,6 +284,29 @@ public sealed class ReusableExecutionTests {
     }
 
     [Fact]
+    public void Execute_InspectionCopiesCannotMutateCompiledGraphOrChannels() {
+        var definition = new CopyNode();
+        var builder = new PipelineBuilder(new NodeRegistry());
+        var source = builder.AddNode(definition);
+        var sink = builder.AddNode(definition);
+        builder.AddConnection(source, definition.Out, sink, definition.In);
+        var pipeline = builder.Build();
+        pipeline.Topology.RemoveNode(source);
+        var edges = pipeline.Edges;
+        edges[0] = default;
+        var executor = new PipelineExecutor(pipeline);
+        var layers = executor.Layers;
+        layers[0][0] = sink;
+        var context = ArrayPipelineContext.ForPipeline(pipeline);
+        context.Write(source, definition.In, 17);
+        executor.Execute(context);
+        Assert.Equal(17, context.Read<int>(sink, definition.Out));
+        Assert.Equal(2, pipeline.Topology.Nodes.Count());
+        Assert.Equal(source.ID, pipeline.Edges[0].SourceNode.ID);
+        Assert.False(pipeline.Topology.Nodes.First().Mappings is Dictionary<IPort, int>);
+    }
+
+    [Fact]
     public void AddNode_RegisteredDefinition_RejectsMetadataMutation() {
         var definition = new CopyNode();
         var builder = new PipelineBuilder(new NodeRegistry());
@@ -311,6 +336,19 @@ public sealed class ReusableExecutionTests {
         builder.RegisterCast<int, string>(TypeCast.Lossless, value => $"after:{value}");
         Assert.Equal("before:3", pipeline.CastRegistry.Cast<int, string>(3));
         Assert.Throws<InvalidOperationException>(() => pipeline.CastRegistry.Register<int, string>(TypeCast.Lossless, value => value.ToString()));
+    }
+
+    [Fact]
+    public void Create_CustomContextConversions_AreIsolatedFromLaterRegistryChanges() {
+        var registry = new CastRegistry();
+        registry.Register<int, double>(TypeCast.Lossless, value => value + 1d);
+        var first = ArrayPipelineContext.Create(registry, typeof(int));
+        registry.Register<int, double>(TypeCast.Lossless, value => value + 2d);
+        var second = ArrayPipelineContext.Create(registry, typeof(int));
+        first.Write(0, 10);
+        second.Write(0, 10);
+        Assert.Equal(11d, first.Read<double>(0));
+        Assert.Equal(12d, second.Read<double>(0));
     }
 
     [Fact]

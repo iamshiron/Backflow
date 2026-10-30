@@ -7,6 +7,7 @@
   <Folder Name="/Tests/">
     <Project Path="tests/Backflow.Tests/Shiron.Backflow.Tests.csproj" />
     <Project Path="tests/Backflow.Tests.Ext.DI/Shiron.Backflow.Tests.Ext.DI.csproj" />
+    <Project Path="tests/Backflow.Tests.Ext.S3/Shiron.Backflow.Tests.Ext.S3.csproj" />
   </Folder>
   <Folder Name="/Benchmarks/">
     <Project Path="benchmarks/Backflow/Shiron.Backflow.Benchmarks.csproj" />
@@ -19,4 +20,5 @@
   </Folder>
   <Project Path="src/Backflow/Shiron.Backflow.csproj" />
   <Project Path="src/Backflow.Ext.DI/Shiron.Backflow.Ext.DI.csproj" />
+  <Project Path="src/Backflow.Ext.S3/Shiron.Backflow.Ext.S3.csproj" />
 </Solution>

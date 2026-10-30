@@ -105,6 +105,9 @@ git submodule update --init --recursive
 
 ## Dependencies
 
+Optional independent storage backends: [JSON/filesystem cache](docs/cache.md),
+[PostgreSQL metadata cache](docs/cache-postgresql.md), and [S3/RustFS blobs](docs/blob-storage-s3.md).
+
 - [Shiron.Lib](https://github.com/iamshiron/lib) — git submodule at `external/lib`; provides `DirectedAcyclicGraph<T>` and `ArrayBucketStore`.
 
 ## License

@@ -9,6 +9,7 @@
     <Project Path="tests/Backflow.Tests.Ext.DI/Shiron.Backflow.Tests.Ext.DI.csproj" />
     <Project Path="tests/Backflow.Tests.Ext.S3/Shiron.Backflow.Tests.Ext.S3.csproj" />
     <Project Path="tests/Backflow.Tests.Ext.AspNetCore/Shiron.Backflow.Tests.Ext.AspNetCore.csproj" />
+    <Project Path="tests/Backflow.Tests.Ext.PostgreSql/Shiron.Backflow.Tests.Ext.PostgreSql.csproj" />
   </Folder>
   <Folder Name="/Benchmarks/">
     <Project Path="benchmarks/Backflow/Shiron.Backflow.Benchmarks.csproj" />
@@ -24,4 +25,5 @@
   <Project Path="src/Backflow.Ext.DI/Shiron.Backflow.Ext.DI.csproj" />
   <Project Path="src/Backflow.Ext.S3/Shiron.Backflow.Ext.S3.csproj" />
   <Project Path="src/Backflow.Ext.AspNetCore/Shiron.Backflow.Ext.AspNetCore.csproj" />
+  <Project Path="src/Backflow.Ext.PostgreSql/Shiron.Backflow.Ext.PostgreSql.csproj" />
 </Solution>

@@ -2,6 +2,9 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Collections;
 using Shiron.Backflow.Caching;
 using Xunit;
 
@@ -17,6 +20,88 @@ public sealed class JsonFileCacheDurabilityTests : IDisposable {
         Inputs = new Dictionary<string, CachePortValue>(),
         Outputs = new Dictionary<string, CachePortValue> { ["value"] = new(value, typeof(int).AssemblyQualifiedName!) }
     };
+
+    [Fact]
+    public async Task SetAsync_LargeLazyEnumerable_StopsDuringEmissionAndPreservesPendingAndPersistedEntries() {
+        using var cache = new JsonFileCache(CachePath, options: new JsonFileCacheOptions { MaximumEntryBytes = 1024 });
+        await cache.SetAsync(Key(), Entry(1));
+        await cache.FlushAsync();
+        var persisted = await File.ReadAllBytesAsync(CachePath);
+        await cache.SetAsync(Key(), Entry(2));
+        var values = new CountingValues();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => cache.SetAsync(Key(), EntryWithValue(values)).AsTask());
+
+        Assert.InRange(values.Visited, 1, 4096);
+        Assert.Equal(2, (await cache.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+        Assert.Equal(persisted, await File.ReadAllBytesAsync(CachePath));
+        await cache.FlushAsync();
+        using var reopened = new JsonFileCache(CachePath);
+        Assert.Equal(2, (await reopened.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SetAsync_LargeIncrementalConverter_EnforcesEntryAndPendingLimitsWithoutTrustingRejectedTypes(bool constrainPending) {
+        var adapters = new CacheTypeAdapterRegistry();
+        adapters.Register(new CountingOutputConverter());
+        using var cache = new JsonFileCache(CachePath, adapters, new JsonFileCacheOptions {
+            MaximumEntryBytes = constrainPending ? 1024 * 1024 : 1024,
+            MaximumPendingBytes = constrainPending ? 1024 : 1024 * 1024
+        });
+        await cache.SetAsync(Key(), Entry());
+        var output = new CountingOutput();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => cache.SetAsync(Key(), EntryWithValue(output)).AsTask());
+
+        Assert.InRange(output.Emitted, 1, 1024);
+        Assert.Equal(1, (await cache.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+        var rejectedTypeNull = new CacheEntry {
+            NodeTypeName = "node", Inputs = new Dictionary<string, CachePortValue>(),
+            Outputs = new Dictionary<string, CachePortValue> { ["value"] = new(null, typeof(CountingOutput).AssemblyQualifiedName!) }
+        };
+        await Assert.ThrowsAsync<ArgumentException>(() => cache.SetAsync(Key("untrusted"), rejectedTypeNull).AsTask());
+        await cache.FlushAsync();
+        using var reopened = new JsonFileCache(CachePath);
+        Assert.Equal(1, (await reopened.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+    }
+
+    [Fact]
+    public async Task SetAsync_LargeEscapedString_RejectsBeforeUnboundedEscapingAllocation() {
+        using var cache = new JsonFileCache(CachePath, options: new JsonFileCacheOptions { MaximumEntryBytes = 1024 });
+        await cache.SetAsync(Key(), Entry());
+        var entry = EntryWithValue(new string('\n', 1024 * 1024));
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        await Assert.ThrowsAsync<InvalidDataException>(() => cache.SetAsync(Key(), entry).AsTask());
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(allocated, 0, 256 * 1024);
+        Assert.True((await cache.TryGetAsync(Key())).Found);
+    }
+
+    [Fact]
+    public async Task SetAsync_LargeEscapedJsonElement_RejectsBeforeUnboundedTokenUnescaping() {
+        using var cache = new JsonFileCache(CachePath, options: new JsonFileCacheOptions { MaximumEntryBytes = 1024 });
+        await cache.SetAsync(Key(), Entry());
+        using var document = JsonDocument.Parse("\"" + string.Concat(Enumerable.Repeat("\\n", 1024 * 1024)) + "\"");
+        var entry = EntryWithValue(document.RootElement);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        await Assert.ThrowsAsync<InvalidDataException>(() => cache.SetAsync(Key(), entry).AsTask());
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.InRange(allocated, 0, 256 * 1024);
+        Assert.True((await cache.TryGetAsync(Key())).Found);
+    }
+
+    [Fact]
+    public async Task FlushAsync_StoreByteLimit_EvictsBeforeMaterializingOversizedStore() {
+        using var cache = new JsonFileCache(CachePath, options: new JsonFileCacheOptions { MaximumStoreBytes = 2048 });
+        foreach (var i in Enumerable.Range(0, 10)) await cache.SetAsync(Key(i.ToString()), Entry(i));
+        await cache.FlushAsync();
+        Assert.InRange(new FileInfo(CachePath).Length, 1, 2048);
+        using var reopened = new JsonFileCache(CachePath);
+        Assert.True((await reopened.TryGetAsync(Key("9"))).Found);
+        Assert.False((await reopened.TryGetAsync(Key("0"))).Found);
+    }
 
     [Fact]
     public async Task TryGetAsync_CustomCombinedHashCollision_VerifiesCompleteKeyBeforeHit() {
@@ -224,6 +309,36 @@ public sealed class JsonFileCacheDurabilityTests : IDisposable {
     }
 
     private sealed record TrustedValue(int Number);
+    private static CacheEntry EntryWithValue(object value) => new() {
+        NodeTypeName = "node", Inputs = new Dictionary<string, CachePortValue>(),
+        Outputs = new Dictionary<string, CachePortValue> { ["value"] = new(value, value.GetType().AssemblyQualifiedName!) }
+    };
+    private sealed class CountingValues : IEnumerable<int> {
+        public int Visited { get; private set; }
+        public IEnumerator<int> GetEnumerator() {
+            for (var i = 0; i < 1_000_000; i++) {
+                Visited++;
+                yield return i;
+            }
+        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+    private sealed class CountingOutput {
+        public int Emitted { get; set; }
+    }
+    private sealed class CountingOutputConverter : JsonConverter<CountingOutput> {
+        public override CountingOutput Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            throw new NotSupportedException("Only rejected writes are tested.");
+        public override void Write(Utf8JsonWriter writer, CountingOutput value, JsonSerializerOptions options) {
+            writer.WriteStartArray();
+            for (var i = 0; i < 1_000_000; i++) {
+                value.Emitted++;
+                writer.WriteNumberValue(i);
+                writer.Flush();
+            }
+            writer.WriteEndArray();
+        }
+    }
     private sealed record CollisionKey(string NodeType, string AssemblyVersion, string InputHash, string CombinedHash) : ICacheKey;
     private sealed class UntrustedValue {
         public UntrustedValue() => throw new InvalidOperationException("Must never be activated from a file type name.");

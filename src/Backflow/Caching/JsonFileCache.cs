@@ -27,6 +27,9 @@ public sealed class JsonFileCache : ICache {
         Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
         typeAdapters?.ApplyTo(_jsonOptions);
         _jsonOptions.Converters.Add(new BlobReferenceJsonConverter());
+        _jsonOptions.Converters.Add(new BoundedJsonStringConverter(EntryByteLimit));
+        _jsonOptions.Converters.Add(new BoundedJsonElementConverter(EntryByteLimit));
+        _jsonOptions.Converters.Add(new BoundedJsonDocumentConverter(EntryByteLimit));
         Type[] defaults = [typeof(bool), typeof(byte), typeof(sbyte), typeof(short), typeof(ushort), typeof(int), typeof(uint),
             typeof(long), typeof(ulong), typeof(float), typeof(double), typeof(decimal), typeof(char), typeof(string),
             typeof(Guid), typeof(DateTime), typeof(DateTimeOffset), typeof(TimeSpan), typeof(JsonElement),
@@ -69,13 +72,30 @@ public sealed class JsonFileCache : ICache {
         await _lock.WaitAsync().ConfigureAwait(false);
         try {
             ThrowIfDisposed();
-            var dto = new EntryDto(new KeyDto(key.NodeType, key.AssemblyVersion, key.InputHash, key.CombinedHash),
-                entry.NodeTypeName, entry.CachedAt, EncodePorts(entry.Inputs), EncodePorts(entry.Outputs));
-            var payload = JsonSerializer.Serialize(dto);
-            var size = Encoding.UTF8.GetByteCount(payload);
-            if (size > _options.MaximumEntryBytes || size > _options.MaximumPendingBytes)
-                throw new InvalidDataException("Cache entry exceeds MaximumEntryBytes.");
-            _pending[key.CombinedHash] = new Envelope(payload, Hash(payload), entry.CachedAt);
+            var buffer = new BoundedJsonBuffer(EntryByteLimit);
+            var trustedTypes = new HashSet<Type>();
+            using (var writer = new Utf8JsonWriter(buffer)) {
+                writer.WriteStartObject();
+                writer.WritePropertyName(nameof(EntryDto.Key));
+                writer.WriteStartObject();
+                WriteBoundedString(writer, nameof(KeyDto.NodeType), key.NodeType);
+                WriteBoundedString(writer, nameof(KeyDto.AssemblyVersion), key.AssemblyVersion);
+                WriteBoundedString(writer, nameof(KeyDto.InputHash), key.InputHash);
+                WriteBoundedString(writer, nameof(KeyDto.CombinedHash), key.CombinedHash);
+                writer.WriteEndObject();
+                WriteBoundedString(writer, nameof(EntryDto.NodeTypeName), entry.NodeTypeName);
+                writer.WriteString(nameof(EntryDto.CachedAt), entry.CachedAt);
+                writer.WritePropertyName(nameof(EntryDto.Inputs));
+                WritePorts(writer, entry.Inputs, trustedTypes);
+                writer.WritePropertyName(nameof(EntryDto.Outputs));
+                WritePorts(writer, entry.Outputs, trustedTypes);
+                writer.WriteEndObject();
+                writer.Flush();
+            }
+            var payload = Encoding.UTF8.GetString(buffer.WrittenSpan);
+            var envelope = new Envelope(payload, Hash(payload), entry.CachedAt);
+            foreach (var type in trustedTypes) RegisterType(type);
+            _pending[key.CombinedHash] = envelope;
             Prune(_pending);
             long pendingBytes = _pending.Values.Sum(e => (long) Encoding.UTF8.GetByteCount(e.Payload));
             foreach (var oldest in OldestFirst(_pending)) {
@@ -141,6 +161,7 @@ public sealed class JsonFileCache : ICache {
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+    private int EntryByteLimit => (int) Math.Min(_options.MaximumEntryBytes, _options.MaximumPendingBytes);
     private ValueTask<FileStream> AcquireAsync() => PersistentFile.AcquireAsync(_filePath + ".lock", _options.LockTimeout);
     private static string Hash(string payload) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
 
@@ -149,19 +170,37 @@ public sealed class JsonFileCache : ICache {
         if (type.FullName is { } full) _types[full] = type;
     }
 
-    private Dictionary<string, PortDto> EncodePorts(IReadOnlyDictionary<string, CachePortValue> ports) {
-        return ports.ToDictionary(p => p.Key, p => {
-            var value = p.Value;
+    private void WriteBoundedString(Utf8JsonWriter writer, string name, string value) {
+        ValidateString(value);
+        writer.WriteString(name, value);
+    }
+
+    private void ValidateString(string value) {
+        if (value.Length > EntryByteLimit) throw new InvalidDataException("String cannot fit in the configured cache byte budget.");
+    }
+
+    private void WritePorts(Utf8JsonWriter writer, IReadOnlyDictionary<string, CachePortValue> ports, HashSet<Type> trustedTypes) {
+        writer.WriteStartObject();
+        foreach (var port in ports) {
+            var value = port.Value;
             if (value.Value is { } instance) {
                 var type = instance.GetType();
                 if (value.TypeName != type.AssemblyQualifiedName && value.TypeName != type.FullName)
                     throw new ArgumentException("Cache value type name must match its runtime type.");
-                RegisterType(type);
-            } else if (value.TypeName != "null" && !_types.ContainsKey(value.TypeName)) {
+                trustedTypes.Add(type);
+            } else if (value.TypeName != "null" && !_types.ContainsKey(value.TypeName) &&
+                !trustedTypes.Any(t => t.AssemblyQualifiedName == value.TypeName || t.FullName == value.TypeName)) {
                 throw new ArgumentException("Null cache values require an allowed type or the null marker.");
             }
-            return new PortDto(value.TypeName, JsonSerializer.SerializeToElement(value.Value, _jsonOptions));
-        }, StringComparer.Ordinal);
+            ValidateString(port.Key);
+            writer.WritePropertyName(port.Key);
+            writer.WriteStartObject();
+            WriteBoundedString(writer, nameof(PortDto.TypeName), value.TypeName);
+            writer.WritePropertyName(nameof(PortDto.Value));
+            JsonSerializer.Serialize(writer, value.Value, _jsonOptions);
+            writer.WriteEndObject();
+        }
+        writer.WriteEndObject();
     }
 
     private ICacheEntry? Decode(Envelope envelope, ICacheKey key) {
@@ -171,8 +210,10 @@ public sealed class JsonFileCache : ICache {
             var dto = JsonSerializer.Deserialize<EntryDto>(envelope.Payload);
             if (dto is null || dto.Key != new KeyDto(key.NodeType, key.AssemblyVersion, key.InputHash, key.CombinedHash) ||
                 dto.CachedAt != envelope.CachedAt || dto.NodeTypeName is null) return null;
-            return new CacheEntry { NodeTypeName = dto.NodeTypeName, CachedAt = dto.CachedAt,
-                Inputs = DecodePorts(dto.Inputs), Outputs = DecodePorts(dto.Outputs) };
+            return new CacheEntry {
+                NodeTypeName = dto.NodeTypeName, CachedAt = dto.CachedAt,
+                Inputs = DecodePorts(dto.Inputs), Outputs = DecodePorts(dto.Outputs)
+            };
         } catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidDataException or ArgumentException) {
             return null;
         }
@@ -220,13 +261,20 @@ public sealed class JsonFileCache : ICache {
     }
 
     private async Task WriteStoreAsync(Dictionary<string, Envelope> store) {
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new StoreDto(2, store));
-        foreach (var oldest in OldestFirst(store)) {
-            if (bytes.LongLength <= _options.MaximumStoreBytes) break;
-            store.Remove(oldest);
-            bytes = JsonSerializer.SerializeToUtf8Bytes(new StoreDto(2, store));
+        var oldest = new Queue<string>(OldestFirst(store));
+        while (true) {
+            var buffer = new BoundedJsonBuffer((int) Math.Min(int.MaxValue, _options.MaximumStoreBytes));
+            try {
+                using var writer = new Utf8JsonWriter(buffer);
+                JsonSerializer.Serialize(writer, new StoreDto(2, store));
+                writer.Flush();
+            } catch (InvalidDataException) when (oldest.Count > 0) {
+                store.Remove(oldest.Dequeue());
+                continue;
+            }
+            await PersistentFile.WriteAsync(_filePath, buffer.WrittenSpan.ToArray(), _options.BeforePublish).ConfigureAwait(false);
+            return;
         }
-        await PersistentFile.WriteAsync(_filePath, bytes, _options.BeforePublish).ConfigureAwait(false);
     }
 
     private static string[] OldestFirst(Dictionary<string, Envelope> store) => store

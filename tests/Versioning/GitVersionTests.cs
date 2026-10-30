@@ -11,6 +11,34 @@ namespace Backflow.Versioning.Tests;
 
 /// <summary>Integration tests: real Git DAGs and GitVersion/MSBuild cannot be validated with pure unit tests.</summary>
 public sealed class GitVersionTests(ITestOutputHelper output) {
+    /// <summary>Checks the source reference is selected during evaluation with standalone, consumer, environment and CLI precedence.</summary>
+    [Fact]
+    public async Task SourceIntegration_ConsumerConfiguration_PreservesStandaloneAndExplicitOverrides() {
+        using var fixture = new Fixture(output);
+        var repo = await fixture.CreateRepositoryAsync();
+        var project = Path.Combine(repo, "src", "Fixture", "Fixture.csproj");
+        File.Copy(Path.Combine(fixture.SourceRoot, "src", "Backflow", "Shiron.Backflow.csproj"), project, overwrite: true);
+
+        var standalone = Path.GetFullPath(Path.Combine(repo, "external", "lib", "src", "Collections", "Shiron.Lib.Collections.csproj"));
+        await AssertSourceReferenceAsync(project, standalone);
+        var canonical = Path.Combine(fixture.Root, "shared", "Collections.csproj");
+        await File.WriteAllTextAsync(Path.Combine(fixture.Root, "Backflow.Collections.props"),
+            "<Project><PropertyGroup><BackflowCollectionsProject Condition=\"'$(BackflowCollectionsProject)' == ''\">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)shared/Collections.csproj'))</BackflowCollectionsProject></PropertyGroup></Project>");
+        await AssertSourceReferenceAsync(project, canonical);
+        var environment = Path.Combine(fixture.Root, "environment", "Collections.csproj");
+        await AssertSourceReferenceAsync(project, environment, environment);
+        var commandLine = Path.Combine(fixture.Root, "command-line", "Collections.csproj");
+        await AssertSourceReferenceAsync(project, commandLine, environment, $"-p:BackflowCollectionsProject={commandLine}");
+    }
+
+    private static async Task AssertSourceReferenceAsync(string project, string expected, string? environment = null, params string[] arguments) {
+        var json = await RunWithEnvironmentAsync(Path.GetDirectoryName(project)!, "dotnet", environment,
+            ["msbuild", project, "-nologo", "-getProperty:BackflowCollectionsProject", "-getItem:ProjectReference", .. arguments]);
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(expected, Path.GetFullPath(document.RootElement.GetProperty("Properties").GetProperty("BackflowCollectionsProject").GetString()!));
+        Assert.Equal(expected, document.RootElement.GetProperty("Items").GetProperty("ProjectReference")[0].GetProperty("FullPath").GetString());
+    }
+
     /// <summary>Checks conventional commits, merge histories, prereleases and release tags without touching real refs.</summary>
     [Fact]
     public async Task CalculateVersion_DisposableMergeHistory_ProducesExpectedVersions() {
@@ -101,13 +129,18 @@ public sealed class GitVersionTests(ITestOutputHelper output) {
     private static Task<string> CommitAsync(string directory, string message) =>
         GitAsync(directory, "commit", "--allow-empty", "-m", message);
 
-    private static async Task<string> RunAsync(string directory, string executable, params string[] arguments) {
+    private static Task<string> RunAsync(string directory, string executable, params string[] arguments) =>
+        RunWithEnvironmentAsync(directory, executable, null, arguments);
+
+    private static async Task<string> RunWithEnvironmentAsync(string directory, string executable, string? collectionsProject, params string[] arguments) {
         var start = new ProcessStartInfo(executable) {
             WorkingDirectory = directory,
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        start.Environment.Remove("BackflowCollectionsProject");
+        if (collectionsProject is not null) start.Environment["BackflowCollectionsProject"] = collectionsProject;
         foreach (var variable in new[] { "GITHUB_ACTIONS", "GITHUB_REF", "GITHUB_HEAD_REF", "GITHUB_BASE_REF", "TF_BUILD", "APPVEYOR", "GITLAB_CI", "TEAMCITY_VERSION", "JENKINS_URL" })
             start.Environment.Remove(variable);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Failed to start fixture process.");
@@ -140,6 +173,7 @@ public sealed class GitVersionTests(ITestOutputHelper output) {
         }
 
         internal string Root { get; }
+        internal string SourceRoot => _sourceRoot;
 
         internal async Task<string> CreateRepositoryAsync() {
             var repo = Path.Combine(Root, "seed");

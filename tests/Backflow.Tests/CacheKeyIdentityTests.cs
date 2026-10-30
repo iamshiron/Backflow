@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Shiron.Backflow.Caching;
 using Shiron.Backflow.Context;
 using Shiron.Backflow.Node;
@@ -10,6 +12,33 @@ using Xunit;
 namespace Shiron.Backflow.Tests;
 
 public sealed class CacheKeyIdentityTests {
+    [Fact]
+    public void CreateKey_ConcurrentFirstUseOfGenericAdapter_IsDeterministicAcrossSeparateContexts() {
+        var builder = new PipelineBuilder(new NodeRegistry());
+        var node = new IdentityNode();
+        var instance = builder.AddNode(node);
+        var pipeline = builder.Build();
+        var contexts = Enumerable.Range(0, 256).Select(i => {
+            var context = ArrayPipelineContext.ForPipeline(pipeline);
+            context.Write<object>(instance, node.Value, new WrappedValue<int>(i % 8));
+            return context;
+        }).ToArray();
+        var adapters = new CacheTypeAdapterRegistry();
+        adapters.Register(typeof(WrappedValueConverter<>));
+        var factory = new CacheKeyFactory(adapters);
+        var hashes = new string[contexts.Length];
+
+        Parallel.For(0, contexts.Length, new ParallelOptions { MaxDegreeOfParallelism = 8 },
+            i => hashes[i] = factory.CreateKey(instance, contexts[i]).CombinedHash);
+
+        Assert.Equal(8, hashes.Distinct(StringComparer.Ordinal).Count());
+        foreach (var i in Enumerable.Range(0, contexts.Length)) {
+            Assert.Equal(hashes[i % 8], hashes[i]);
+            Assert.Equal(hashes[i], factory.CreateKey(instance, contexts[i]).CombinedHash);
+        }
+        Assert.NotEqual(new CacheKeyFactory().CreateKey(instance, contexts[0]).CombinedHash, hashes[0]);
+    }
+
     [Fact]
     public void Constructor_DelimiterComponents_CannotAliasDifferentIdentities() {
         Assert.NotEqual(new CacheKey("a|b", "c", "d").CombinedHash, new CacheKey("a", "b|c", "d").CombinedHash);
@@ -95,6 +124,13 @@ public sealed class CacheKeyIdentityTests {
         protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) => ValueTask.FromResult(true);
     }
     private sealed record Settings(int Revision);
+    private sealed record WrappedValue<T>(T Value);
+    private sealed class WrappedValueConverter<T> : JsonConverter<WrappedValue<T>> {
+        public override WrappedValue<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            new(JsonSerializer.Deserialize<T>(ref reader, options)!);
+        public override void Write(Utf8JsonWriter writer, WrappedValue<T> value, JsonSerializerOptions options) =>
+            JsonSerializer.Serialize(writer, value.Value, options);
+    }
     private sealed class PassValidator : IPortValidator<object> {
         public string? Validate(object? value) => null;
     }

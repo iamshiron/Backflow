@@ -34,6 +34,11 @@ await cache.FlushAsync();
 converters can be supplied through `CacheTypeAdapterRegistry`. Configure singleton
 instances once; options and converters must not be mutated afterward. Both stores
 support concurrent calls and multiple cooperating instances/processes.
+`CacheKeyFactory` can also be shared across concurrent executions with separate
+contexts: hashing buffers are local, serializer options support concurrent reads,
+and open-generic adapter lookup uses a concurrent dictionary. Application converters
+and identity callbacks must themselves be thread-safe; configure the adapter registry
+before constructing a cache/factory, never concurrently with registration.
 
 ## Cache consistency and durability
 

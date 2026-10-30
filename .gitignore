@@ -19,3 +19,5 @@ BenchmarkDotNet.Artifacts
 node_modules/
 **/dist/
 .nx/
+test-results/
+playwright-report/

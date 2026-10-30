@@ -187,3 +187,18 @@ from their scripts/configuration; no per-project `project.json` is needed. TypeS
 5.9 is used because the installed Nx plugin requires its compiler API (TS 7 changed it).
 Tests cover document invariants, actual ReactFlow mounting/selection and HTTP contract
 compatibility against the real ASP sample, not an invented frontend-only contract.
+
+`pnpm test:browser` builds the workspace and runs the test-owned Chromium fixture
+against both a development server and a production bundle, with real native
+layout/ResizeObserver and pointer drags. Install Chromium once
+using `pnpm exec playwright install chromium`. The regression covers controlled
+rerenders/selection, repeated dragging, dynamic node content, read-only resizing,
+and removing/re-adding IDs. It fails on console warnings/errors and native window
+errors/rejections, including resize-loop errors intercepted by Vite; nothing is
+filtered or suppressed. jsdom tests cannot establish this browser layout behavior.
+
+Measured node dimensions are ReactFlow-local state, preserved across controlled
+document updates and discarded when nodes disappear. They never enter persisted
+`BackflowDocument` or trigger the host's `onChange` by themselves. Real content
+resizing still updates measurements; no fixed dimensions or synthetic measurements
+are imposed on the host's custom node renderer.

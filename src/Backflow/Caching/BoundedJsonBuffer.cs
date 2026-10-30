@@ -2,7 +2,7 @@ using System.Buffers;
 
 namespace Shiron.Backflow.Caching;
 
-internal sealed class BoundedJsonBuffer(int limit) : IBufferWriter<byte> {
+internal sealed class BoundedJsonBuffer(int limit, CancellationToken ct = default) : IBufferWriter<byte> {
     private const int WriterGrowthAllowance = 4096;
     private const int MaximumTokenExpansion = 6;
     private readonly int _maximumReservation = (int) Math.Min(Array.MaxLength, (long) limit * MaximumTokenExpansion + WriterGrowthAllowance);
@@ -13,6 +13,7 @@ internal sealed class BoundedJsonBuffer(int limit) : IBufferWriter<byte> {
     internal ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0, _written);
 
     public void Advance(int count) {
+        ct.ThrowIfCancellationRequested();
         if (count < 0 || count > _offered) throw new ArgumentOutOfRangeException(nameof(count));
         if ((long) _written + count > limit) throw CapacityExceeded();
         _written += count;
@@ -20,6 +21,7 @@ internal sealed class BoundedJsonBuffer(int limit) : IBufferWriter<byte> {
     }
 
     public Memory<byte> GetMemory(int sizeHint = 0) {
+        ct.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegative(sizeHint);
         if (_written >= limit) throw CapacityExceeded();
         var requested = Math.Max(256, sizeHint);

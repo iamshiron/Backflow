@@ -14,10 +14,18 @@ public sealed class NodeContext(
     Dictionary<IPort, BitArray>? suppliedMasks = null,
     CancellationToken ct = default
 ) : INodeContext {
-    private readonly Dictionary<IPort, BitArray> _suppliedMasks = suppliedMasks ?? new Dictionary<IPort, BitArray>();
+    private Dictionary<IPort, BitArray>? _suppliedMasks = suppliedMasks;
 
     /// <inheritdoc/>
-    public CancellationToken CancellationToken { get; } = ct;
+    public TOptions? GetOptions<TOptions>() where TOptions : class => context.GetOptions<TOptions>();
+
+    /// <inheritdoc/>
+    public CancellationToken CancellationToken { get; private set; } = ct;
+
+    internal void Prepare(CancellationToken cancellationToken, Dictionary<IPort, BitArray>? masks) {
+        CancellationToken = cancellationToken;
+        _suppliedMasks = masks;
+    }
 
     public NodeContext(IPipelineContext context, IReadOnlyDictionary<IPort, int> mappings)
         : this(context, mappings, new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>(), null) {
@@ -49,7 +57,7 @@ public sealed class NodeContext(
 
     /// <inheritdoc/>
     public bool IsSlotSupplied(IPort port, int index) {
-        if (_suppliedMasks.TryGetValue(port, out var mask))
+        if (_suppliedMasks is not null && _suppliedMasks.TryGetValue(port, out var mask))
             return index >= 0 && index < mask.Length && mask[index];
         return context.HasAny(mappings[port]);
     }
@@ -61,7 +69,7 @@ public sealed class NodeContext(
         if (indexedInputs.TryGetValue((IPort) port, out var sources) && sources.Count > 0) {
             var count = sources.Max(s => s.Index) + 1;
             var mask = ((IArrayPortAssembly) port).Assemble(context, targetChannel, sources, count);
-            _suppliedMasks[(IPort) port] = mask;
+            (_suppliedMasks ??= [])[(IPort) port] = mask;
         } else {
             throw new InvalidOperationException(
                 $"Cannot initialize array port '{port.Name}' without indexed connections.");
@@ -73,6 +81,6 @@ public sealed class NodeContext(
         var sources = indexedInputs.TryGetValue((IPort) port, out var s) ? s : [];
 
         var mask = ((IArrayPortAssembly) port).Assemble(context, targetChannel, sources, count);
-        _suppliedMasks[(IPort) port] = mask;
+        (_suppliedMasks ??= [])[(IPort) port] = mask;
     }
 }

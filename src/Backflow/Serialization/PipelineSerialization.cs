@@ -316,7 +316,7 @@ public static class PipelineSerialization {
                 var (source, sourcePort, dest, destPort, destIndex) = resolvedEdges[i];
 
                 if (!destIndex.HasValue) {
-                    dest.Mappings[destPort] = source.Mappings[sourcePort];
+                    dest.SetMapping(destPort, source.Mappings[sourcePort]);
                 }
 
                 graph.AddEdge(source, dest);

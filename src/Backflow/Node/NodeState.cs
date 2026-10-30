@@ -14,4 +14,6 @@ public enum NodeState : byte {
     Failed = 1 << 3,
     /// <summary>Skipped due to upstream propagation or behavior suppression.</summary>
     Skipped = 1 << 4,
+    /// <summary>Execution observed cancellation.</summary>
+    Canceled = 1 << 5,
 }

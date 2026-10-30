@@ -9,6 +9,7 @@ namespace Shiron.Backflow.Registry;
 /// <param name="activator">The activator used to create nodes.</param>
 public class NodeRegistry(INodeActivator? activator = null) {
     private readonly INodeActivator _activator = activator ?? new DefaultNodeActivator();
+    private readonly Lock _genericLock = new();
     private readonly Dictionary<Type, AbstractNode> _nodes = [];
     private readonly Dictionary<string, AbstractNode> _nodesByFullName = [];
     private readonly HashSet<Type> _nodeTypes = [];
@@ -18,6 +19,7 @@ public class NodeRegistry(INodeActivator? activator = null) {
 
     /// <summary>Register an already-instantiated node by its runtime type.</summary>
     public void Register(AbstractNode node, params string[]? categories) {
+        node.Freeze();
         var type = node.GetType();
         _nodes.Add(type, node);
         _nodesByFullName[type.FullName!] = node;
@@ -83,6 +85,10 @@ public class NodeRegistry(INodeActivator? activator = null) {
     /// <paramref name="openType"/> + <paramref name="typeArgs"/> always returns the same instance.
     /// </summary>
     public AbstractNode GetOrCreateConcrete(Type openType, Type[] typeArgs) {
+        lock (_genericLock) return CreateConcrete(openType, typeArgs);
+    }
+
+    private AbstractNode CreateConcrete(Type openType, Type[] typeArgs) {
         var closedType = openType.MakeGenericType(typeArgs);
         if (_concreteGenericCache.TryGetValue(closedType, out var cached))
             return cached;
@@ -91,6 +97,7 @@ public class NodeRegistry(INodeActivator? activator = null) {
             return existing;
 
         var node = _activator.CreateNode(closedType);
+        node.Freeze();
         _concreteGenericCache[closedType] = node;
         return node;
     }

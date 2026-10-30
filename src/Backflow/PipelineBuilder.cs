@@ -39,10 +39,10 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     public record NodeInstance(
         string ID,
         AbstractNode Node,
-        Dictionary<IPort, int> Mappings,
-        Dictionary<IPort, int>? ArrayCounts = null
+        IReadOnlyDictionary<IPort, int> Mappings,
+        IReadOnlyDictionary<IPort, int>? ArrayCounts = null
     ) {
-        public NodeState State { get; set; } = NodeState.Pending;
+        internal void SetMapping(IPort port, int channel) => ((Dictionary<IPort, int>) Mappings)[port] = channel;
         public virtual bool Equals(NodeInstance? other) {
             return other is not null && ID == other.ID;
         }
@@ -85,6 +85,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     /// <param name="node">The node to add.</param>
     /// <param name="arrayCounts">Maps array port names to their fixed element count.</param>
     public NodeInstance AddNode(AbstractNode node, Dictionary<string, int> arrayCounts) {
+        node.Freeze();
         var fullName = node.GetType().FullName!;
         var id = NextId(fullName);
 
@@ -139,7 +140,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
         CheckCycle(source.ID, destination.ID);
 
         _edges.Add(new EdgeInstance(source, sourcePort, destination, destinationPort));
-        destination.Mappings[destinationPort] = source.Mappings[sourcePort];
+        destination.SetMapping(destinationPort, source.Mappings[sourcePort]);
     }
 
     /// <summary>Connect an output port to a specific index of an array input port.</summary>
@@ -250,11 +251,11 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             ValidateTypeCompatibility(srcPort, dstPort);
 
             graph.AddEdge(srcInstance, dstInstance);
-            dstInstance.Mappings[dstPort] = srcInstance.Mappings[srcPort];
+            dstInstance.SetMapping(dstPort, srcInstance.Mappings[srcPort]);
             allEdges.Add(new EdgeInstance(srcInstance, srcPort, dstInstance, dstPort));
         }
 
-        return new Pipeline(graph, [.. allEdges], CastRegistry);
+        return new Pipeline(graph, allEdges.ToArray(), CastRegistry);
     }
 
     /// <summary>
@@ -264,10 +265,15 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
     /// Source (writer) port types take precedence for connected channels.
     /// </summary>
     internal static (Type[] channelTypes, Dictionary<Type, int> sizes) ComputeLayout(Pipeline pipeline) {
+        return pipeline.ChannelLayout;
+    }
+
+    internal static (Type[] channelTypes, Dictionary<Type, int> sizes) ComputeLayout(
+        DirectedAcyclicGraph<NodeInstance> topology, EdgeInstance[] edges) {
         var maxChannel = -1;
         var tempTypes = new Dictionary<int, Type>();
 
-        foreach (var edge in pipeline.Edges) {
+        foreach (var edge in edges) {
             var channel = edge.SourceNode.Mappings[edge.SourcePort];
             if (channel > maxChannel) maxChannel = channel;
             if (!tempTypes.ContainsKey(channel)) {
@@ -275,7 +281,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             }
         }
 
-        foreach (var node in pipeline.Topology.Nodes) {
+        foreach (var node in topology.Nodes) {
             foreach (var port in node.Node.Ports) {
                 var channel = node.Mappings[port];
                 if (channel > maxChannel) maxChannel = channel;
@@ -291,7 +297,7 @@ public class PipelineBuilder(NodeRegistry registry, CastRegistry? castRegistry =
             channelTypes[ch] = t;
         }
 
-        var sizes = new Dictionary<Type, int>();
+        var sizes = new Dictionary<Type, int> { [typeof(object)] = totalChannels };
         foreach (var t in channelTypes) {
             if (t is null) continue;
             var bucketType = t.IsValueType ? t : typeof(object);

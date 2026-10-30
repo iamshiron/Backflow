@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Diagnostics;
-using System.Reflection;
 using System.Text.Json;
 using Shiron.Backflow.BlobStorage;
 using Shiron.Backflow.Caching;
@@ -27,11 +26,27 @@ public class PipelineExecutor(
     IPipelineEventListener? listener = null
 ) {
     /// <summary>The execution layers, each layer contains nodes that can run in parallel.</summary>
-    public PipelineBuilder.NodeInstance[][] Layers { get; } = pipeline.Topology.ToLayers();
+    public PipelineBuilder.NodeInstance[][] Layers => _layers.Select(layer => layer.ToArray()).ToArray();
+
+    private readonly PipelineBuilder.NodeInstance[][] _layers = pipeline.CompiledLayers;
+    private readonly Dictionary<string, int> _indices = pipeline.CompiledNodes
+        .Select((node, index) => (node.ID, index)).ToDictionary(pair => pair.ID, pair => pair.index);
+    private readonly Dictionary<string, IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>> _indexedInputs =
+        BuildAllIndexedInputs(pipeline.CompiledEdges);
+
+    private static Dictionary<string, IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>> BuildAllIndexedInputs(PipelineBuilder.EdgeInstance[] edges) =>
+        edges.Where(edge => edge.DestIndex.HasValue).GroupBy(edge => edge.DestinationNode.ID)
+            .ToDictionary(group => group.Key, group => (IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>)
+                group.GroupBy(edge => edge.DestinationPort).ToDictionary(ports => ports.Key,
+                    ports => (IReadOnlyList<(int Index, int SourceChannel)>) ports.Select(edge =>
+                        (edge.DestIndex!.Value, edge.SourceNode.Mappings[edge.SourcePort])).ToArray()));
+
+    private static readonly IReadOnlyDictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> EmptyIndexedInputs =
+        new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>();
 
     private readonly ICacheKeyFactory _keyFactory = keyFactory ?? new CacheKeyFactory(typeAdapters);
     private readonly IPipelineEventListener? _listener = listener;
-    private readonly Dictionary<string, List<PipelineBuilder.EdgeInstance>> _incomingEdges = BuildIncomingEdges(pipeline.Edges);
+    private readonly Dictionary<string, List<PipelineBuilder.EdgeInstance>> _incomingEdges = BuildIncomingEdges(pipeline.CompiledEdges);
 
     private static Dictionary<string, List<PipelineBuilder.EdgeInstance>> BuildIncomingEdges(PipelineBuilder.EdgeInstance[] edges) {
         var result = new Dictionary<string, List<PipelineBuilder.EdgeInstance>>();
@@ -45,7 +60,7 @@ public class PipelineExecutor(
         return result;
     }
 
-    private int TotalNodeCount => Layers.Sum(l => l.Length);
+    private int TotalNodeCount => _indices.Count;
 
     /// <summary>
     /// Execute the pipeline synchronously, layer by layer. Nodes within a layer run sequentially.
@@ -53,153 +68,116 @@ public class PipelineExecutor(
     /// <param name="global">The shared context for reading/writing port values.</param>
     /// <param name="ct">Cancellation token observed between layers and after each node (cooperative).</param>
     /// <returns>Execution statistics including cache hit/miss counts and timing.</returns>
-    public ExecutionStats Execute(IPipelineContext global, CancellationToken ct = default) {
-        var sw = Stopwatch.StartNew();
-        int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;
-
-        _listener?.OnPipelineStart(new PipelineStartEvent(Layers.Length, TotalNodeCount));
-
-        for (var li = 0; li < Layers.Length; ++li) {
-            var layer = Layers[li];
-            ct.ThrowIfCancellationRequested();
-            var layerSw = Stopwatch.StartNew();
-            _listener?.OnLayerStart(new PipelineLayerStartEvent(li, layer.Length, layer));
-
-            foreach (var node in layer) {
-                if (ShouldSkipDueToPropagation(node)) {
-                    node.State = NodeState.Skipped;
-                    skipped++;
-                    _listener?.OnNodeSkip(new PipelineNodeSkipEvent(node, li));
-                    continue;
-                }
-
-                var masks = AssembleFrozenArrayInputs(node, global);
-
-                if (TryCacheHit(node, global)) {
-                    node.State = NodeState.Done;
-                    cacheHits++;
-                    executed++;
-                    _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, li, TimeSpan.Zero, FromCache: true));
-                    continue;
-                }
-
-                if (IsNodeCacheable(node)) cacheMisses++;
-
-                _listener?.OnNodeStart(new PipelineNodeStartEvent(node, li));
-                var nodeSw = Stopwatch.StartNew();
-                try {
-                    ExecuteNodeAsync(node, global, masks, ct).GetAwaiter().GetResult();
-                } catch (Exception ex) {
-                    nodeSw.Stop();
-                    _listener?.OnNodeFailure(new PipelineNodeFailureEvent(node, li, ExtractInner(ex), nodeSw.Elapsed));
-                    throw;
-                }
-                nodeSw.Stop();
-                CacheOutputs(node, global, ct);
-                executed++;
-                _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, li, nodeSw.Elapsed, FromCache: false));
-                ct.ThrowIfCancellationRequested();
-            }
-
-            layerSw.Stop();
-            _listener?.OnLayerComplete(new PipelineLayerCompleteEvent(li, layer.Length, layerSw.Elapsed));
-        }
-
-        sw.Stop();
-        var stats = new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, sw.Elapsed);
-        _listener?.OnPipelineComplete(new PipelineCompleteEvent(Layers.Length, TotalNodeCount, stats));
-        return stats;
-    }
+    public ExecutionStats Execute(IPipelineContext global, CancellationToken ct = default) =>
+        ExecuteCoreAsync(global, false, ct).GetAwaiter().GetResult();
 
     /// <summary>
-    /// Execute the pipeline asynchronously, with nodes within each layer running in parallel via <see cref="Task.Run"/>.
+    /// Executes asynchronously. Independent asynchronous nodes overlap without dispatching synchronous nodes to the thread pool.
     /// </summary>
     /// <param name="global">The shared context for reading/writing port values.</param>
     /// <param name="ct">Cancellation token observed between layers and before each node (cooperative).</param>
     /// <returns>Execution statistics including cache hit/miss counts and timing.</returns>
-    public async Task<ExecutionStats> ExecuteAsync(IPipelineContext global, CancellationToken ct = default) {
-        var sw = Stopwatch.StartNew();
-        int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;
+    public Task<ExecutionStats> ExecuteAsync(IPipelineContext global, CancellationToken ct = default) =>
+        ExecuteValueAsync(global, ct).AsTask();
 
-        _listener?.OnPipelineStart(new PipelineStartEvent(Layers.Length, TotalNodeCount));
+    /// <summary>Executes with a synchronous-completion fast path that avoids a result task allocation.</summary>
+    public ValueTask<ExecutionStats> ExecuteValueAsync(IPipelineContext global, CancellationToken ct = default) =>
+        ExecuteCoreAsync(global, true, ct);
 
-        for (var li = 0; li < Layers.Length; ++li) {
-            var layer = Layers[li];
+    private readonly PipelineBuilder.NodeInstance[] _nodes = pipeline.CompiledNodes;
+    private readonly int[] _outputChannels = pipeline.CompiledNodes.SelectMany(node =>
+        node.Node.Outputs.Select(port => node.Mappings[port])).Distinct().ToArray();
+
+    private async ValueTask<ExecutionStats> ExecuteCoreAsync(IPipelineContext global, bool parallel, CancellationToken ct) {
+        global.Execution.Begin(this, _nodes);
+        try {
             ct.ThrowIfCancellationRequested();
-            var layerSw = Stopwatch.StartNew();
-            _listener?.OnLayerStart(new PipelineLayerStartEvent(li, layer.Length, layer));
-
-            List<Task> tasks = [];
-            foreach (var node in layer) {
-                tasks.Add(Task.Run(async () => {
-                    ct.ThrowIfCancellationRequested();
-                    if (ShouldSkipDueToPropagation(node)) {
-                        node.State = NodeState.Skipped;
-                        Interlocked.Increment(ref skipped);
-                        _listener?.OnNodeSkip(new PipelineNodeSkipEvent(node, li));
-                        return;
-                    }
-
-                    var masks = AssembleFrozenArrayInputs(node, global);
-
-                    if (TryCacheHit(node, global)) {
-                        node.State = NodeState.Done;
-                        Interlocked.Increment(ref cacheHits);
-                        Interlocked.Increment(ref executed);
-                        _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, li, TimeSpan.Zero, FromCache: true));
-                        return;
-                    }
-
-                    if (IsNodeCacheable(node)) Interlocked.Increment(ref cacheMisses);
-
-                    _listener?.OnNodeStart(new PipelineNodeStartEvent(node, li));
-                    var nodeSw = Stopwatch.StartNew();
-                    try {
-                        await ExecuteNodeAsync(node, global, masks, ct);
-                    } catch (Exception ex) {
-                        nodeSw.Stop();
-                        _listener?.OnNodeFailure(new PipelineNodeFailureEvent(node, li, ExtractInner(ex), nodeSw.Elapsed));
-                        throw;
-                    }
-                    nodeSw.Stop();
-                    await CacheOutputsAsync(node, global, ct);
-                    Interlocked.Increment(ref executed);
-                    _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, li, nodeSw.Elapsed, FromCache: false));
-                }, ct));
+            if (global.Execution.HasRun) {
+                for (var channelIndex = 0; channelIndex < _outputChannels.Length; channelIndex++)
+                    global.Clear(_outputChannels[channelIndex]);
             }
-            await Task.WhenAll(tasks);
-            layerSw.Stop();
-            _listener?.OnLayerComplete(new PipelineLayerCompleteEvent(li, layer.Length, layerSw.Elapsed));
+            var started = Stopwatch.GetTimestamp();
+            int executed = 0, skipped = 0, cacheHits = 0, cacheMisses = 0;
+            _listener?.OnPipelineStart(new PipelineStartEvent(_layers.Length, TotalNodeCount));
+            for (var li = 0; li < _layers.Length; li++) {
+                ct.ThrowIfCancellationRequested();
+                var layer = _layers[li];
+                var layerStarted = Stopwatch.GetTimestamp();
+                _listener?.OnLayerStart(new PipelineLayerStartEvent(li, layer.Length, layer.ToArray()));
+                List<Task<NodeResult>>? pending = null;
+                for (var ni = 0; ni < layer.Length; ni++) {
+                    var operation = ExecuteOneAsync(layer[ni], li, global, ct);
+                    if (parallel && !operation.IsCompletedSuccessfully) {
+                        (pending ??= []).Add(operation.AsTask());
+                        continue;
+                    }
+                    var result = await operation.ConfigureAwait(false);
+                    Accumulate(result, ref executed, ref skipped, ref cacheHits, ref cacheMisses);
+                }
+                if (pending is not null) {
+                    // Join every started operation before releasing the context, including on failure.
+                    var results = await Task.WhenAll(pending).ConfigureAwait(false);
+                    foreach (var result in results) Accumulate(result, ref executed, ref skipped, ref cacheHits, ref cacheMisses);
+                }
+                ct.ThrowIfCancellationRequested();
+                _listener?.OnLayerComplete(new PipelineLayerCompleteEvent(li, layer.Length, Stopwatch.GetElapsedTime(layerStarted)));
+            }
+            var stats = new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, Stopwatch.GetElapsedTime(started));
+            _listener?.OnPipelineComplete(new PipelineCompleteEvent(_layers.Length, TotalNodeCount, stats));
+            return stats;
+        } finally {
+            global.Execution.End();
         }
-
-        sw.Stop();
-        var stats = new ExecutionStats(TotalNodeCount, executed, skipped, cacheHits, cacheMisses, sw.Elapsed);
-        _listener?.OnPipelineComplete(new PipelineCompleteEvent(Layers.Length, TotalNodeCount, stats));
-        return stats;
     }
 
-    private Dictionary<IPort, BitArray> AssembleFrozenArrayInputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
-        var masks = new Dictionary<IPort, BitArray>();
-        if (node.ArrayCounts is null) return masks;
+    private readonly record struct NodeResult(bool Skipped, bool CacheHit, bool CacheMiss);
 
-        var indexedByPort = new Dictionary<IPort, List<(int Index, int SourceChannel)>>();
+    private static void Accumulate(NodeResult result, ref int executed, ref int skipped, ref int hits, ref int misses) {
+        if (result.Skipped) skipped++; else executed++;
+        if (result.CacheHit) hits++;
+        if (result.CacheMiss) misses++;
+    }
 
-        if (_incomingEdges.TryGetValue(node.ID, out var edges)) {
-            foreach (var edge in edges) {
-                if (!edge.DestIndex.HasValue) continue;
-
-                if (!indexedByPort.TryGetValue(edge.DestinationPort, out var list)) {
-                    list = [];
-                    indexedByPort[edge.DestinationPort] = list;
-                }
-                list.Add((edge.DestIndex.Value, edge.SourceNode.Mappings[edge.SourcePort]));
-            }
+    private async ValueTask<NodeResult> ExecuteOneAsync(PipelineBuilder.NodeInstance node, int layer, IPipelineContext global, CancellationToken ct) {
+        ct.ThrowIfCancellationRequested();
+        var index = _indices[node.ID];
+        if (ShouldSkipDueToPropagation(node, global)) {
+            global.Execution.Set(index, NodeState.Skipped);
+            _listener?.OnNodeSkip(new PipelineNodeSkipEvent(node, layer));
+            return new NodeResult(true, false, false);
         }
+        var masks = AssembleFrozenArrayInputs(node, global);
+        if (await TryCacheHitAsync(node, global).ConfigureAwait(false)) {
+            global.Execution.Set(index, NodeState.Done);
+            _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, layer, TimeSpan.Zero, FromCache: true));
+            return new NodeResult(false, true, false);
+        }
+        var cacheable = IsNodeCacheable(node);
+        global.Execution.Set(index, NodeState.Executing);
+        _listener?.OnNodeStart(new PipelineNodeStartEvent(node, layer));
+        var started = Stopwatch.GetTimestamp();
+        try {
+            await ExecuteNodeAsync(node, global, masks, ct).ConfigureAwait(false);
+            if (global.Execution.Get(index) == NodeState.Done)
+                await CacheOutputsAsync(node, global, ct).ConfigureAwait(false);
+        } catch (Exception ex) {
+            _listener?.OnNodeFailure(new PipelineNodeFailureEvent(node, layer, ExtractInner(ex), Stopwatch.GetElapsedTime(started)));
+            throw;
+        }
+        ct.ThrowIfCancellationRequested();
+        _listener?.OnNodeSuccess(new PipelineNodeSuccessEvent(node, layer, Stopwatch.GetElapsedTime(started), FromCache: false));
+        return new NodeResult(global.Execution.Get(index) == NodeState.Skipped, false, cacheable);
+    }
+
+    private Dictionary<IPort, BitArray>? AssembleFrozenArrayInputs(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+        if (node.ArrayCounts is null) return null;
+        var masks = new Dictionary<IPort, BitArray>();
+        var indexedByPort = _indexedInputs.GetValueOrDefault(node.ID, EmptyIndexedInputs);
 
         foreach (var (port, count) in node.ArrayCounts) {
             var targetChannel = node.Mappings[port];
             var sources = indexedByPort.TryGetValue(port, out var s)
-                ? (IReadOnlyList<(int Index, int SourceChannel)>) s
+                ? s
                 : [];
             var writeAtMask = global.GetSuppliedMask(targetChannel);
 
@@ -221,53 +199,40 @@ public class PipelineExecutor(
         return masks;
     }
 
-    private Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>> BuildIndexedInputs(PipelineBuilder.NodeInstance node) {
-        var result = new Dictionary<IPort, IReadOnlyList<(int Index, int SourceChannel)>>();
-
-        if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return result;
-
-        foreach (var edge in edges) {
-            if (!edge.DestIndex.HasValue) continue;
-
-            if (!result.TryGetValue(edge.DestinationPort, out var list)) {
-                list = new List<(int Index, int SourceChannel)>();
-                result[edge.DestinationPort] = list;
-            }
-
-            ((List<(int Index, int SourceChannel)>) list).Add((edge.DestIndex.Value, edge.SourceNode.Mappings[edge.SourcePort]));
-        }
-
-        return result;
-    }
-
-    private bool ShouldSkipDueToPropagation(PipelineBuilder.NodeInstance node) {
+    private bool ShouldSkipDueToPropagation(PipelineBuilder.NodeInstance node, IPipelineContext global) {
         if (!_incomingEdges.TryGetValue(node.ID, out var edges)) return false;
 
         foreach (var edge in edges) {
             if (edge.DestIndex.HasValue) continue;
 
-            if (edge.SourceNode.State != NodeState.Skipped) continue;
+            if (global.Execution.Get(_indices[edge.SourceNode.ID]) != NodeState.Skipped) continue;
             if (edge.DestinationPort is Port.Port { IsRequired: true }) return true;
         }
 
         return false;
     }
 
-    private async Task ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global, Dictionary<IPort, BitArray> suppliedMasks, CancellationToken ct) {
-        var indexedInputs = BuildIndexedInputs(node);
-        var context = new NodeContext(global, node.Mappings, indexedInputs, suppliedMasks, ct);
+    private async ValueTask ExecuteNodeAsync(PipelineBuilder.NodeInstance node, IPipelineContext global, Dictionary<IPort, BitArray>? suppliedMasks, CancellationToken ct) {
+        var index = _indices[node.ID];
+        var context = global.Execution.GetContext(index);
+        if (context is null) {
+            context = new NodeContext(global, node.Mappings, _indexedInputs.GetValueOrDefault(node.ID, EmptyIndexedInputs));
+            global.Execution.SetContext(index, context);
+        }
+        context.Prepare(ct, suppliedMasks);
 
         NodeState state;
         try {
-            state = await node.Node.ExecuteAsync(context);
+            state = await node.Node.ExecuteAsync(context).ConfigureAwait(false);
         } catch (OperationCanceledException) when (ct.IsCancellationRequested) {
+            global.Execution.Set(index, NodeState.Canceled);
             throw;
         } catch (Exception ex) {
-            node.State = NodeState.Failed;
+            global.Execution.Set(index, NodeState.Failed);
             throw new NodeExecutionException(node, ex);
         }
 
-        node.State = state;
+        global.Execution.Set(index, state);
         if (state == NodeState.Failed) throw new NodeExecutionException(node);
     }
 
@@ -295,26 +260,24 @@ public class PipelineExecutor(
         return true;
     }
 
-    private bool TryCacheHit(PipelineBuilder.NodeInstance node, IPipelineContext global) {
+    private async ValueTask<bool> TryCacheHitAsync(PipelineBuilder.NodeInstance node, IPipelineContext global) {
         if (!IsNodeCacheable(node)) return false;
 
         var key = _keyFactory.CreateKey(node, global);
-        var (found, entry) = cache!.TryGetAsync(key).GetAwaiter().GetResult();
+        var (found, entry) = await cache!.TryGetAsync(key).ConfigureAwait(false);
         if (!found || entry is null) return false;
 
-        RestoreOutputs(node, global, entry);
-        return true;
+        try {
+            RestoreOutputs(node, global, entry);
+            return true;
+        } catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or ArgumentException or KeyNotFoundException) {
+            foreach (var port in node.Node.Outputs) global.Clear(node.Mappings[port]);
+            await cache.RemoveAsync(key).ConfigureAwait(false);
+            return false;
+        }
     }
 
-    private void CacheOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, CancellationToken ct) {
-        if (!IsNodeCacheable(node)) return;
-
-        var key = _keyFactory.CreateKey(node, global);
-        var entry = CaptureOutputs(node, global, ct);
-        cache!.SetAsync(key, entry).GetAwaiter().GetResult();
-    }
-
-    private async Task CacheOutputsAsync(PipelineBuilder.NodeInstance node, IPipelineContext global, CancellationToken ct) {
+    private async ValueTask CacheOutputsAsync(PipelineBuilder.NodeInstance node, IPipelineContext global, CancellationToken ct) {
         if (!IsNodeCacheable(node)) return;
 
         var key = _keyFactory.CreateKey(node, global);
@@ -368,23 +331,22 @@ public class PipelineExecutor(
         var data = bufferData.Data;
         var metadata = new BlobMetadata { ContentLength = data.Length };
         var storage = blobResolver!.Resolve(metadata);
-        var blobId = storage.StoreAsync(new MemoryStream(data.ToArray()), metadata, ct).GetAwaiter().GetResult();
+        using var stream = bufferData.OpenRead();
+        var blobId = storage.StoreAsync(stream, metadata, ct).GetAwaiter().GetResult();
         return new BlobCacheEntry { ReferenceUri = new BlobReference(storage.Name, blobId).Uri.ToString() };
     }
 
     private BlobCacheEntry StoreBlobFromStream(IStreamData streamData, CancellationToken ct) {
-        var stream = streamData.OpenRead();
+        using var stream = streamData.OpenRead();
         var storage = blobResolver!.Resolve(null);
         var blobId = storage.StoreAsync(stream, null, ct).GetAwaiter().GetResult();
-        stream.Dispose();
         return new BlobCacheEntry { ReferenceUri = new BlobReference(storage.Name, blobId).Uri.ToString() };
     }
 
     private BlobCacheEntry StoreBlobFromBlob(IBlob blob, CancellationToken ct) {
-        var stream = blob.Storage.OpenRead();
+        using var stream = blob.Storage.OpenRead();
         var storage = blobResolver!.Resolve(null);
         var blobId = storage.StoreAsync(stream, null, ct).GetAwaiter().GetResult();
-        stream.Dispose();
 
         var reference = new BlobReference(storage.Name, blobId);
 
@@ -408,14 +370,16 @@ public class PipelineExecutor(
 
     private void RestoreOutputs(PipelineBuilder.NodeInstance node, IPipelineContext global, ICacheEntry entry) {
         foreach (var port in node.Node.Outputs) {
+            global.Clear(node.Mappings[port]);
             if (!entry.Outputs.TryGetValue(port.Name, out var cached)) continue;
 
             var channel = node.Mappings[port];
-            var type = Type.GetType(cached.TypeName);
             var value = cached.Value;
 
             if (value is BlobCacheEntry blobEntry) {
                 var restored = RestoreBlobEntry(blobEntry, port.PortType!);
+                if (!port.PortType.IsInstanceOfType(restored))
+                    throw new InvalidDataException("The restored blob does not match its declared output port contract.");
                 var storageType = ResolveStorageType(restored, port.PortType!);
                 global.Write(channel, restored, storageType);
                 continue;
@@ -423,6 +387,7 @@ public class PipelineExecutor(
 
             if (value is BlobReference blobRef) {
                 var cachedStream = new CachedStreamData(blobRef, blobResolver!);
+                using (var validationStream = cachedStream.OpenRead()) validationStream.CopyTo(Stream.Null);
                 object restored;
                 Type storageType;
 
@@ -438,19 +403,24 @@ public class PipelineExecutor(
                 continue;
             }
 
-            if (type is not null) {
-                global.Write(channel, value, type);
-            } else {
-                global.Write(channel, value);
-            }
+            if (value is not null && !port.PortType.IsInstanceOfType(value))
+                throw new InvalidDataException($"Cached output '{port.Name}' does not match its declared port contract.");
+            global.Write(channel, value, port.PortType);
         }
     }
 
     private object RestoreBlobEntry(BlobCacheEntry entry, Type portType) {
+        if (blobResolver is null) throw new InvalidDataException("Cached blobs require a blob storage resolver.");
         var cachedStream = new CachedStreamData(entry.Reference, blobResolver!);
+        using (var validationStream = cachedStream.OpenRead()) validationStream.CopyTo(Stream.Null);
 
         if (entry.HasMeta) {
-            var metaType = Type.GetType(entry.MetaTypeName!);
+            var blobContract = portType.IsGenericType && portType.GetGenericTypeDefinition() == typeof(IBlob<,>)
+                ? portType
+                : portType.GetInterfaces().FirstOrDefault(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IBlob<,>));
+            var metaType = blobContract?.GetGenericArguments()[0];
+            if (metaType is null || metaType.AssemblyQualifiedName != entry.MetaTypeName)
+                throw new InvalidDataException("Cached blob metadata is not declared by the output port contract.");
             if (metaType is not null && JsonSerializer.Deserialize(entry.MetaJson!, metaType) is { } meta) {
                 using var stream = cachedStream.OpenRead();
                 using var ms = new MemoryStream();
@@ -460,6 +430,13 @@ public class PipelineExecutor(
                 var blobType = typeof(Blob<,>).MakeGenericType(metaType, typeof(BufferData));
                 return Activator.CreateInstance(blobType, meta, bufferData)!;
             }
+        }
+
+        if (typeof(IBufferData).IsAssignableFrom(portType)) {
+            using var stream = cachedStream.OpenRead();
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            return new BufferData(buffer.ToArray());
         }
 
         if (typeof(IBlob).IsAssignableFrom(portType)) {

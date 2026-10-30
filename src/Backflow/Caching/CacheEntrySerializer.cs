@@ -8,7 +8,8 @@ namespace Shiron.Backflow.Caching;
 
 /// <summary>Thread-safe bounded snapshot serialization with explicit trusted-type deserialization.</summary>
 public sealed class CacheEntrySerializer {
-    private readonly int _limit;
+    private readonly int _readLimit;
+    private readonly int _writeLimit;
     private readonly JsonSerializerOptions _jsonOptions = new() { IncludeFields = true };
     private readonly ConcurrentDictionary<string, Type> _types = new(StringComparer.Ordinal);
 
@@ -16,12 +17,14 @@ public sealed class CacheEntrySerializer {
     public CacheEntrySerializer(CacheEntrySerializerOptions? options = null, CacheTypeAdapterRegistry? typeAdapters = null) {
         options ??= new();
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MaximumEntryBytes);
-        _limit = options.MaximumEntryBytes;
+        if (options.MaximumSerializationBytes is { } writeBudget) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(writeBudget);
+        _readLimit = options.MaximumEntryBytes;
+        _writeLimit = Math.Min(_readLimit, options.MaximumSerializationBytes ?? _readLimit);
         typeAdapters?.ApplyTo(_jsonOptions);
         _jsonOptions.Converters.Add(new BlobReferenceJsonConverter());
-        _jsonOptions.Converters.Add(new BoundedJsonStringConverter(_limit));
-        _jsonOptions.Converters.Add(new BoundedJsonElementConverter(_limit));
-        _jsonOptions.Converters.Add(new BoundedJsonDocumentConverter(_limit));
+        _jsonOptions.Converters.Add(new BoundedJsonStringConverter(_writeLimit));
+        _jsonOptions.Converters.Add(new BoundedJsonElementConverter(_writeLimit));
+        _jsonOptions.Converters.Add(new BoundedJsonDocumentConverter(_writeLimit));
         Type[] defaults = [typeof(bool), typeof(byte), typeof(sbyte), typeof(short), typeof(ushort), typeof(int), typeof(uint),
             typeof(long), typeof(ulong), typeof(float), typeof(double), typeof(decimal), typeof(char), typeof(string),
             typeof(Guid), typeof(DateTime), typeof(DateTimeOffset), typeof(TimeSpan), typeof(JsonElement),
@@ -38,7 +41,7 @@ public sealed class CacheEntrySerializer {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(entry);
         ct.ThrowIfCancellationRequested();
-        var buffer = new BoundedJsonBuffer(_limit, ct);
+        var buffer = new BoundedJsonBuffer(_writeLimit, ct);
         var trusted = new HashSet<Type>();
         using (var writer = new Utf8JsonWriter(buffer)) {
             writer.WriteStartObject();
@@ -71,12 +74,14 @@ public sealed class CacheEntrySerializer {
         ArgumentNullException.ThrowIfNull(snapshot);
         entry = null;
         try {
-            if (snapshot.Payload is null || Encoding.UTF8.GetByteCount(snapshot.Payload) > _limit || Hash(snapshot.Payload) != snapshot.Checksum) return false;
+            if (snapshot.Payload is null || Encoding.UTF8.GetByteCount(snapshot.Payload) > _readLimit || Hash(snapshot.Payload) != snapshot.Checksum) return false;
             var dto = JsonSerializer.Deserialize<EntryDto>(snapshot.Payload);
             if (dto is null || dto.Key != new KeyDto(key.NodeType, key.AssemblyVersion, key.InputHash, key.CombinedHash) ||
                 dto.CachedAt != snapshot.CachedAt || dto.NodeTypeName is null) return false;
-            entry = new CacheEntry { NodeTypeName = dto.NodeTypeName, CachedAt = dto.CachedAt,
-                Inputs = DecodePorts(dto.Inputs), Outputs = DecodePorts(dto.Outputs) };
+            entry = new CacheEntry {
+                NodeTypeName = dto.NodeTypeName, CachedAt = dto.CachedAt,
+                Inputs = DecodePorts(dto.Inputs), Outputs = DecodePorts(dto.Outputs)
+            };
             return true;
         } catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidDataException or ArgumentException
             or InvalidOperationException or FormatException or OverflowException or KeyNotFoundException) {
@@ -90,7 +95,7 @@ public sealed class CacheEntrySerializer {
         if (type.FullName is { } full) _types[full] = type;
     }
     private void ValidateString(string value) {
-        if (value.Length > _limit) throw new InvalidDataException("String cannot fit in the configured cache byte budget.");
+        if (value.Length > _writeLimit) throw new InvalidDataException("String cannot fit in the configured cache byte budget.");
     }
     private void WriteString(Utf8JsonWriter writer, string name, string value) {
         ValidateString(value);

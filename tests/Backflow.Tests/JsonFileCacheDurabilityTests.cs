@@ -22,6 +22,58 @@ public sealed class JsonFileCacheDurabilityTests : IDisposable {
     };
 
     [Fact]
+    public async Task TryGetAsync_ReopenedWithSmallerPendingBudget_PreservesLargeCommittedEntryThroughFlushAndReopen() {
+        var value = new string('x', 8192);
+        var largerBudget = new JsonFileCacheOptions { MaximumEntryBytes = 64 * 1024, MaximumPendingBytes = 64 * 1024 };
+        var smallerBudget = new JsonFileCacheOptions { MaximumEntryBytes = 64 * 1024, MaximumPendingBytes = 4096 };
+        using (var writer = new JsonFileCache(CachePath, options: largerBudget)) {
+            await writer.SetAsync(Key(), EntryWithValue(value));
+            await writer.FlushAsync();
+        }
+        var originalFile = await File.ReadAllBytesAsync(CachePath);
+        var originalEnvelope = JsonNode.Parse(originalFile)!["Entries"]![Key().CombinedHash]!.ToJsonString();
+        using (var reader = new JsonFileCache(CachePath, options: smallerBudget)) {
+            var hit = await reader.TryGetAsync(Key());
+            Assert.True(hit.Found);
+            Assert.Equal(value, hit.Entry!.Outputs["value"].Value);
+            Assert.Equal(originalFile, await File.ReadAllBytesAsync(CachePath));
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => reader.SetAsync(Key(), EntryWithValue(new string('y', 8192))).AsTask());
+            await reader.SetAsync(Key("small"), Entry(9));
+            await reader.FlushAsync();
+            Assert.Equal(value, (await reader.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+        }
+        using var reopened = new JsonFileCache(CachePath, options: smallerBudget);
+        Assert.Equal(value, (await reopened.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+        Assert.Equal(9, (await reopened.TryGetAsync(Key("small"))).Entry!.Outputs["value"].Value);
+        Assert.Equal(originalEnvelope, JsonNode.Parse(await File.ReadAllBytesAsync(CachePath))!["Entries"]![Key().CombinedHash]!.ToJsonString());
+    }
+
+    [Fact]
+    public async Task TryGetAsync_LiveInstancesWithDifferentPendingBudgets_PreserveEachOthersCommittedValues() {
+        using var writer = new JsonFileCache(CachePath, options: new JsonFileCacheOptions {
+            MaximumEntryBytes = 64 * 1024, MaximumPendingBytes = 64 * 1024
+        });
+        var smallerBudget = new JsonFileCacheOptions { MaximumEntryBytes = 64 * 1024, MaximumPendingBytes = 4096 };
+        using var reader = new JsonFileCache(CachePath, options: smallerBudget);
+        var first = new string('x', 8192);
+        await writer.SetAsync(Key(), EntryWithValue(first));
+        await writer.FlushAsync();
+        Assert.Equal(first, (await reader.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+        await reader.SetAsync(Key("small"), Entry(7));
+        await reader.FlushAsync();
+        Assert.Equal(7, (await writer.TryGetAsync(Key("small"))).Entry!.Outputs["value"].Value);
+
+        var replacement = new string('y', 8192);
+        await writer.SetAsync(Key(), EntryWithValue(replacement));
+        await writer.FlushAsync();
+        Assert.Equal(replacement, (await reader.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+        await reader.FlushAsync();
+        using var reopened = new JsonFileCache(CachePath, options: smallerBudget);
+        Assert.Equal(replacement, (await reopened.TryGetAsync(Key())).Entry!.Outputs["value"].Value);
+    }
+
+    [Fact]
     public async Task SetAsync_LargeLazyEnumerable_StopsDuringEmissionAndPreservesPendingAndPersistedEntries() {
         using var cache = new JsonFileCache(CachePath, options: new JsonFileCacheOptions { MaximumEntryBytes = 1024 });
         await cache.SetAsync(Key(), Entry(1));

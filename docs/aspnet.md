@@ -1,5 +1,10 @@
 # ASP.NET Core adapter
 
+For a standalone controlled React 19 / ReactFlow canvas and generated TypeScript
+HTTP client, see [@shiron/backflow-react](../packages/backflow-react/README.md)
+and [@shiron/backflow-client](../packages/backflow-client/README.md). The core and
+this adapter do not depend on either frontend package.
+
 `Shiron.Backflow.Ext.AspNetCore` is an isolated, .NET 10 thin HTTP adapter. The
 execution core and nodes remain usable without ASP.NET Core. It has no application,
 storage, editor or frontend dependencies. Its only runtime framework dependency is

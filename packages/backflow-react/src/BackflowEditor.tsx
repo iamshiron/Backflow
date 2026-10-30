@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode, type CSSProperties } from "react";
 import {
     ReactFlow,
     Background,
@@ -9,6 +9,8 @@ import {
     type Edge,
     type Connection,
     type ReactFlowInstance,
+    type Viewport,
+    type OnMove,
 } from "@xyflow/react";
 import {
     BackflowPortDirection,
@@ -23,6 +25,7 @@ import {
     edgeId,
     removeNode,
     type BackflowDocument,
+    portDescriptor,
 } from "./document.js";
 
 export interface BackflowNodeContext {
@@ -37,7 +40,13 @@ interface CanvasData extends Record<string, unknown> {
     renderPort?: (
         port: BackflowPortDescriptor,
         index: number | null,
+        context: BackflowNodeContext,
     ) => ReactNode;
+    portStyle?: (
+        port: BackflowPortDescriptor,
+        index: number | null,
+        context: BackflowNodeContext,
+    ) => CSSProperties | undefined;
 }
 export type BackflowCanvasNode = Node<CanvasData, "backflow">;
 
@@ -83,8 +92,17 @@ function CatalogNode({ id, data, selected }: NodeProps<BackflowCanvasNode>) {
                                 : Position.Right
                         }
                         aria-label={`${port.name}${index === null ? "" : `[${index}]`} ${port.direction === BackflowPortDirection.Input ? "input" : "output"}`}
+                        style={data.portStyle?.(port, index, {
+                            id,
+                            descriptor: data.descriptor,
+                            selected,
+                        })}
                     />
-                    {data.renderPort?.(port, index) ?? (
+                    {data.renderPort?.(port, index, {
+                        id,
+                        descriptor: data.descriptor,
+                        selected,
+                    }) ?? (
                         <span title={port.clrType}>
                             {port.name}
                             {index === null ? "" : `[${index}]`}
@@ -141,9 +159,23 @@ export interface BackflowEditorProps {
     onChange?: (document: BackflowDocument) => void;
     selectedNodeIds?: readonly string[];
     onSelectionChange?: (ids: string[]) => void;
+    selectedEdgeIds?: readonly string[];
+    onEdgeSelectionChange?: (ids: string[]) => void;
     onInit?: (instance: ReactFlowInstance<BackflowCanvasNode, Edge>) => void;
     renderNode?: CanvasData["renderNode"];
     renderPort?: CanvasData["renderPort"];
+    /** CSS is applied only at the ReactFlow rendering boundary, not to domain values. */
+    portStyle?: CanvasData["portStyle"];
+    edgeStyle?: (
+        edge: BackflowEdge,
+        sourcePort: BackflowPortDescriptor | undefined,
+    ) => CSSProperties | undefined;
+    viewport?: Viewport;
+    defaultViewport?: Viewport;
+    onViewportChange?: (viewport: Viewport) => void;
+    onMoveEnd?: OnMove;
+    /** Defaults to false when viewport/defaultViewport is provided; otherwise true. */
+    fitView?: boolean;
     /** Add indexed handles to the existing connected slots and next available slot. */
     arrayIndices?: (
         nodeId: string,
@@ -157,27 +189,39 @@ export function BackflowEditor({
     document,
     catalog,
     onChange,
-    selectedNodeIds = [],
+    selectedNodeIds,
     onSelectionChange,
+    selectedEdgeIds,
+    onEdgeSelectionChange,
     onInit,
     renderNode,
     renderPort,
+    portStyle,
+    edgeStyle,
+    viewport,
+    defaultViewport,
+    onViewportChange,
+    onMoveEnd,
+    fitView,
     arrayIndices,
     children,
     readOnly = false,
 }: BackflowEditorProps) {
+    const [localNodes, setLocalNodes] = useState<string[]>([]);
+    const [localEdges, setLocalEdges] = useState<string[]>([]);
+    const nodeSelection = selectedNodeIds ?? localNodes;
+    const edgeSelection = selectedEdgeIds ?? localEdges;
     const editable = !readOnly && onChange !== undefined;
     const nodes = useMemo<BackflowCanvasNode[]>(
         () =>
             document.graph.nodes.map((node, order) => {
                 const descriptor = catalog.nodes.find(
                     (entry) => entry.id === node.catalogId,
-                ) ?? {
-                    id: node.catalogId,
-                    ports: [],
-                    isExecutable: false,
-                    configurationSchema: null,
-                };
+                );
+                if (!descriptor)
+                    throw new Error(
+                        `Catalog entry ${node.catalogId} is not published; reload or migrate the document`,
+                    );
                 const slots = descriptor.ports.flatMap((port) => {
                     const result = [{ port, index: null as number | null }];
                     if (
@@ -220,16 +264,23 @@ export function BackflowEditor({
                         x: order * 240,
                         y: 0,
                     },
-                    selected: selectedNodeIds.includes(node.id),
-                    data: { descriptor, slots, renderNode, renderPort },
+                    selected: nodeSelection.includes(node.id),
+                    data: {
+                        descriptor,
+                        slots,
+                        renderNode,
+                        renderPort,
+                        portStyle,
+                    },
                 };
             }),
         [
             document,
             catalog,
-            selectedNodeIds,
+            nodeSelection,
             renderNode,
             renderPort,
+            portStyle,
             arrayIndices,
         ],
     );
@@ -237,6 +288,17 @@ export function BackflowEditor({
         () =>
             document.graph.edges.map((edge) => ({
                 id: edgeId(edge),
+                selected: edgeSelection.includes(edgeId(edge)),
+                style: edgeStyle?.(
+                    edge,
+                    portDescriptor(
+                        document,
+                        catalog,
+                        edge.sourceNodeId,
+                        edge.sourcePort,
+                        BackflowPortDirection.Output,
+                    ),
+                ),
                 source: edge.sourceNodeId,
                 sourceHandle: handleId(
                     edge.sourcePort,
@@ -250,7 +312,7 @@ export function BackflowEditor({
                     BackflowPortDirection.Input,
                 ),
             })),
-        [document.graph.edges],
+        [document, catalog, edgeSelection, edgeStyle],
     );
     return (
         <ReactFlow<BackflowCanvasNode, Edge>
@@ -258,12 +320,32 @@ export function BackflowEditor({
             edges={edges}
             nodeTypes={nodeTypes}
             onInit={onInit}
-            fitView
+            viewport={viewport}
+            defaultViewport={defaultViewport}
+            onViewportChange={onViewportChange}
+            onMoveEnd={onMoveEnd}
+            fitView={
+                fitView ??
+                (viewport === undefined && defaultViewport === undefined)
+            }
             nodesDraggable={editable}
             nodesConnectable={editable}
             edgesReconnectable={false}
             deleteKeyCode={editable ? ["Backspace", "Delete"] : null}
             onNodesChange={(changes) => {
+                const selection = changes.filter(
+                    (change) => change.type === "select",
+                );
+                if (selection.length) {
+                    const ids = new Set(nodeSelection);
+                    for (const change of selection) {
+                        if (change.selected) ids.add(change.id);
+                        else ids.delete(change.id);
+                    }
+                    const next = [...ids];
+                    if (selectedNodeIds === undefined) setLocalNodes(next);
+                    onSelectionChange?.(next);
+                }
                 if (!editable) return;
                 let next = document;
                 for (const change of changes) {
@@ -278,7 +360,20 @@ export function BackflowEditor({
                 }
                 if (next !== document) onChange?.(next);
             }}
-            onEdgesChange={() => {}}
+            onEdgesChange={(changes) => {
+                const selection = changes.filter(
+                    (change) => change.type === "select",
+                );
+                if (!selection.length) return;
+                const ids = new Set(edgeSelection);
+                for (const change of selection) {
+                    if (change.selected) ids.add(change.id);
+                    else ids.delete(change.id);
+                }
+                const next = [...ids];
+                if (selectedEdgeIds === undefined) setLocalEdges(next);
+                onEdgeSelectionChange?.(next);
+            }}
             onDelete={({ nodes: removedNodes, edges: removedEdges }) => {
                 if (!editable) return;
                 const next = removedNodes.reduce(
@@ -296,9 +391,6 @@ export function BackflowEditor({
                     },
                 });
             }}
-            onSelectionChange={({ nodes: selected }) =>
-                onSelectionChange?.(selected.map((node) => node.id))
-            }
             isValidConnection={(connection) => {
                 const edge = toEdge(connection);
                 return (

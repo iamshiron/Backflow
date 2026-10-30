@@ -62,6 +62,20 @@ const edge = (
     destinationIndex,
 });
 describe("controlled document operations", () => {
+    it("rejects non-finite coordinates and literal numbers instead of silently converting to null", () => {
+        expect(() =>
+            serializeDocument({
+                ...draft(),
+                positions: { a: { x: Infinity, y: 0 } },
+            }),
+        ).toThrow();
+        expect(() =>
+            serializeDocument({
+                ...draft(),
+                inputs: [{ nodeId: "a", portName: "in", value: NaN }],
+            }),
+        ).toThrow();
+    });
     it("preserves document, positions, literals and configuration across load/save", () => {
         const doc = {
             ...setLiteral(draft(), catalog, {

@@ -4,6 +4,7 @@ import type { BackflowDocument } from "./document.js";
 
 const validate = new Ajv({
     strict: false,
+    strictNumbers: true,
     allowUnionTypes: true,
 }).compile<BackflowDocument>({
     type: "object",
@@ -33,5 +34,11 @@ export function parseDocument(json: string): BackflowDocument {
 export function serializeDocument(document: BackflowDocument): string {
     if (!validate(document))
         throw new Error("Invalid Backflow editor document");
-    return JSON.stringify(document);
+    return JSON.stringify(document, (_key: string, value: unknown) => {
+        if (typeof value === "number" && !Number.isFinite(value))
+            throw new Error(
+                "Editor documents cannot contain non-finite JSON numbers",
+            );
+        return value;
+    });
 }

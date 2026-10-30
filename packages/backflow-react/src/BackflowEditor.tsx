@@ -27,6 +27,7 @@ import {
     type BackflowDocument,
     portDescriptor,
 } from "./document.js";
+import { useNodeMeasurements } from "./useNodeMeasurements.js";
 
 export interface BackflowNodeContext {
     id: string;
@@ -212,6 +213,11 @@ export function BackflowEditor({
     const nodeSelection = selectedNodeIds ?? localNodes;
     const edgeSelection = selectedEdgeIds ?? localEdges;
     const editable = !readOnly && onChange !== undefined;
+    const nodeIds = useMemo(
+        () => document.graph.nodes.map((node) => node.id),
+        [document.graph.nodes],
+    );
+    const { measurements, onDimensionsChange } = useNodeMeasurements(nodeIds);
     const nodes = useMemo<BackflowCanvasNode[]>(
         () =>
             document.graph.nodes.map((node, order) => {
@@ -259,6 +265,7 @@ export function BackflowEditor({
                 });
                 return {
                     id: node.id,
+                    measured: measurements.get(node.id),
                     type: "backflow",
                     position: document.positions[node.id] ?? {
                         x: order * 240,
@@ -282,6 +289,7 @@ export function BackflowEditor({
             renderPort,
             portStyle,
             arrayIndices,
+            measurements,
         ],
     );
     const edges = useMemo<Edge[]>(
@@ -333,6 +341,9 @@ export function BackflowEditor({
             edgesReconnectable={false}
             deleteKeyCode={editable ? ["Backspace", "Delete"] : null}
             onNodesChange={(changes) => {
+                onDimensionsChange(
+                    changes.filter((change) => change.type === "dimensions"),
+                );
                 const selection = changes.filter(
                     (change) => change.type === "select",
                 );

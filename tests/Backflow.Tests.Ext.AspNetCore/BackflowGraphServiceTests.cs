@@ -154,6 +154,20 @@ public sealed class BackflowGraphServiceTests {
     }
 
     [Fact]
+    public void TryPrepareExecution_UndefinedLiteral_ReturnsTypedErrorWithoutContext() {
+        using var services = CreateServices();
+        var graphs = services.GetRequiredService<BackflowGraphService>();
+        var submission = new BackflowExecutionSubmission(new([new("one", "number")], []),
+            [new("one", "in", default)]);
+        Assert.False(graphs.TryPrepareExecution(submission, out var request, out var validation));
+        Assert.Null(request);
+        Assert.False(validation.IsValid);
+        var error = Assert.Single(validation.Errors);
+        Assert.Equal(BackflowErrorCode.InvalidInput, error.Code);
+        Assert.Equal("one", error.NodeId);
+    }
+
+    [Fact]
     public void Validate_CanceledRequest_ObservesCancellation() {
         using var services = CreateServices();
         var graphs = services.GetRequiredService<BackflowGraphService>();

@@ -180,6 +180,8 @@ public sealed class BackflowGraphService {
             var port = instance.Node.Inputs.FirstOrDefault(port => port.Name == input.PortName);
             if (port is null || connected.Contains((input.NodeId, input.PortName)) || !supplied.Add((input.NodeId, input.PortName)))
                 return new(BackflowErrorCode.InvalidInput, "Literals must target unique, unconnected input ports.", input.NodeId);
+            if (input.Value.ValueKind == JsonValueKind.Undefined)
+                return new(BackflowErrorCode.InvalidInput, "A literal value is required.", input.NodeId);
             try {
                 var value = input.Value.Deserialize(port.PortType, _options.ValueSerializerOptions);
                 if (value is Array array && array.Length > _options.MaximumArrayLength)

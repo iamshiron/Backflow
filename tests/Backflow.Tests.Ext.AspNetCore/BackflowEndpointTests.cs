@@ -12,6 +12,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shiron.Backflow.Ext.AspNetCore;
+using Shiron.Backflow.Context;
+using Shiron.Backflow.Node;
+using Shiron.Backflow.Port;
+using Shiron.Backflow.Port.Validator;
 using Xunit;
 
 namespace Shiron.Backflow.Tests.Ext.AspNetCore;
@@ -93,6 +97,41 @@ public sealed class BackflowEndpointTests {
     }
 
     [Fact]
+    public async Task MapBackflow_MissingLiteralValue_ReturnsTypedBadRequestWithoutScheduling() {
+        var scheduler = new RecordingScheduler();
+        await using var app = await StartAsync(options => {
+            options.AllowAnonymous = true;
+            options.EnableExecution = true;
+        }, scheduler, catalog => catalog.Add<InputNode>("number"));
+        using var client = app.GetTestClient();
+        const string json = """
+            {"graph":{"nodes":[{"id":"one","catalogId":"number"}],"edges":[]},
+             "inputs":[{"nodeId":"one","portName":"in"}]}
+            """;
+        var response = await client.PostAsync("/api/graph/executions", new StringContent(json, Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var validation = await response.Content.ReadFromJsonAsync<BackflowValidationResult>();
+        Assert.False(validation!.IsValid);
+        Assert.Equal(BackflowErrorCode.InvalidRequest, Assert.Single(validation.Errors).Code);
+        Assert.Equal(0, scheduler.Calls);
+        Assert.Null(scheduler.Request);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"nodes\":[]}")]
+    [InlineData("{\"edges\":[]}")]
+    [InlineData("{\"nodes\":[{\"id\":\"one\"}],\"edges\":[]}")]
+    public async Task MapBackflow_MissingConstructorFields_ReturnsTypedBadRequest(string json) {
+        await using var app = await StartAsync(options => options.AllowAnonymous = true);
+        using var client = app.GetTestClient();
+        var response = await client.PostAsync("/api/graph/validate", new StringContent(json, Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var validation = await response.Content.ReadFromJsonAsync<BackflowValidationResult>();
+        Assert.Equal(BackflowErrorCode.InvalidRequest, Assert.Single(validation!.Errors).Code);
+    }
+
+    [Fact]
     public async Task MapBackflow_DeclarationOnlyCatalog_CreatesButCannotSchedule() {
         var scheduler = new RecordingScheduler();
         await using var app = await StartAsync(options => {
@@ -162,4 +201,9 @@ public sealed class BackflowEndpointTests {
     }
 
     private sealed record Configuration(int Value);
+
+    private sealed class InputNode : AbstractNode {
+        public InputNode() => Input(new InputPort<int>("in", 0, new PassAllPortValidator<int>()));
+        protected override ValueTask<bool> ExecuteNodeAsync(INodeContext context) => ValueTask.FromResult(true);
+    }
 }

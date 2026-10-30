@@ -76,7 +76,10 @@ public static class BackflowEndpointRouteBuilderExtensions {
                 await body.WriteAsync(buffer.AsMemory(0, count), http.RequestAborted);
             }
             body.Position = 0;
-            var serializer = new JsonSerializerOptions(JsonSerializerDefaults.Web) { MaxDepth = options.MaximumJsonDepth };
+            var serializer = new JsonSerializerOptions(JsonSerializerDefaults.Web) {
+                MaxDepth = options.MaximumJsonDepth,
+                RespectRequiredConstructorParameters = true
+            };
             try {
                 var value = await JsonSerializer.DeserializeAsync<T>(body, serializer, http.RequestAborted);
                 return value is null

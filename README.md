@@ -1,6 +1,6 @@
 # Shiron.Backflow
 
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
 [![CI](https://github.com/iamshiron/Backflow/actions/workflows/ci.yml/badge.svg)](https://github.com/iamshiron/Backflow/actions/workflows/ci.yml)
 [![Code Quality](https://github.com/iamshiron/Backflow/actions/workflows/code-quality.yml/badge.svg)](https://github.com/iamshiron/Backflow/actions/workflows/code-quality.yml)
 
@@ -109,4 +109,16 @@ git submodule update --init --recursive
 
 ## License
 
-GNU Affero General Public License v3.0 (AGPL-3.0)
+Copyright (C) 2026 Shiron.
+
+Project-owned Backflow code and documentation are licensed under the GNU Affero
+General Public License version 3 only (`AGPL-3.0-only`); see [LICENSE](LICENSE).
+This includes the runtime, extensions and project-owned React/client ecosystem,
+not a small-utility MIT exception. No later-version grant is made. The program is
+provided without warranty. NuGet packages declare the SPDX license expression and
+include the full license text.
+
+Dependencies and `external/lib` retain their own licenses and notices; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Distributions and modified network
+deployments must meet the applicable source and notice obligations, including
+AGPL section 13; package metadata does not itself provide a deployment's source offer.

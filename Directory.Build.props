@@ -4,6 +4,7 @@
     <_BackflowVersionedProject>$([System.Text.RegularExpressions.Regex]::IsMatch('$(_BackflowRelativeProjectPath)', '^src[/\\]'))</_BackflowVersionedProject>
   </PropertyGroup>
   <PropertyGroup Condition="'$(_BackflowVersionedProject)' == 'true'">
+    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
     <GitVersionPath>$(MSBuildThisFileDirectory)</GitVersionPath>
     <GitVersion_CommandLineArguments>-config &quot;$(MSBuildThisFileDirectory)GitVersion.yml&quot;</GitVersion_CommandLineArguments>
     <GitVersion_NoCacheEnabled>true</GitVersion_NoCacheEnabled>
@@ -11,6 +12,7 @@
     <GitVersion_NoFetchEnabled>true</GitVersion_NoFetchEnabled>
   </PropertyGroup>
   <ItemGroup Condition="'$(_BackflowVersionedProject)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="" />
     <PackageReference Include="GitVersion.MsBuild" PrivateAssets="all" />
   </ItemGroup>
 </Project>

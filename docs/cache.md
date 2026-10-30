@@ -57,6 +57,17 @@ before constructing a cache/factory, never concurrently with registration.
   persisted metadata. File-size eviction may discard an entry larger than the whole
   configured store. Existing oversized stores are rejected rather than read unboundedly.
   Expiration/cleanup runs on access/flush, not on an implicit background timer.
+  Entry values stream directly into a bounded UTF-8 destination: there is no
+  intermediate port-value JSON DOM or unbounded payload string. The smaller of the
+  entry and pending budgets is enforced during emission. Rejected writes leave both
+  prior entries and the trusted-type registry unchanged. Store rewrites likewise
+  serialize into a bounded destination and evict/retry on budget exhaustion.
+  Writer scratch reservations are capped at six times the byte budget plus 4096
+  bytes for conservative UTF-8 token/growth requests; committed payloads cannot exceed
+  the budget. Default string and raw-JSON converters reject oversized scalar inputs
+  before framework escaping/unescaping allocations (raw JSON must fit before whitespace
+  normalization). Application converters/getters remain trusted code: allocations
+  they perform themselves cannot be sandboxed by an output-buffer limit.
 * Locking covers each committed read/modify/write operation across instances and
   processes. Lock files remain in place: deleting them could create two independent
   lock identities. Timeout raises an I/O error; it does not return a fake cache miss.

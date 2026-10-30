@@ -4,15 +4,15 @@ on:
   push:
     branches:
     - main
-    - '!feature/*'
-    - '!dev'
-    - '!internal/*'
+    - dev
+    - 'feat/**'
+    - 'feature/**'
+    - 'fix/**'
+    - 'build/**'
   pull_request:
     branches:
     - main
-    - '!feature/*'
-    - '!dev'
-    - '!internal/*'
+    - dev
 
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
@@ -27,6 +27,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: true
+        fetch-depth: 0
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -54,6 +55,11 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
+    - name: Verify version policy and checkout topologies
+      run: |
+        dotnet tool restore
+        dotnet test tests/Versioning/Backflow.Versioning.Tests.csproj --configuration Release --verbosity minimal
+
     - name: Build
       run: dotnet build --no-restore --configuration Release
 
@@ -73,6 +79,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: true
+        fetch-depth: 0
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4

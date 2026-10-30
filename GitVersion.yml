@@ -1,0 +1,34 @@
+workflow: GitHubFlow/v1
+mode: ContinuousDelivery
+increment: Patch
+tag-prefix: '[vV]?'
+commit-message-incrementing: Enabled
+major-version-bump-message: '(?m)^[a-z]+(?:\([^\r\n)]+\))?!:|^BREAKING[ -]CHANGE:|\+semver:\s?(breaking|major)'
+minor-version-bump-message: '(?m)^feat(?:\([^\r\n)]+\))?:|\+semver:\s?(feature|minor)'
+patch-version-bump-message: '(?m)^fix(?:\([^\r\n)]+\))?:|\+semver:\s?(fix|patch)'
+update-build-number: false
+branches:
+  main:
+    regex: '^main$'
+    label: ci
+  develop:
+    regex: '^dev$'
+    label: dev
+    increment: Patch
+    source-branches: [main]
+    prevent-increment:
+      when-current-commit-tagged: false
+  feature:
+    regex: '^(?<BranchName>(?:feat|feature|fix|build|chore|refactor|test|docs|perf)[/-].+)$'
+    mode: ContinuousDelivery
+    label: '{BranchName}'
+    increment: Inherit
+    source-branches: [main, develop, release]
+    prevent-increment:
+      when-current-commit-tagged: false
+  unknown:
+    mode: ContinuousDelivery
+    label: '{BranchName}'
+    source-branches: [main, develop, feature, release, pull-request]
+    prevent-increment:
+      when-current-commit-tagged: false

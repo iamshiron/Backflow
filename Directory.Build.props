@@ -1,5 +1,9 @@
 <Project>
   <PropertyGroup>
+    <_BackflowConsumerPropertiesPath>$([MSBuild]::GetPathOfFileAbove('Backflow.Collections.props', '$(MSBuildThisFileDirectory)..'))</_BackflowConsumerPropertiesPath>
+  </PropertyGroup>
+  <Import Project="$(_BackflowConsumerPropertiesPath)" Condition="'$(_BackflowConsumerPropertiesPath)' != ''" />
+  <PropertyGroup>
     <_BackflowRelativeProjectPath>$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)', '$(MSBuildProjectFullPath)'))</_BackflowRelativeProjectPath>
     <_BackflowVersionedProject>$([System.Text.RegularExpressions.Regex]::IsMatch('$(_BackflowRelativeProjectPath)', '^src[/\\]'))</_BackflowVersionedProject>
   </PropertyGroup>
